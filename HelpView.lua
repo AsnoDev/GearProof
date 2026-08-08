@@ -109,7 +109,7 @@ function HelpView.Create(parent)
     view.credits = view:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     view.credits:SetPoint("BOTTOMLEFT", 2, 2)
     view.credits:SetJustifyH("LEFT")
-    ns.Localize(view.credits, "Reference measured outside the game by the specanalyser Python tool, from Warcraft Logs")
+    ns.Localize(view.credits, "Reference measured from Warcraft Logs rankings, outside the game, and shipped with the addon")
 
     return view
 end
@@ -161,17 +161,25 @@ function HelpView.Refresh()
     -- Colonne 2.
     cards.howto:ClearAllPoints()
     cards.howto:SetPoint("TOPLEFT", cards.welcome, "TOPRIGHT", COLUMN_GAP, 0)
+    -- Cette carte disait au joueur de lancer `specanalyser wcl meta --to-addon`.
+    -- Personne sur CurseForge n'a cet outil : la proposition de valeur entiere etait
+    -- inaccessible a 100 % du public vise. Le releve est LIVRE avec l'addon, date, et
+    -- la carte decrit ce qui est reellement installe.
+    local stamp = ns.Meta.Stamp() or {}
+    local age = ns.Meta.AgeInDays()
+    local freshness = age
+        and string.format(L["Measured %d day(s) ago. A new one ships with each release."], age)
+        or L["A new one ships with each release."]
+
     fill(cards.howto, columnWidth, table.concat({
-        hex(COLORS.accent) .. L["The measured reference, on your PC:"] .. "|r",
-        "|cff8b6bffspecanalyser wcl meta --zone <id> --all --to-addon|r",
+        hex(COLORS.accent) .. L["What ships with the addon"] .. "|r",
+        string.format(L["The measured reference for %d specialisations."], stamp.specs or 0),
+        freshness,
         "",
-        hex(COLORS.accent) .. L["Your simulated upgrades, from a droptimizer:"] .. "|r",
-        "|cff8b6bffspecanalyser raidbots <report link> --to-addon|r",
+        hex(COLORS.accent) .. L["What you add yourself"] .. "|r",
+        L["Your own droptimizer, from raidbots.com. Copy your SimulationCraft string in the Equipment tab, run it, paste the report link back."],
         "",
-        hex(COLORS.accent) .. L["Then, in game:"] .. "|r",
-        "|cff8b6bff/reload|r",
-        "",
-        L["A generated data file is only read when the interface loads. Without a reload, the new numbers stay invisible."],
+        L["That is the only step that needs you. Without it the audit still works — it simply refuses to put a number on what it cannot measure."],
     }, "\n"))
 
     cards.score:ClearAllPoints()
@@ -201,7 +209,7 @@ function HelpView.Refresh()
         L["A trinket is worth its proc, not its stat points. It stays unrated until one of your droptimizers covers it."],
         "",
         hex(COLORS.accent) .. L["No reference for my spec?"] .. "|r",
-        L["That spec has not been swept yet. Run the command above with --all."],
+        L["That spec was not in the last sweep. It will be in a future release — the audit still checks what it can read on your gear."],
     }, "\n"))
 
     local support = cards.support

@@ -148,7 +148,7 @@ function Options.Create()
     reference:SetWidth(520)
     reference:SetJustifyH("LEFT")
     ns.Localize(reference,
-        "Reference measured outside the game by the specanalyser Python tool, from Warcraft Logs")
+        "Reference measured from Warcraft Logs rankings, outside the game, and shipped with the addon")
 
     -- Deux API coexistent selon la version du client : la moderne d'abord, l'ancienne en
     -- repli. Le tout sous pcall — un panneau d'options absent ne doit pas empecher

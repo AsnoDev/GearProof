@@ -223,8 +223,17 @@ par un champ de saisie déjà sélectionné : `Ctrl+A` puis `Ctrl+C`.
 
 ## Garder la référence à jour
 
-Le relevé est livré avec l'addon et daté. Pour le régénérer toi-même, avec l'outil
-Python `specanalyser` :
+**Rien à faire.** Le relevé est livré avec l'addon et daté : chaque version apporte un
+relevé neuf. L'onglet Aide affiche l'âge de celui qui est installé, et l'entête passe
+l'information en orange au-delà de deux semaines.
+
+La seule étape qui te demande quelque chose est le droptimizer, et elle est facultative :
+sans lui, l'audit fonctionne — il refuse simplement de chiffrer ce qu'il ne peut pas
+mesurer.
+
+### Régénérer soi-même (facultatif)
+
+Avec l'outil Python `specanalyser`, qui n'est pas nécessaire pour utiliser l'addon :
 
 ```bash
 specanalyser wcl meta --zone <id> --all --to-addon      # le relevé du haut de tableau

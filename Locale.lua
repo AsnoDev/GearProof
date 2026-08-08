@@ -182,6 +182,17 @@ translations.fr = {
     -- Onglet Aide, reecrit sur l'outil reel (audit d'equipement, plus d'analyse de jeu).
     ["Where the reference comes from"] = "D'ou vient la reference",
     ["Keeping the reference fresh"] = "Garder la reference a jour",
+    ["What ships with the addon"] = "Ce qui est livre avec l'addon",
+    ["The measured reference for %d specialisations."] =
+        "La reference mesuree pour %d specialisations.",
+    ["Measured %d day(s) ago. A new one ships with each release."] =
+        "Mesuree il y a %d jour(s). Une nouvelle arrive a chaque version.",
+    ["A new one ships with each release."] = "Une nouvelle arrive a chaque version.",
+    ["What you add yourself"] = "Ce que tu ajoutes toi-meme",
+    ["Your own droptimizer, from raidbots.com. Copy your SimulationCraft string in the Equipment tab, run it, paste the report link back."] =
+        "Ton propre droptimizer, depuis raidbots.com. Copie ta chaine SimulationCraft dans l'onglet Equipement, lance-le, recolle le lien du rapport.",
+    ["That is the only step that needs you. Without it the audit still works — it simply refuses to put a number on what it cannot measure."] =
+        "C'est la seule etape qui demande quelque chose. Sans elle l'audit fonctionne quand meme — il refuse simplement de chiffrer ce qu'il ne peut pas mesurer.",
     ["Reading the equipment tab"] = "Lire l'onglet Equipement",
     ["GearProof audits your gear against what the best players of your spec actually wear."] =
         "GearProof confronte ton equipement a ce que portent reellement les meilleurs joueurs de ta specialisation.",
@@ -216,10 +227,10 @@ translations.fr = {
     ["A trinket is worth its proc, not its stat points. It stays unrated until one of your droptimizers covers it."] =
         "Un bijou vaut par son proc, pas par ses points de statistique. Il reste non chiffre jusqu'a ce qu'un de tes droptimizers le couvre.",
     ["No reference for my spec?"] = "Pas de reference pour ma specialisation ?",
-    ["That spec has not been swept yet. Run the command above with --all."] =
-        "Cette specialisation n'a pas encore ete relevee. Relance la commande ci-dessus avec --all.",
-    ["Reference measured outside the game by the specanalyser Python tool, from Warcraft Logs"] =
-        "Reference mesuree hors du jeu par l'outil Python specanalyser, depuis Warcraft Logs",
+    ["That spec was not in the last sweep. It will be in a future release — the audit still checks what it can read on your gear."] =
+        "Cette specialisation n'etait pas dans le dernier releve. Elle le sera dans une prochaine version — l'audit verifie quand meme tout ce qu'il lit sur ton equipement.",
+    ["Reference measured from Warcraft Logs rankings, outside the game, and shipped with the addon"] =
+        "Reference mesuree sur les classements Warcraft Logs, hors du jeu, et livree avec l'addon",
     ["Preview: %s"] = "Apercu : %s",
     ["your spec"] = "ta specialisation",
     ["Preview another spec"] = "Apercu d'une autre specialisation",
