@@ -1,0 +1,34 @@
+## Interface: 120007
+## Title: SpecAnalyser
+## Notes: Gear audit against the measured top-ranking meta, bag comparison and guild roll call.
+## Author: Edouard
+## Version: 0.4.0
+## SavedVariables: SpecAnalyserDB
+## Category: Combat
+## IconTexture: Interface\Icons\INV_Misc_Book_09
+
+Core.lua
+Locale.lua
+Theme.lua
+Copy.lua
+Data\Meta.lua
+Data\Sim.lua
+Spec.lua
+Meta.lua
+Sim.lua
+Recommendations.lua
+Weights.lua
+Gear.lua
+Bags.lua
+SimC.lua
+Guild.lua
+Armory.lua
+Gauge.lua
+GearView.lua
+RaidView.lua
+GuildView.lua
+HelpView.lua
+UI.lua
+Minimap.lua
+Tooltip.lua
+Alerts.lua

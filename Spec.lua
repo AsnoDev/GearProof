@@ -1,0 +1,196 @@
+local _, ns = ...
+
+local Spec = {}
+ns.Spec = Spec
+
+-- Specialisations de la classe jouee. L'audit s'appuie sur un releve par spe : il faut donc
+-- savoir laquelle regarder, et pouvoir en regarder une autre sans changer de spe en jeu.
+--
+-- Les trois familles Get*Info* DIVERGENT a partir de la position 6. On ecrit chaque position
+-- en clair plutot que de reutiliser un motif d'un appel a l'autre :
+--   GetSpecializationInfoForClassID    -> id, name, desc, icon, role, recommended, ...
+--   GetSpecializationInfoByID          -> id, name, desc, icon, role, classFile, className
+--   C_SpecializationInfo.GetSpecializationInfo -> specID, name, desc, icon, role, primaryStat
+local SpecInfo = C_SpecializationInfo
+
+local cache
+
+local function getSpecIndex()
+    -- Le global GetSpecialization est deprecie depuis 11.2.0 : le namespace d'abord.
+    local getter = (SpecInfo and SpecInfo.GetSpecialization) or GetSpecialization
+    if not getter then return nil end
+    local ok, index = pcall(getter)
+    return ok and index or nil
+end
+
+local function numSpecs(classID)
+    local getter = (SpecInfo and SpecInfo.GetNumSpecializationsForClassID)
+        or GetNumSpecializationsForClassID
+    if not getter or not classID then return 0 end
+    local ok, count = pcall(getter, classID)
+    return (ok and count) or 0
+end
+
+--- Reconstruit la liste des specialisations de la classe jouee.
+local function build()
+    -- UnitClass : 1 = nom traduit, 2 = jeton majuscule, 3 = identifiant numerique.
+    local className, classFile, classID = UnitClass("player")
+    if not classID then return nil end
+
+    local list = {}
+    for index = 1, numSpecs(classID) do
+        if type(GetSpecializationInfoForClassID) == "function" then
+            local results = { pcall(GetSpecializationInfoForClassID, classID, index) }
+            -- results[1] est le booleen de pcall : les valeurs commencent a 2.
+            local id, name, _, icon, role = results[2], results[3], results[4], results[5], results[6]
+            if results[1] and id then
+                table.insert(list, { id = id, index = index, name = name, icon = icon, role = role })
+            end
+        end
+    end
+
+    local activeIndex = getSpecIndex()
+    local active
+    for _, entry in ipairs(list) do
+        if entry.index == activeIndex then active = entry.id end
+    end
+
+    return {
+        classID = classID,
+        classFile = classFile,
+        className = className,
+        list = list,
+        active = active,
+        activeIndex = activeIndex,
+    }
+end
+
+--- Etat courant, reconstruit a la demande.
+function Spec.Info()
+    if cache then return cache end
+    -- Les donnees de specialisation ne sont pas toujours pretes juste apres la connexion.
+    if SpecInfo and SpecInfo.IsInitialized then
+        local ok, ready = pcall(SpecInfo.IsInitialized)
+        if ok and ready == false then return nil end
+    end
+    cache = build()
+    return cache
+end
+
+function Spec.Invalidate()
+    cache = nil
+end
+
+--- Specialisations de la classe jouee.
+function Spec.List()
+    local info = Spec.Info()
+    return (info and info.list) or {}
+end
+
+--- Identifiant de la specialisation reellement active.
+function Spec.Active()
+    local info = Spec.Info()
+    return info and info.active or nil
+end
+
+function Spec.ClassID()
+    local info = Spec.Info()
+    return info and info.classID or nil
+end
+
+-- Jeton de classe du client -> slug Warcraft Logs. Le jeton ne depend pas de la langue,
+-- c'est pour ca qu'on part de lui et non du nom affiche.
+local CLASS_SLUGS = {
+    DEATHKNIGHT = "DeathKnight",
+    DEMONHUNTER = "DemonHunter",
+    DRUID = "Druid",
+    EVOKER = "Evoker",
+    HUNTER = "Hunter",
+    MAGE = "Mage",
+    MONK = "Monk",
+    PALADIN = "Paladin",
+    PRIEST = "Priest",
+    ROGUE = "Rogue",
+    SHAMAN = "Shaman",
+    WARLOCK = "Warlock",
+    WARRIOR = "Warrior",
+}
+
+--- Slug de classe tel que Warcraft Logs l'ecrit.
+function Spec.ClassSlug()
+    local info = Spec.Info()
+    return info and CLASS_SLUGS[info.classFile or ""] or nil
+end
+
+--- Specialisation regardee : celle choisie, sinon l'active.
+function Spec.Selected()
+    local chosen = ns.db and ns.db.viewSpec
+    if chosen then
+        for _, entry in ipairs(Spec.List()) do
+            if entry.id == chosen then return chosen end
+        end
+        -- Choix devenu invalide (changement de personnage) : on l'oublie.
+        ns.db.viewSpec = nil
+    end
+    return Spec.Active()
+end
+
+--- Regarde-t-on autre chose que sa propre specialisation ?
+function Spec.IsPreview()
+    local selected = Spec.Selected()
+    return selected ~= nil and selected ~= Spec.Active()
+end
+
+--- Choisit la specialisation a regarder. `nil` revient a l'active.
+function Spec.Select(specID)
+    if not ns.db then return false end
+    if specID == nil or specID == Spec.Active() then
+        ns.db.viewSpec = nil
+        return true
+    end
+    for _, entry in ipairs(Spec.List()) do
+        if entry.id == specID then
+            ns.db.viewSpec = specID
+            return true
+        end
+    end
+    return false
+end
+
+--- Nom d'une specialisation, la regardee par defaut.
+function Spec.Name(specID)
+    specID = specID or Spec.Selected()
+    for _, entry in ipairs(Spec.List()) do
+        if entry.id == specID then return entry.name end
+    end
+    if specID and type(GetSpecializationInfoByID) == "function" then
+        -- GetSpecializationInfoByID : id, name, desc, icon, role, classFile, className.
+        local results = { pcall(GetSpecializationInfoByID, specID) }
+        if results[1] then return results[3] end
+    end
+    return nil
+end
+
+--- Enregistre la table des specialisations dans les SavedVariables.
+---
+--- L'outil Python en a besoin : Warcraft Logs designe une spe par un slug (« Devourer »),
+--- l'addon par un identifiant Blizzard, et aucune table publique ne relie les deux pour une
+--- spe introduite par l'extension en cours. Le jeu, lui, connait les deux. On les depose
+--- donc ici et le Python les relit avec son parseur de SavedVariables.
+function Spec.Register()
+    local info = Spec.Info()
+    if not info or not ns.db then return end
+
+    local list = {}
+    for _, entry in ipairs(info.list) do
+        table.insert(list, { id = entry.id, index = entry.index, name = entry.name })
+    end
+
+    ns.db.specs = {
+        classID = info.classID,
+        classFile = info.classFile,
+        className = info.className,
+        active = info.active,
+        list = list,
+    }
+end

@@ -1,0 +1,486 @@
+local _, ns = ...
+
+local SimC = {}
+ns.SimC = SimC
+
+-- Export au format SimulationCraft, construit a partir des chaines d'objets.
+--
+-- Le format est calque sur celui de l'addon officiel, verifie ligne par ligne sur un
+-- export reel : entete en commentaires, bloc personnage, une ligne par emplacement
+-- precedee du nom et de l'ilvl, puis `### Gear from Bags`.
+--
+-- Ce qui n'est PAS exporte : le bloc `### Additional Character Info` (monnaies de
+-- surclassement, `slot_high_watermarks`, hauts faits). Il ne sert qu'a l'Upgrade Finder
+-- de Raidbots ; le droptimizer et une simulation simple n'en ont pas besoin.
+
+local REGIONS = { [1] = "us", [2] = "kr", [3] = "eu", [4] = "tw", [5] = "cn" }
+
+-- Lignes de metier -> jetons SimulationCraft. On passe par l'identifiant et non par le
+-- nom affiche : le nom est traduit, l'identifiant non.
+local PROFESSIONS = {
+    [171] = "alchemy",
+    [164] = "blacksmithing",
+    [333] = "enchanting",
+    [202] = "engineering",
+    [182] = "herbalism",
+    [773] = "inscription",
+    [755] = "jewelcrafting",
+    [165] = "leatherworking",
+    [186] = "mining",
+    [393] = "skinning",
+    [197] = "tailoring",
+}
+
+local STAT_INTELLECT = LE_UNIT_STAT_INTELLECT or 4
+
+--- "NightElf" -> "night_elf", "BloodElf" -> "blood_elf"
+local function toToken(text)
+    if not text or text == "" then return "unknown" end
+    local spaced = text:gsub("(%l)(%u)", "%1_%2")
+    return spaced:lower():gsub("[^%w_]", "")
+end
+
+--- Specialisation active.
+--- @return string|nil nom, string|nil role Blizzard, number|nil statistique principale
+local function specInfo()
+    local getSpec = (C_SpecializationInfo and C_SpecializationInfo.GetSpecialization) or GetSpecialization
+    local getInfo = (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo) or GetSpecializationInfo
+    if not getSpec or not getInfo then return nil end
+    local ok, index = pcall(getSpec)
+    if not ok or not index then return nil end
+
+    -- GetSpecializationInfo : id, nom, description, icone, role, statistique principale.
+    local results = { pcall(getInfo, index) }
+    if not results[1] then return nil end
+    return results[1 + 2], results[1 + 5], results[1 + 6]
+end
+
+--- Jeton `role=` de SimulationCraft, deduit et non code en dur.
+--- Devourer est une spe d'Intelligence : la regle rend bien `spell`, sans cas particulier.
+local function roleToken(role, primaryStat)
+    if role == "TANK" then return "tank" end
+    if primaryStat == STAT_INTELLECT then return "spell" end
+    return "attack"
+end
+
+--- "alchemy=66/enchanting=28", ou nil si le personnage n'a pas de metier principal.
+local function professionLine()
+    if type(GetProfessions) ~= "function" or type(GetProfessionInfo) ~= "function" then
+        return nil
+    end
+    local ok, first, second = pcall(GetProfessions)
+    if not ok then return nil end
+
+    local parts = {}
+    for _, index in ipairs({ first or false, second or false }) do
+        if index then
+            -- GetProfessionInfo : nom, texture, rang, rang max, sorts, offset, ligne.
+            local fine = { pcall(GetProfessionInfo, index) }
+            local rank, skillLine = fine[1 + 3], fine[1 + 7]
+            local token = PROFESSIONS[skillLine or 0]
+            if fine[1] and token and rank then
+                table.insert(parts, string.format("%s=%d", token, rank))
+            end
+        end
+    end
+
+    if #parts == 0 then return nil end
+    return table.concat(parts, "/")
+end
+
+--- Chaine de talents.
+---
+--- Sans elle, SimulationCraft simule un personnage SANS TALENTS : il n'a pas de liste de
+--- priorites et se contente d'attaquer. C'est ce qui a produit 8 186 DPS au lieu de 68 984 —
+--- un facteur huit, avec un equipement pourtant correctement lu. Un export sans talents ne
+--- doit donc jamais partir silencieusement.
+---
+--- `C_ClassTalents` a change de nom plusieurs fois : on essaie chaque voie connue plutot que
+--- de dependre d'une seule.
+local function talentString()
+    if not C_Traits then return nil end
+
+    local configID
+    for _, getter in ipairs({
+        C_ClassTalents and C_ClassTalents.GetActiveConfigID,
+        C_Traits.GetActiveConfigID,
+        C_SpecializationInfo and C_SpecializationInfo.GetActiveConfigID,
+    }) do
+        if type(getter) == "function" then
+            local ok, value = pcall(getter)
+            if ok and value then
+                configID = value
+                break
+            end
+        end
+    end
+    if not configID then return nil end
+
+    for _, exporter in ipairs({
+        C_Traits.GenerateInspectImportString,
+        C_Traits.GenerateImportString,
+    }) do
+        if type(exporter) == "function" then
+            local ok, value = pcall(exporter, configID)
+            if ok and type(value) == "string" and #value > 20 then return value end
+        end
+    end
+    return nil
+end
+
+--- Une ligne d'objet. `parsed` vient de `Gear.ParseLink` ou d'une entree de `Gear.Scan`.
+--- L'ordre des champs suit celui de l'addon officiel.
+local function itemLine(slotToken, parsed)
+    if not slotToken or not parsed or not parsed.itemID or parsed.itemID == 0 then return nil end
+
+    local parts = { string.format("%s=,id=%d", slotToken, parsed.itemID) }
+
+    if parsed.enchantID and parsed.enchantID > 0 then
+        table.insert(parts, "enchant_id=" .. parsed.enchantID)
+    end
+
+    local gems = parsed.gemIDs or parsed.gems
+    if gems and #gems > 0 then
+        table.insert(parts, "gem_id=" .. table.concat(gems, "/"))
+    end
+    if parsed.bonuses and #parsed.bonuses > 0 then
+        table.insert(parts, "bonus_id=" .. table.concat(parsed.bonuses, "/"))
+    end
+    if parsed.contentTuning then
+        table.insert(parts, "content_tuning=" .. parsed.contentTuning)
+    end
+    if parsed.craftedStats and #parsed.craftedStats > 0 then
+        table.insert(parts, "crafted_stats=" .. table.concat(parsed.craftedStats, "/"))
+    end
+    if parsed.craftingQuality then
+        table.insert(parts, "crafting_quality=" .. parsed.craftingQuality)
+    end
+
+    return table.concat(parts, ",")
+end
+
+--- "# Devouring Reaver's Intake (272)"
+local function itemComment(name, itemLevel)
+    if not name then return nil end
+    if itemLevel and itemLevel > 0 then
+        return string.format("# %s (%d)", name, itemLevel)
+    end
+    return "# " .. name
+end
+
+--- Emplacement SimulationCraft d'un objet des sacs.
+local function bagSlotToken(slotName)
+    for _, definition in ipairs(ns.Gear.SLOTS) do
+        if definition.slot == slotName then return definition.simc end
+    end
+    return nil
+end
+
+--- Section `### Gear from Bags`, en commentaires comme le fait l'addon officiel.
+local function bagLines()
+    if not ns.Bags or not ns.Bags.Candidates then return {} end
+
+    local ok, candidates = pcall(ns.Bags.Candidates)
+    if not ok or type(candidates) ~= "table" then return {} end
+
+    local lines, seen = {}, {}
+    for _, definition in ipairs(ns.Gear.SLOTS) do
+        for _, candidate in ipairs(candidates[definition.slot] or {}) do
+            -- Un anneau des sacs remonte pour les deux emplacements de doigt : une seule
+            -- ligne suffit, comme dans l'export officiel.
+            if not seen[candidate.link] then
+                seen[candidate.link] = true
+                local line = itemLine(bagSlotToken(definition.slot), ns.Gear.ParseLink(candidate.link))
+                if line then
+                    local facts = candidate.facts or {}
+                    table.insert(lines, "#")
+                    local comment = itemComment(facts.name, facts.itemLevel)
+                    if comment then table.insert(lines, comment) end
+                    table.insert(lines, "# " .. line)
+                end
+            end
+        end
+    end
+
+    if #lines == 0 then return {} end
+    table.insert(lines, 1, "### Gear from Bags")
+    table.insert(lines, 1, "")
+    return lines
+end
+
+--- Construit la chaine complete.
+function SimC.Build()
+    local entries = ns.Gear.Scan()
+    local name = UnitName("player") or "Unknown"
+    local _, classFile = UnitClass("player")
+    local _, raceFile = UnitRace("player")
+    local realm = GetRealmName() or ""
+    local region = REGIONS[GetCurrentRegion and GetCurrentRegion() or 3] or "eu"
+    local spec, role, primaryStat = specInfo()
+
+    local version, build, _, toc = GetBuildInfo()
+
+    local lines = {
+        string.format("# %s - %s - %s - %s/%s",
+            name, spec or "?", date("%Y-%m-%d %H:%M"), region:upper(), realm),
+        string.format("# SpecAnalyser %s", ns.version or "?"),
+        string.format("# WoW %s.%s, TOC %s", version or "?", build or "?", toc or "?"),
+        "",
+        string.format("%s=\"%s\"", toToken(classFile), name),
+        "level=" .. (UnitLevel("player") or 0),
+        "race=" .. toToken(raceFile),
+        "region=" .. region,
+        "server=" .. toToken(realm),
+        "role=" .. roleToken(role, primaryStat),
+    }
+
+    local trades = professionLine()
+    if trades then table.insert(lines, "professions=" .. trades) end
+    if spec then table.insert(lines, "spec=" .. toToken(spec)) end
+
+    -- Ce qui manque est collecte, pas ignore : un profil incomplet sime a un huitieme du vrai
+    -- resultat sans que rien ne le signale.
+    local missing = {}
+
+    local talents = talentString()
+    if talents then
+        table.insert(lines, "")
+        table.insert(lines, "talents=" .. talents)
+    else
+        table.insert(missing, "talents")
+    end
+
+    if not spec then table.insert(missing, "spec") end
+
+    table.insert(lines, "")
+
+    local exported = 0
+    for _, entry in ipairs(entries) do
+        local line = itemLine(entry.simc, entry)
+        if line then
+            local comment = itemComment(entry.name, entry.itemLevel)
+            if comment then table.insert(lines, comment) end
+            table.insert(lines, line)
+            exported = exported + 1
+        end
+    end
+
+    if exported < 10 then table.insert(missing, "gear") end
+
+    for _, line in ipairs(bagLines()) do
+        table.insert(lines, line)
+    end
+
+    return table.concat(lines, "\n"), missing
+end
+
+--- L'addon SimulationCraft officiel est-il charge ?
+local function officialLoaded()
+    local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+    if type(isLoaded) ~= "function" then return false end
+    local ok, loaded = pcall(isLoaded, "SimulationCraft")
+    return ok and loaded and true or false
+end
+
+--- Chaine produite par l'addon SimulationCraft officiel, ou nil.
+---
+--- On ne peut pas lancer un programme depuis un addon, mais on peut appeler un autre addon.
+--- Quand l'officiel est la, sa chaine vaut mieux que la mienne : elle est celle que
+--- SimulationCraft et Raidbots attendent, et Raidbots la reconnait — ce qui fait disparaitre
+--- l'avertissement « Input is not from the SimulationCraft addon » sans falsifier la ligne de
+--- provenance, ce que je refuse de faire.
+---
+--- Les points d'entree sont sondes, pas supposes : c'est l'API d'un tiers, elle peut changer.
+function SimC.FromOfficial()
+    if not officialLoaded() then return nil end
+
+    -- Voie 1 : une fonction publique de l'addon, si elle existe.
+    local addon = _G.Simulationcraft
+    if type(addon) == "table" then
+        for _, name in ipairs({ "GetSimcProfile", "BuildSimcProfile", "PrintSimcProfile" }) do
+            local method = addon[name]
+            if type(method) == "function" then
+                local ok, value = pcall(method, addon)
+                if ok and type(value) == "string" and #value > 200 then return value, name end
+            end
+        end
+    end
+
+    -- Cherche un champ de saisie contenant un profil, parmi les globals du jeu.
+    --
+    -- On balaie plutot que de nommer : le diagnostic sur une installation reelle a montre que
+    -- l'addon n'expose ni global `Simulationcraft`, ni commande contenant SIM, et que son
+    -- cadre de copie n'existe PAS avant la premiere utilisation. Deviner un nom a echoue deux
+    -- fois ; on reconnait donc le profil a son contenu.
+    local function findProfile()
+        for name, object in pairs(_G) do
+            if type(name) == "string" and type(object) == "table" and object.GetText
+                and (name:find("Simc") or name:find("Simulation")) then
+                local ok, value = pcall(object.GetText, object)
+                -- Un profil SimulationCraft contient toujours une ligne `level=` et une
+                -- ligne d'objet : deux marqueurs valent mieux qu'un seuil de longueur.
+                if ok and type(value) == "string" and value:find("level=", 1, true)
+                    and value:find("=,id=", 1, true) then
+                    return value, name
+                end
+            end
+        end
+        return nil
+    end
+
+    -- Voie 2 : declencher l'addon, puis lire son champ de copie.
+    --
+    -- Son seul point d'entree observe est son lanceur LibDataBroker, `SimcLDB` : c'est le clic
+    -- dessus qui construit le profil et cree la fenetre. La commande slash, elle, n'est pas
+    -- enregistree dans SlashCmdList sur cette installation.
+    local triggers = {}
+
+    local ldb = _G.SimcLDB
+    if type(ldb) == "table" and type(ldb.OnClick) == "function" then
+        table.insert(triggers, function() ldb.OnClick(nil, "LeftButton") end)
+    end
+
+    local handler = SlashCmdList
+        and (SlashCmdList.SIMC or SlashCmdList.SIMULATIONCRAFT or SlashCmdList.SIMULATIONCRAFTADDON)
+    if type(handler) == "function" then
+        table.insert(triggers, function() handler("") end)
+    end
+
+    for _, trigger in ipairs(triggers) do
+        pcall(trigger)
+        local value, name = findProfile()
+        if value then
+            -- Sa fenetre s'est ouverte : on la referme, la notre prend le relais.
+            local box = _G[name]
+            local frame = box and box.GetParent and box:GetParent()
+            while frame and frame.GetParent and frame:GetParent() ~= UIParent do
+                frame = frame:GetParent()
+            end
+            if frame and frame.Hide then pcall(frame.Hide, frame) end
+            return value, name
+        end
+    end
+
+    return nil
+end
+
+--- Diagnostic : dit ce qui a ete TROUVE, au lieu d'echouer en silence.
+--- Deux hypotheses fausses de suite sur cette API : mieux vaut mesurer que deviner.
+function SimC.Diagnose()
+    local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
+    for _, folder in ipairs({ "SimulationCraft", "Simulationcraft", "simulationcraft" }) do
+        local ok, loaded = pcall(isLoaded, folder)
+        ns.Print("addon \"%s\" : %s", folder,
+            (ok and loaded) and "|cff00E676charge|r" or "|cff8A8A8Aabsent|r")
+    end
+
+    local addon = _G.Simulationcraft
+    ns.Print("global Simulationcraft : %s", type(addon))
+    if type(addon) == "table" then
+        local names = {}
+        for key, value in pairs(addon) do
+            if type(value) == "function" then table.insert(names, key) end
+        end
+        table.sort(names)
+        ns.Print("  methodes : %s", table.concat(names, ", "))
+    end
+
+    local keys = {}
+    for key in pairs(SlashCmdList or {}) do
+        if key:find("SIM") then table.insert(keys, key) end
+    end
+    ns.Print("SlashCmdList contenant SIM : %s",
+        #keys > 0 and table.concat(keys, ", ") or "aucune")
+
+    -- Cadres du jeu dont le nom commence par Simc : c'est la que vit son champ de copie.
+    local function listFrames()
+        local frames = {}
+        for name in pairs(_G) do
+            if type(name) == "string" and (name:find("Simc") or name:find("Simulation")) then
+                table.insert(frames, name)
+            end
+        end
+        table.sort(frames)
+        return frames
+    end
+
+    ns.Print("globals Simc*/Simulation* AVANT : %s", table.concat(listFrames(), ", "))
+
+    -- Le cadre de copie est cree paresseusement : on declenche l'addon puis on recompte.
+    local ldb = _G.SimcLDB
+    ns.Print("SimcLDB : %s   OnClick : %s", type(ldb),
+        type(ldb) == "table" and type(ldb.OnClick) or "-")
+    if type(ldb) == "table" and type(ldb.OnClick) == "function" then
+        pcall(ldb.OnClick, nil, "LeftButton")
+        ns.Print("globals APRES clic LDB : %s", table.concat(listFrames(), ", "))
+    end
+
+    local value, where = SimC.FromOfficial()
+    if value then
+        ns.Print("|cff00E676profil recupere|r via %s (%d caracteres)", where, #value)
+    else
+        ns.Print("|cffFF4D4Daucun profil recupere|r")
+    end
+end
+
+--- Ouvre la fenetre de copie avec la chaine.
+function SimC.Show()
+    -- L'officiel d'abord, quand il est la.
+    local fromOfficial, via = SimC.FromOfficial()
+    if fromOfficial then
+        ns.Print("%s%s|r (%s)", ns.Theme.C("good"),
+            ns.L["using the SimulationCraft addon's own export"], via)
+        ns.Copy.Show(ns.L["SimulationCraft string — paste it on raidbots.com"], fromOfficial)
+        return
+    end
+
+    local text, missing = SimC.Build()
+
+    -- Un profil sans talents sime a un huitieme du vrai resultat, et Raidbots ne le dit pas :
+    -- il rend un chiffre, simplement faux. Autant le signaler avant le collage.
+    if #missing > 0 then
+        ns.Print("|cffFF4D4D%s|r %s",
+            ns.L["incomplete SimC export — the simulation will be wrong:"],
+            table.concat(missing, ", "))
+    end
+
+    -- Sans l'addon officiel, ma chaine est un export de secours. Le dire vaut mieux que de
+    -- laisser croire qu'elle est equivalente.
+    if not officialLoaded() then
+        ns.Print("|cff8A8A8A%s|r", ns.L["install the SimulationCraft addon for an authoritative export"])
+    end
+
+    ns.Copy.Show(ns.L["SimulationCraft string — paste it on raidbots.com"], text)
+end
+
+local DROPTIMIZER_URL = "https://www.raidbots.com/simbot/droptimizer"
+
+--- Lien du droptimizer, chaine SimC, puis collage du rapport en retour.
+--- Un addon ne peut ni ouvrir un navigateur ni recevoir de donnees du web : le lien se
+--- copie, le resultat se colle.
+function SimC.ShowDroptimizer()
+    ns.Copy.Show("Droptimizer", DROPTIMIZER_URL)
+end
+
+--- Enregistre l'URL ou l'identifiant d'un rapport Raidbots.
+function SimC.SetDroptimizer(text)
+    if not text then return false end
+    local id = text:match("reports?/([%w%-]+)") or text:match("^%s*([%w%-]+)%s*$")
+    if not id or #id < 6 then return false end
+
+    ns.db.droptimizer = { id = id, stamp = time() }
+    return true, id
+end
+
+function SimC.DroptimizerURL()
+    local stored = ns.db.droptimizer
+    if not stored or not stored.id then return nil end
+    return "https://www.raidbots.com/simbot/report/" .. stored.id
+end
+
+--- Age du rapport en jours, ou nil.
+function SimC.DroptimizerAge()
+    local stored = ns.db.droptimizer
+    if not stored or not stored.stamp then return nil end
+    return math.floor((time() - stored.stamp) / 86400)
+end

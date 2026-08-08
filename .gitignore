@@ -1,0 +1,10 @@
+# Sauvegardes locales et artefacts d'edition
+*.bak
+*.orig
+*.rej
+*.original.md
+__pycache__/
+*.pyc
+
+# Data/Meta.lua et Data/Sim.lua sont VERSIONNES : ce sont des livrables, pas des
+# artefacts. C'est ce qui permettra de diffuser un releve date et reproductible.
