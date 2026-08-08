@@ -130,6 +130,8 @@ translations.fr = {
     ["%d items simulated by your droptimizer"] = "%d objets simules par ton droptimizer",
     ["simulated at ilvl"] = "simule en ilvl",
     ["Ctrl+A then Ctrl+C to copy"] = "Ctrl+A puis Ctrl+C pour copier",
+    ["settings carried over from SpecAnalyser"] =
+        "reglages repris de SpecAnalyser",
     ["Class set"] = "Ensemble",
     ["%d pieces"] = "%d pieces",
     ["GEMS"] = "GEMMES",
@@ -181,8 +183,8 @@ translations.fr = {
     ["Where the reference comes from"] = "D'ou vient la reference",
     ["Keeping the reference fresh"] = "Garder la reference a jour",
     ["Reading the equipment tab"] = "Lire l'onglet Equipement",
-    ["SpecAnalyser audits your gear against what the best players of your spec actually wear."] =
-        "SpecAnalyser confronte ton equipement a ce que portent reellement les meilleurs joueurs de ta specialisation.",
+    ["GearProof audits your gear against what the best players of your spec actually wear."] =
+        "GearProof confronte ton equipement a ce que portent reellement les meilleurs joueurs de ta specialisation.",
     ["Read live in game: enchants, gems, sockets, durability, class set."] =
         "Lu en direct dans le jeu : enchantements, gemmes, chasses, durabilite, ensemble de classe.",
     ["Compared to a measured reference: the top ranked players of your spec, enchant by enchant, with their adoption rate."] =
@@ -294,7 +296,7 @@ translations.fr = {
     -- Guilde
     ["Guild"] = "Guilde",
     ["Guild audit"] = "Audit de guilde",
-    ["Members running SpecAnalyser answer the roll call. Nothing is sent unless sharing is on."] =
+    ["Members running GearProof answer the roll call. Nothing is sent unless sharing is on."] =
         "Les membres equipes de l'addon repondent a l'appel. Rien ne sort sans ton accord.",
     ["Roll call"] = "Appel",
     ["Copy for Discord"] = "Copier pour Discord",

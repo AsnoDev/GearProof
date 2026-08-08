@@ -12,7 +12,7 @@ ns.Options = Options
 -- C'est le premier endroit ou un joueur va chercher, avant meme de savoir qu'un addon a
 -- des commandes.
 
-local PANEL_NAME = "SpecAnalyser"
+local PANEL_NAME = "GearProof"
 
 local function label(parent, text, anchor, gapY, font)
     local line = parent:CreateFontString(nil, "ARTWORK", font or "GameFontNormal")

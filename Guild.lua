@@ -20,7 +20,10 @@ local L = ns.L
 --
 -- Le partage est explicite : rien ne sort tant que `shareWithGuild` est faux.
 
-local PREFIX = "SPECANALYSER"
+-- Prefixe du canal de donnees. Il a change avec le nom de l'addon : un client de
+-- l'ancienne version n'est plus entendu, ce qui est sans consequence — rien n'etait
+-- publie.
+local PREFIX = "GEARPROOF"
 local REQUEST = "REQ"
 local REPLY = "REP"
 local ITEMS = "ITM"
@@ -437,7 +440,7 @@ end
 
 --- Resume texte du roster, pret a coller dans Discord.
 function Guild.Export()
-    local lines = { "SpecAnalyser — guild audit", "" }
+    local lines = { "GearProof — guild audit", "" }
     for _, card in ipairs(Guild.Roster()) do
         local sim = card.sim ~= "" and card.sim or "no sim"
         local age = card.simAge >= 0 and (card.simAge .. "d") or "-"

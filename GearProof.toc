@@ -1,9 +1,10 @@
 ## Interface: 120007
-## Title: SpecAnalyser
-## Notes: Gear audit against the measured top-ranking meta, bag comparison and guild roll call.
+## Title: GearProof
+## Notes: Your gear, checked against what the top 20 of your spec actually wear.
 ## Author: Edouard
-## Version: 0.4.0
-## SavedVariables: SpecAnalyserDB
+## Version: 0.5.0
+## SavedVariables: GearProofDB
+## OptionalDeps: SimulationCraft
 ## Category: Combat
 ## IconTexture: Interface\Icons\INV_Misc_Book_09
 

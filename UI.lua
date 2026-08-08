@@ -283,7 +283,7 @@ local function restorePlacement()
 end
 
 local function createFrame()
-    frame = CreateFrame("Frame", "SpecAnalyserFrame", UIParent, "BasicFrameTemplateWithInset")
+    frame = CreateFrame("Frame", "GearProofFrame", UIParent, "BasicFrameTemplateWithInset")
     frame:SetSize(WIDTH, HEIGHT)
     -- Sans strata explicite, les barres d'action et les autres addons passent devant.
     frame:SetFrameStrata("HIGH")
@@ -321,11 +321,11 @@ local function createFrame()
     end)
 
     local title = frame.TitleText or (frame.TitleContainer and frame.TitleContainer.TitleText)
-    if title then title:SetText("SpecAnalyser") end
+    if title then title:SetText("GearProof") end
 
     local heading = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     heading:SetPoint("TOPLEFT", 18, -30)
-    heading:SetText(COLORS.title .. "SpecAnalyser" .. COLORS.reset)
+    heading:SetText(COLORS.title .. "GearProof" .. COLORS.reset)
 
     characterLine = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     characterLine:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -3)
@@ -429,7 +429,7 @@ local function createFrame()
     optionsButton:SetScript("OnClick", function() ns.Options.Open() end)
 
     ns.Theme.Apply(frame)
-    tinsert(UISpecialFrames, "SpecAnalyserFrame")
+    tinsert(UISpecialFrames, "GearProofFrame")
 end
 
 --- Affiche la fenetre puis redessine une fois de plus au tick suivant.

@@ -41,7 +41,7 @@ local function itemFacts(link)
     }
 end
 
---- Lignes que SpecAnalyser ajoute pour un objet donne.
+--- Lignes que GearProof ajoute pour un objet donne.
 --- @return table|nil { { text, r, g, b }, ... }
 function Tooltip.LinesFor(link)
     local facts = itemFacts(link)

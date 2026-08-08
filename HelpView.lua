@@ -120,7 +120,7 @@ function HelpView.Environment()
     local version, build = GetBuildInfo()
     local _, equipped = GetAverageItemLevel()
     return table.concat({
-        "SpecAnalyser " .. (ns.version or "?"),
+        "GearProof " .. (ns.version or "?"),
         "Client " .. tostring(version) .. " (" .. tostring(build) .. ")",
         "Character: " .. name .. " — " .. tostring(class),
         "ilvl : " .. (equipped and math.floor(equipped + 0.5) or "?"),
@@ -139,7 +139,7 @@ function HelpView.Refresh()
     cards.welcome:ClearAllPoints()
     cards.welcome:SetPoint("TOPLEFT", 0, 0)
     fill(cards.welcome, columnWidth, table.concat({
-        L["SpecAnalyser audits your gear against what the best players of your spec actually wear."],
+        L["GearProof audits your gear against what the best players of your spec actually wear."],
         "",
         hex(COLORS.accent) .. L["Read live in game: enchants, gems, sockets, durability, class set."] .. "|r",
         "",

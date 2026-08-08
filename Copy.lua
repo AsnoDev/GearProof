@@ -11,7 +11,7 @@ local popup
 local function ensurePopup()
     if popup then return popup end
 
-    popup = CreateFrame("Frame", "SpecAnalyserCopyPopup", UIParent, "BasicFrameTemplateWithInset")
+    popup = CreateFrame("Frame", "GearProofCopyPopup", UIParent, "BasicFrameTemplateWithInset")
     popup:SetSize(360, 120)
     popup:SetPoint("CENTER")
     popup:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -54,7 +54,7 @@ local function ensurePopup()
     popup.edit = edit
     popup.scroll = scroll
 
-    tinsert(UISpecialFrames, "SpecAnalyserCopyPopup")
+    tinsert(UISpecialFrames, "GearProofCopyPopup")
 
     -- Meme habillage que la fenetre principale : une pop-up au cadre du client par-dessus
     -- une interface sombre se voit immediatement.
@@ -93,7 +93,7 @@ end
 function Copy.Prompt(title, hint, callback)
     local frame = ensurePopup()
     local titleText = frame.TitleText or (frame.TitleContainer and frame.TitleContainer.TitleText)
-    if titleText then titleText:SetText("SpecAnalyser") end
+    if titleText then titleText:SetText("GearProof") end
 
     frame.header:SetText(title or "")
     frame.hint:SetText(hint or "")
@@ -124,7 +124,7 @@ end
 function Copy.Show(title, text)
     local frame = ensurePopup()
     local titleText = frame.TitleText or (frame.TitleContainer and frame.TitleContainer.TitleText)
-    if titleText then titleText:SetText("SpecAnalyser") end
+    if titleText then titleText:SetText("GearProof") end
     frame.header:SetText(title or "")
     -- Le texte etait code en dur en francais dans un addon annonce en anglais.
     frame.hint:SetText(ns.L["Ctrl+A then Ctrl+C to copy"])

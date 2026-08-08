@@ -28,7 +28,7 @@ end
 
 local function buildTooltip()
     GameTooltip:SetOwner(button, "ANCHOR_LEFT")
-    GameTooltip:AddLine("SpecAnalyser")
+    GameTooltip:AddLine("GearProof")
     GameTooltip:AddLine(" ")
 
     -- Il y avait ici un compte de fichiers d'analyse lu dans `SpecAnalyserData`, une
@@ -53,7 +53,7 @@ end
 function MinimapButton.Create()
     if button then return button end
 
-    button = CreateFrame("Button", "SpecAnalyserMinimapButton", Minimap)
+    button = CreateFrame("Button", "GearProofMinimapButton", Minimap)
     button:SetSize(31, 31)
     button:SetFrameStrata("MEDIUM")
     button:SetFrameLevel(8)

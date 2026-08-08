@@ -1,4 +1,4 @@
-# SpecAnalyser
+# GearProof
 
 **Ton équipement, confronté à ce que portent réellement les meilleurs joueurs de ta
 spécialisation.** Pas un guide recopié : une mesure.
@@ -69,14 +69,14 @@ score sur 100 — ce seraient quatre pénalités arbitraires déguisées en mesu
 
 ## Installation
 
-Copier le dossier `SpecAnalyser` dans :
+Copier le dossier `GearProof` dans :
 
 ```
 World of Warcraft\_retail_\Interface\AddOns\
 ```
 
 Puis **redémarrer complètement le client** — WoW ne détecte un nouvel addon qu'au
-démarrage — et cocher `SpecAnalyser` dans la liste des addons.
+démarrage — et cocher `GearProof` dans la liste des addons.
 
 Rien à configurer : la référence mesurée est livrée avec l'addon. À la première
 connexion, la fenêtre s'ouvre seule sur l'onglet Aide.
@@ -89,7 +89,7 @@ Fenêtre unique de 1040×660, quatre onglets.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ SpecAnalyser              [ Havoc · ta spécialisation ▾ ]   référence : …  │
+│ GearProof              [ Havoc · ta spécialisation ▾ ]   référence : …  │
 │ Asnodh · Havoc · ilvl 662                                   poids : 3 j    │
 │                                                                [Rafraîchir]│
 │      [ Équipement ] [ Raid ] [ Guilde ] [ Aide ]                           │

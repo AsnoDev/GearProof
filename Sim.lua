@@ -10,8 +10,16 @@ ns.Sim = Sim
 -- C'est la seule maniere honnete de chiffrer un bijou ou une piece d'ensemble : leur
 -- valeur ne se reduit pas a des points de statistique.
 
+-- Meme retrocompatibilite que pour le releve : un Data/Sim.lua genere par l'ancien
+-- outil expose `SpecAnalyserSim`.
+local function reports()
+    if type(GearProofSim) == "table" and next(GearProofSim) ~= nil then return GearProofSim end
+    if type(SpecAnalyserSim) == "table" and next(SpecAnalyserSim) ~= nil then return SpecAnalyserSim end
+    return nil
+end
+
 function Sim.Available()
-    return type(SpecAnalyserSim) == "table" and next(SpecAnalyserSim) ~= nil
+    return reports() ~= nil
 end
 
 --- Gain simule d'un objet, en pourcentage, ou nil.
@@ -33,7 +41,7 @@ function Sim.Percent(itemID, itemLevel)
     if not itemLevel or itemLevel <= 0 then return nil end
 
     local best, bestBaseline
-    for _, report in pairs(SpecAnalyserSim) do
+    for _, report in pairs(reports() or {}) do
         local entry = (report.items or {})[itemID]
         local matches = entry and entry.ilvl and entry.ilvl == itemLevel
         if matches and entry.percent then
@@ -151,7 +159,7 @@ function Sim.ByEncounter()
     local groups, order = {}, {}
     local best = {}
 
-    for _, report in pairs(SpecAnalyserSim) do
+    for _, report in pairs(reports() or {}) do
         for itemID, entry in pairs(report.items or {}) do
             -- Un objet peut figurer dans plusieurs rapports : on garde le meilleur gain,
             -- comme ailleurs, plutot que le dernier lu.

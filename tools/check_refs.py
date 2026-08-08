@@ -28,11 +28,12 @@ from common import Report, lua_files, run
 # Globales que l'addon a le droit de poser : ses SavedVariables, les tables de donnees
 # generees, et les points d'entree que le client exige a portee globale.
 ALLOWED_GLOBALS = {
-    "SpecAnalyserDB",
-    "SpecAnalyserMeta",
-    "SpecAnalyserSim",
-    "SLASH_SPECANALYSER1",
-    "SLASH_SPECANALYSER2",
+    "GearProofDB",
+    "GearProofMeta",
+    "GearProofSim",
+    "SLASH_GEARPROOF1",
+    "SLASH_GEARPROOF2",
+    "SLASH_GEARPROOF3",
 }
 
 EXPORT = re.compile(r"^\s*ns\.(\w+)\s*=\s*(\w+)\s*$", re.M)

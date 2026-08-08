@@ -58,7 +58,7 @@ function ns.Print(fmt, ...)
 end
 
 function ns.Debug(fmt, ...)
-    if not SpecAnalyserDB or not SpecAnalyserDB.debug then return end
+    if not GearProofDB or not GearProofDB.debug then return end
     ns.Print("|cff9d95b6[debug]|r " .. (select("#", ...) > 0 and string.format(fmt, ...) or fmt))
 end
 
@@ -76,12 +76,37 @@ local function applyDefaults(db, source)
     end
 end
 
+--- Reprend la base de l'ancien nom, une seule fois.
+---
+--- L'addon s'appelait SpecAnalyser. Renommer sans migrer aurait rendu a chaque testeur
+--- une installation vierge : emplacements ignores oublies, poids de statistiques perdus,
+--- droptimizer a recoller, position de fenetre a refaire.
+---
+--- L'ancienne base n'est PAS supprimee. Elle ne coute que quelques kilo-octets, et c'est
+--- la seule porte de sortie si la migration se revele fausse.
+local function migrateFromSpecAnalyser()
+    if GearProofDB or type(SpecAnalyserDB) ~= "table" then return false end
+
+    GearProofDB = CopyTable and CopyTable(SpecAnalyserDB) or {}
+    if not CopyTable then
+        for key, value in pairs(SpecAnalyserDB) do GearProofDB[key] = value end
+    end
+    GearProofDB.migratedFrom = "SpecAnalyser"
+    return true
+end
+
 ns.On("ADDON_LOADED", function(loaded)
     if loaded ~= addonName then return end
-    SpecAnalyserDB = SpecAnalyserDB or {}
-    applyDefaults(SpecAnalyserDB, defaults)
-    ns.db = SpecAnalyserDB
+
+    local migrated = migrateFromSpecAnalyser()
+    GearProofDB = GearProofDB or {}
+    applyDefaults(GearProofDB, defaults)
+    ns.db = GearProofDB
     ns.ApplyLanguage()
+
+    if migrated then
+        ns.Print(ns.L["settings carried over from SpecAnalyser"])
+    end
 end)
 
 -- Un changement de specialisation invalide tout l'audit : la reference releve change, les
@@ -173,8 +198,11 @@ ns.On("PLAYER_LOGIN", function()
     end
 end)
 
-SLASH_SPECANALYSER1 = "/specanalyser"
-SLASH_SPECANALYSER2 = "/sa"
+-- `/sa` reste en alias : c'est ce que les doigts connaissent, et le renommage n'a pas
+-- a couter un reapprentissage.
+SLASH_GEARPROOF1 = "/gearproof"
+SLASH_GEARPROOF2 = "/gp"
+SLASH_GEARPROOF3 = "/sa"
 
 local function usage()
     local c = "|cff00B0FF"
@@ -194,7 +222,7 @@ local function usage()
 end
 
 -- La cle de SlashCmdList doit reprendre exactement le suffixe des globales SLASH_*.
-SlashCmdList.SPECANALYSER = function(input)
+SlashCmdList.GEARPROOF = function(input)
     local cmd, arg = strsplit(" ", (input or ""):lower():gsub("^%s+", ""), 2)
 
     if cmd == "" or cmd == nil then

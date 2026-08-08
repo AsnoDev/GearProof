@@ -2,9 +2,9 @@
 -- Releve de ce que portent les joueurs les mieux classes, par specialisation.
 -- 40 specialisation(s).
 
-SpecAnalyserMeta = {
+GearProofMeta = {
     -- Estampille du releve. `_stamp` n'est pas une specialisation : les lecteurs
-    -- iterent SpecAnalyserMeta et ignorent les cles commencant par un blanc souligne.
+    -- iterent GearProofMeta et ignorent les cles commencant par un blanc souligne.
     _stamp = {
         -- Version du FORMAT, lue par Meta.lua. A incrementer quand la forme des blocs
         -- change, pour qu'un addon plus ancien refuse le fichier au lieu de le lire de

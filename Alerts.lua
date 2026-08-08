@@ -42,7 +42,7 @@ function Alerts.Check(force)
     if summary.problems == 0 then return end
 
     lastAlert = now
-    local message = "SpecAnalyser : " .. describe(summary)
+    local message = "GearProof : " .. describe(summary)
     ns.Print("|cffe3a45c%s|r — |cff9d95b6/sa|r", message)
 
     if RaidNotice_AddMessage and RaidWarningFrame then

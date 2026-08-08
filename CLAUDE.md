@@ -1,6 +1,6 @@
-# SpecAnalyser — addon (contexte)
+# GearProof — addon (contexte)
 
-Partie in-game du projet SpecAnalyser. Le contexte complet, les décisions d'architecture et
+Partie in-game du projet GearProof. Le contexte complet, les décisions d'architecture et
 le journal de sessions sont dans **`C:\Claude\python\projets\specanalyser\CLAUDE.md`** et
 **`JOURNAL.md`** du même dossier — les lire avant toute modification ici.
 
@@ -152,7 +152,7 @@ Deux pièges de mise en page, tous deux rencontrés :
 - **Habillage** : `Theme.Apply(frame)` enregistre le cadre ; `Theme.Toggle`/`Theme.Set`
   rejouent l'habillage sur tout le registre via `Theme.Refresh`. Toute nouvelle fenêtre
   doit appeler `Theme.Apply` une fois à sa création — sinon elle garde le cadre du client
-  (c'était le cas de `SpecAnalyserCopyPopup` et `SpecAnalyserGearInfo`). `Theme.Apply`
+  (c'était le cas de `GearProofCopyPopup` et `SpecAnalyserGearInfo`). `Theme.Apply`
   masque **toutes** les textures directes du cadre et de `frame.Inset` : une zone qui
   comptait sur le fond de l'inset doit se donner son propre cadre et le déclarer dans
   `frame.themeCards`. Ne jamais appeler `Theme.Apply` sur une carte issue des pools de

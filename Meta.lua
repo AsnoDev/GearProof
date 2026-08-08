@@ -10,6 +10,17 @@ ns.Meta = Meta
 -- Aucune API du jeu n'expose "le meilleur enchantement du patch". Le classement, lui,
 -- est mesurable : on regarde ce qui est pose sur les personnages du haut de tableau.
 
+-- Retrocompatibilite du nom de la table generee.
+--
+-- L'outil Python ecrivait `SpecAnalyserMeta`. Un fichier deja installe reste lisible :
+-- refuser une donnee parfaitement valide au motif qu'elle porte l'ancien nom obligerait
+-- a regenerer avant de pouvoir ouvrir l'addon.
+local function reference()
+    if type(GearProofMeta) == "table" then return GearProofMeta end
+    if type(SpecAnalyserMeta) == "table" then return SpecAnalyserMeta end
+    return nil
+end
+
 -- Version du format de `Data/Meta.lua`.
 --
 -- Le fichier est genere par un outil qui evolue de son cote ; le lecteur, lui, ne le
@@ -26,9 +37,10 @@ local formatWarned = false
 --- Un format INCONNU est refuse, une fois, avec un message actionnable — plutot que lu
 --- de travers sans que rien ne le dise.
 local function formatIsReadable()
-    if type(SpecAnalyserMeta) ~= "table" then return false end
+    local data = reference()
+    if not data then return false end
 
-    local stamp = SpecAnalyserMeta._stamp
+    local stamp = data._stamp
     local format = (type(stamp) == "table" and stamp.format) or 1
     if format <= FORMAT_SUPPORTED then return true end
 
@@ -54,7 +66,7 @@ end
 
 local function ensureScanner()
     if scanner then return scanner end
-    scanner = CreateFrame("GameTooltip", "SpecAnalyserScanTooltip", nil, "GameTooltipTemplate")
+    scanner = CreateFrame("GameTooltip", "GearProofScanTooltip", nil, "GameTooltipTemplate")
     scanner:SetOwner(UIParent, "ANCHOR_NONE")
     return scanner
 end
@@ -67,7 +79,8 @@ end
 --- ne pas casser une installation existante.
 local function block()
     if not formatIsReadable() then return nil end
-    if SpecAnalyserMeta.sample then return SpecAnalyserMeta end
+    local data = reference()
+    if data.sample then return data end
     if not ns.Spec then return nil end
 
     local specID = ns.Spec.Selected()
@@ -75,7 +88,7 @@ local function block()
     -- Cle de secours, insensible a la langue : l'identifiant Blizzard, quand le releve le
     -- connait. C'est la voie preferee.
     if specID then
-        for _, entry in pairs(SpecAnalyserMeta) do
+        for _, entry in pairs(data) do
             if type(entry) == "table" and entry.specID == specID then return entry end
         end
     end
@@ -88,7 +101,7 @@ local function block()
     local specName = ns.Spec.Name(specID)
     if classSlug and specName then
         local slug = specName:gsub("[^%w]", "")
-        local entry = SpecAnalyserMeta[classSlug .. "/" .. slug]
+        local entry = data[classSlug .. "/" .. slug]
         if type(entry) == "table" then return entry end
     end
 
@@ -132,9 +145,10 @@ end
 --- Y a-t-il un releve pour au moins une specialisation ?
 --- Sert a distinguer « aucune donnee installee » de « pas de donnee pour CETTE spe ».
 function Meta.AnyAvailable()
-    if type(SpecAnalyserMeta) ~= "table" then return false end
-    if SpecAnalyserMeta.sample then return (SpecAnalyserMeta.sample or 0) > 0 end
-    for key, entry in pairs(SpecAnalyserMeta) do
+    local data = reference()
+    if not data then return false end
+    if data.sample then return (data.sample or 0) > 0 end
+    for key, entry in pairs(data) do
         -- `_stamp` decrit le releve, ce n'est pas une specialisation.
         if type(key) ~= "string" or key:sub(1, 1) ~= "_" then
             if type(entry) == "table" and (entry.sample or 0) > 0 then return true end
@@ -146,8 +160,9 @@ end
 --- Estampille du releve embarque : format, date, nombre de spes, rencontres relevees.
 --- @return table|nil { format, generatedAt, specs, encounters }
 function Meta.Stamp()
-    if type(SpecAnalyserMeta) ~= "table" then return nil end
-    local stamp = SpecAnalyserMeta._stamp
+    local data = reference()
+    if not data then return nil end
+    local stamp = data._stamp
     return type(stamp) == "table" and stamp or nil
 end
 
@@ -347,7 +362,7 @@ function Meta.EnchantName(referenceLink, enchantID)
     local greenLine
 
     for index = 2, tooltip:NumLines() do
-        local line = _G["SpecAnalyserScanTooltipTextLeft" .. index]
+        local line = _G["GearProofScanTooltipTextLeft" .. index]
         local text = line and line:GetText()
         if text and text ~= "" then
             -- Cas nominal : la ligne commence par le libelle localise "Enchante : ".
@@ -386,7 +401,7 @@ function Meta.ItemTooltipLines(link)
 
     local lines = {}
     for index = 1, tooltip:NumLines() do
-        local fontString = _G["SpecAnalyserScanTooltipTextLeft" .. index]
+        local fontString = _G["GearProofScanTooltipTextLeft" .. index]
         local text = fontString and fontString:GetText()
         if text then
             local r, g, b = 1, 1, 1
@@ -419,7 +434,7 @@ function Meta.EnchantTooltipLines(referenceLink, enchantID)
 
         local lines = {}
         for index = 1, tooltip:NumLines() do
-            local fontString = _G["SpecAnalyserScanTooltipTextLeft" .. index]
+            local fontString = _G["GearProofScanTooltipTextLeft" .. index]
             local text = fontString and fontString:GetText()
             if text and text ~= "" then
                 local r, g, b = 1, 1, 1

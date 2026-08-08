@@ -224,7 +224,7 @@ function SimC.Build()
     local lines = {
         string.format("# %s - %s - %s - %s/%s",
             name, spec or "?", date("%Y-%m-%d %H:%M"), region:upper(), realm),
-        string.format("# SpecAnalyser %s", ns.version or "?"),
+        string.format("# GearProof %s", ns.version or "?"),
         string.format("# WoW %s.%s, TOC %s", version or "?", build or "?", toc or "?"),
         "",
         string.format("%s=\"%s\"", toToken(classFile), name),
