@@ -284,6 +284,9 @@ local function rawScan()
             entry.craftedStats = parsed.craftedStats
             entry.craftingQuality = parsed.craftingQuality
             entry.quality = info.quality
+            -- Sert a la comparaison des sacs : une deux mains portee change ce qu'une
+            -- arme a une main veut dire, et ce qu'une deux mains candidate remplace.
+            entry.equipLoc = info.equipLoc
             entry.setID = (info.setID and info.setID > 0) and info.setID or nil
             entry.enchantID = parsed.enchantID
             entry.gems = #parsed.gems

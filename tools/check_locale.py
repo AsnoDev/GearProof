@@ -49,6 +49,11 @@ DYNAMIC_KEYS = {
     "Equipment", "Raid", "Guild", "Help",
     # GuildView sous-vues
     "Roster",
+    # Bags.REASON_TEXT[...] : pourquoi une piece des sacs n'est pas chiffree
+    "proc — sim required",
+    "set piece — sim required",
+    "needs a second weapon — sim required",
+    "no stat weights — paste a Pawn string to rank bag items",
     # repli
     "?",
 }

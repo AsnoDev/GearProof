@@ -693,9 +693,9 @@ layoutUpgrades = function(width, top)
 
     for index = 1, math.min(3, #unrated) do
         local entry = unrated[index]
-        local reason = entry.reason == "trinket" and L["proc — sim required"] or L["set piece — sim required"]
         table.insert(lines, string.format("%s?|r     %s  %s|cff615c73%s|r",
-            hex(COLORS.major), L[entry.label], entry.link or "?", reason))
+            hex(COLORS.major), L[entry.label], entry.link or "?",
+            L[ns.Bags.REASON_TEXT[entry.reason] or ns.Bags.REASON_TEXT.weights]))
     end
 
     if #lines == 0 then return top end

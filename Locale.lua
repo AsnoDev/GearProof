@@ -325,6 +325,7 @@ translations.fr = {
     ["IN YOUR BAGS"] = "DANS TES SACS",
     ["proc — sim required"] = "proc — sim requise",
     ["set piece — sim required"] = "piece d'ensemble — sim requise",
+    ["needs a second weapon — sim required"] = "demande une seconde arme — sim requise",
     ["measured on %d top players (%s)"] = "mesure sur %d joueurs du haut de tableau (%s)",
     ["skin: %s"] = "habillage : %s",
     ["gear grid"] = "grille d'equipement",

@@ -73,8 +73,11 @@ local function bagLines(slotName)
     end
     for _, entry in ipairs(unrated or {}) do
         if entry.slot == slotName then
-            table.insert(lines, { string.format("%s  i%d  ?",
-                entry.link or "?", entry.itemLevel or 0), false })
+            -- La raison, pas seulement un point d'interrogation : « ? » tout seul se lit
+            -- comme une panne de l'addon, pas comme un refus argumente de chiffrer.
+            table.insert(lines, { string.format("%s  i%d  %s",
+                entry.link or "?", entry.itemLevel or 0,
+                L[ns.Bags.REASON_TEXT[entry.reason] or ns.Bags.REASON_TEXT.weights]), false })
         end
     end
     return lines

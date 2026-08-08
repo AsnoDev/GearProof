@@ -31,9 +31,49 @@ local EQUIP_TO_SLOTS = {
     INVTYPE_2HWEAPON = { "MainHandSlot" },
     INVTYPE_HOLDABLE = { "SecondaryHandSlot" },
     INVTYPE_SHIELD = { "SecondaryHandSlot" },
+    -- Armes a distance. Leur absence signifiait qu'un arc superieur dormant dans les
+    -- sacs d'un chasseur n'etait jamais propose : l'emplacement n'etait pas resolu, donc
+    -- l'objet n'existait pas pour la comparaison.
+    INVTYPE_RANGED = { "MainHandSlot" },
+    INVTYPE_RANGEDRIGHT = { "MainHandSlot" },
+    INVTYPE_THROWN = { "MainHandSlot" },
 }
 
 local UNRATED = { Trinket0Slot = true, Trinket1Slot = true }
+
+-- Pourquoi une piece n'est pas chiffree. Une seule table, lue par toutes les vues :
+-- l'ancienne version testait `reason == "trinket"` et retombait sur « piece
+-- d'ensemble » pour TOUT le reste, y compris pour la raison la plus frequente.
+Bags.REASON_TEXT = {
+    trinket = "proc — sim required",
+    set     = "set piece — sim required",
+    pair    = "needs a second weapon — sim required",
+    weights = "no stat weights — paste a Pawn string to rank bag items",
+}
+
+-- Emplacements dont l'armure porte une classe restreinte par la classe jouee.
+--
+-- La cape en est ABSENTE volontairement : toutes les capes sont de sous-classe Tissu,
+-- pour tout le monde. Collier, anneaux et bijoux sont en sous-classe Divers. Filtrer
+-- ces quatre-la sur la classe d'armure bloquerait des objets parfaitement portables.
+local ARMOR_SLOTS = {
+    INVTYPE_HEAD = true, INVTYPE_SHOULDER = true, INVTYPE_CHEST = true,
+    INVTYPE_ROBE = true, INVTYPE_WRIST = true, INVTYPE_HAND = true,
+    INVTYPE_WAIST = true, INVTYPE_LEGS = true, INVTYPE_FEET = true,
+}
+
+-- Sous-classe d'armure maitrisee, par jeton de classe.
+-- Enum.ItemArmorSubclass : 1 = Tissu, 2 = Cuir, 3 = Mailles, 4 = Plaques.
+-- Donnee de patch, verifiee contre 12.0.7 : a revoir si Blizzard change une maitrise.
+local ARMOR_BY_CLASS = {
+    WARRIOR = 4, PALADIN = 4, DEATHKNIGHT = 4,
+    HUNTER = 3, SHAMAN = 3, EVOKER = 3,
+    ROGUE = 2, MONK = 2, DRUID = 2, DEMONHUNTER = 2,
+    MAGE = 1, PRIEST = 1, WARLOCK = 1,
+}
+
+local ARMOR_CLASS_ID = 4
+local ARMOR_SUBCLASS_CLOTH, ARMOR_SUBCLASS_PLATE = 1, 4
 
 --- Emplacements de la feuille de personnage pour un type d'objet equipable.
 --- Expose pour l'integration infobulle, qui doit resoudre un objet quelconque et non
@@ -41,6 +81,78 @@ local UNRATED = { Trinket0Slot = true, Trinket1Slot = true }
 function Bags.SLOTS_FOR(equipLoc)
     return EQUIP_TO_SLOTS[equipLoc or ""]
 end
+
+--- L'objet est-il portable par ce personnage ?
+---
+--- Il n'y avait AUCUN controle : la resolution se faisait sur le seul emplacement
+--- d'equipement. Un plastron de plaques dans les sacs d'un mage remontait donc comme
+--- amelioration, avec un gain chiffre, parce que « INVTYPE_CHEST » correspond bien a
+--- l'emplacement torse.
+---
+--- Deux niveaux, du moins cher au plus cher :
+---
+---   1. la classe d'armure, deterministe et sans lecture d'infobulle ;
+---   2. la ligne ROUGE de l'infobulle du client, qui couvre tout le reste — maitrise
+---      d'arme, niveau requis, restriction de classe, unique-equipe deja porte. La
+---      maitrise d'arme n'est exposee par aucune API ; le client, lui, la connait et
+---      peint la ligne en rouge. On lit sa couleur, pas son texte : aucune dependance
+---      a la langue.
+local usableCache = {}
+
+local function armorFits(equipLoc, link)
+    if not ARMOR_SLOTS[equipLoc] then return true end
+
+    local instant = C_Item and C_Item.GetItemInfoInstant
+    if not instant then return true end
+
+    -- GetItemInfoInstant rend, dans cet ordre :
+    --   itemID, itemType, itemSubType, itemEquipLoc, icon, classID, subclassID
+    -- soit sept valeurs, donc classID en 7e position derriere le booleen de pcall.
+    -- Compter ces positions a la main a deja produit un decalage de deux dans ce
+    -- depot : on ecrit la signature en clair a cote de la destructuration.
+    local ok, _, _, _, _, _, classID, subclassID = pcall(instant, link)
+    if not ok or classID ~= ARMOR_CLASS_ID then return true end
+    if not subclassID or subclassID < ARMOR_SUBCLASS_CLOTH or subclassID > ARMOR_SUBCLASS_PLATE then
+        return true
+    end
+
+    local _, classFile = UnitClass("player")
+    local worn = ARMOR_BY_CLASS[classFile or ""]
+    -- Classe inconnue de la table : on ne bloque pas. Se tromper en bloquant coute une
+    -- amelioration invisible, ce qui est pire que de proposer une piece de trop.
+    if not worn then return true end
+    return subclassID == worn
+end
+
+local function tooltipAllows(link)
+    local lines = ns.Meta.ItemTooltipLines(link)
+    if not lines then return true end
+    for _, line in ipairs(lines) do
+        if line.r and line.r > 0.9 and line.g < 0.2 and line.b < 0.2 then
+            return false
+        end
+    end
+    return true
+end
+
+function Bags.CanUse(link, equipLoc)
+    if not link then return false end
+    local itemID = link:match("item:(%d+)")
+    if not itemID then return true end
+
+    local cached = usableCache[itemID]
+    if cached ~= nil then return cached end
+
+    local usable = armorFits(equipLoc, link) and tooltipAllows(link)
+    usableCache[itemID] = usable
+    return usable
+end
+
+-- Monter de niveau debloque des objets : le verdict precedent ne vaut plus.
+ns.On("PLAYER_LEVEL_UP", function()
+    usableCache = {}
+    Bags.Invalidate()
+end)
 
 local function containerSlots(bag)
     if C_Container and C_Container.GetContainerNumSlots then
@@ -89,6 +201,7 @@ local function candidateBags()
 end
 
 --- Parcourt les sacs et retourne les pieces equipables, classees par emplacement.
+--- Seuls les objets que ce personnage peut REELLEMENT porter sont retenus.
 function Bags.Candidates()
     local found = {}
 
@@ -98,7 +211,7 @@ function Bags.Candidates()
             if link then
                 local facts = itemFacts(link)
                 local targets = facts and EQUIP_TO_SLOTS[facts.equipLoc or ""]
-                if targets then
+                if targets and Bags.CanUse(link, facts.equipLoc) then
                     for _, target in ipairs(targets) do
                         found[target] = found[target] or {}
                         table.insert(found[target], { link = link, facts = facts })
@@ -134,33 +247,63 @@ local function rawCompare()
     --   unrated   : non chiffrable (bijou, piece d'ensemble) — ilvl seulement
     local simmed, estimated, unrated = {}, {}, {}
 
+    local offHand = summary.bySlot and summary.bySlot.SecondaryHandSlot
+    local offHandScore = (offHand and offHand.link)
+        and ns.Weights.Score(offHand.link, weights) or 0
+    local mainHand = summary.bySlot and summary.bySlot.MainHandSlot
+    local wearsTwoHander = mainHand and mainHand.equipLoc == "INVTYPE_2HWEAPON"
+
     for _, entry in ipairs(entries) do
         local list = candidates[entry.slot]
         if list then
-            local currentScore = entry.link and ns.Weights.Score(entry.link, weights) or 0
+            local baseScore = entry.link and ns.Weights.Score(entry.link, weights) or 0
             local currentLevel = entry.itemLevel or 0
 
             for _, candidate in ipairs(list) do
+                local equipLoc = candidate.facts.equipLoc
                 local score = ns.Weights.Score(candidate.link, weights)
-                local gain = score - currentScore
                 local levelDelta = (candidate.facts.itemLevel or 0) - currentLevel
+
+                -- Une deux mains LIBERE la main gauche : son gain se mesure contre la
+                -- somme des deux armes portees, pas contre la seule main droite. La
+                -- version precedente ignorait la perte et surevaluait chaque deux mains
+                -- proposee a un porteur d'arme et bouclier.
+                local currentScore = baseScore
+                if equipLoc == "INVTYPE_2HWEAPON" and entry.slot == "MainHandSlot" then
+                    currentScore = baseScore + offHandScore
+                end
+
+                local gain = score - currentScore
 
                 -- Une valeur simulee tranche : elle prime sur l'estimation lineaire et
                 -- rend chiffrables les bijoux et pieces d'ensemble.
                 local itemID = candidate.link:match("|Hitem:(%d+)")
                 local simulated = ns.Sim.Percent(tonumber(itemID), candidate.facts.itemLevel)
 
+                -- L'ordre compte. `not weights` etait teste EN PREMIER : sans chaine
+                -- Pawn — l'etat normal d'une installation neuve — tout objet sortait
+                -- avec la raison « weights », et la vue, qui ne connaissait que deux
+                -- raisons, affichait « piece d'ensemble » sur un bijou. Les cas
+                -- specifiques d'abord, le cas generique en dernier.
                 local blocked
                 if simulated then
                     blocked = nil
+                elseif UNRATED[entry.slot] then
+                    -- Un bijou vaut son proc, avec ou sans poids de statistiques.
+                    blocked = "trinket"
+                elseif entry.setID or candidate.facts.setID then
+                    -- Perdre le 4 pieces annule tout gain de statistique.
+                    blocked = "set"
+                elseif wearsTwoHander and entry.slot == "MainHandSlot"
+                    and (equipLoc == "INVTYPE_WEAPON" or equipLoc == "INVTYPE_WEAPONMAINHAND") then
+                    -- Une main a la place d'une deux mains : il faudrait une seconde
+                    -- arme pour que la comparaison ait un sens, et on ne sait pas
+                    -- laquelle. On le dit plutot que de chiffrer a cote.
+                    blocked = "pair"
                 elseif not weights then
                     -- Aucune chaine Pawn : plus de poids derives du releve, donc rien a
                     -- ponderer. La piece se classe par ilvl, marquee comme non chiffrable.
                     blocked = "weights"
-                elseif UNRATED[entry.slot] then
-                    blocked = "trinket"
-                elseif entry.setID or candidate.facts.setID then
-                    blocked = "set"
                 end
 
                 if simulated then
