@@ -165,7 +165,7 @@ function GuildView.Refresh()
     view.coverage:SetText(string.format("%s%d %s|r   %s%d %s|r   %s%d %s|r",
         hex("good"), counts.ready, L["ready"],
         hex("bis"), counts.stale, L["stale"],
-        hex("critical"), counts.missing, L["missing"]))
+        hex("critical"), counts.missing, L["no droptimizer"]))
 
     if guildMode == "raid" then
         GuildView.RefreshRaid()
@@ -210,7 +210,7 @@ function GuildView.Refresh()
     end
 
     if #list <= 1 then
-        view.header:SetText(hex("muted") .. L["Only you so far â€” ask your guild to run the roll call."] .. "|r")
+        view.header:SetText(hex("muted") .. L["Only you so far — ask your guild to run the roll call."] .. "|r")
     else
         view.header:SetText(L["name            spec          ilvl    fixes     last sim"])
     end
@@ -220,7 +220,7 @@ end
 
 --- Sous-vue Raid : la couverture de la guilde, rencontre par rencontre.
 ---
---- Meme lecture que l'onglet Raid du joueur â€” instance, boss, portrait â€” mais la colonne de
+--- Meme lecture que l'onglet Raid du joueur — instance, boss, portrait — mais la colonne de
 --- droite repond a une autre question. Aucun pourcentage ne circule sur le canal de guilde,
 --- donc on ne classe pas les joueurs par gain : on montre QUI est pret pour ce boss et depuis
 --- quand son droptimizer date.
@@ -381,7 +381,7 @@ function GuildView.RefreshRaid()
                 GameTooltip:AddLine(L["Guild ranking"], 0, 0.69, 1)
                 for rank, member in ipairs(item.members) do
                     if rank > 12 then
-                        GameTooltip:AddLine(string.format("+%dâ€¦", #item.members - 12),
+                        GameTooltip:AddLine(string.format("+%d…", #item.members - 12),
                             0.54, 0.54, 0.54)
                         break
                     end

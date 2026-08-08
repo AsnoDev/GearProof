@@ -1,22 +1,71 @@
-# SpecAnalyser — addon (partie in-game)
+# SpecAnalyser
 
-Addon WoW Retail (Midnight, Interface `120007`). Il fait quatre choses, et **rien** de ce
-que Blizzard a interdit depuis le patch 12.0 :
+**Ton équipement, confronté à ce que portent réellement les meilleurs joueurs de ta
+spécialisation.** Pas un guide recopié : une mesure.
 
-1. **Journalisation automatique** — active `advancedCombatLogging` puis `/combatlog` en
-   entrant en raid, donjon ou clé mythique+, et l'arrête en sortant.
-2. **Snapshot de session** — écrit dans les SavedVariables : spé, chaîne de talents,
-   ilvl, équipement, niveau de clé, liste des rencontres et leur résultat.
-3. **Analyse d'équipement** — enchantements et gemmes manquants, en direct, sans outil
-   externe.
-4. **Affichage des rapports** — lit `Data/Reports.lua`, généré par l'outil Python.
+WoW Retail — Midnight, Interface `120007`. Aucune dépendance externe.
 
-## Ce que l'addon ne fait pas (et ne peut pas faire)
+---
 
-Depuis Midnight, `COMBAT_LOG_EVENT_UNFILTERED` lève une erreur à l'enregistrement et les
-données de combat sont des *secret values* : un addon peut les afficher, pas les lire.
-L'analyse de gameplay est donc faite hors-jeu à partir de `WoWCombatLog.txt`. L'équipement,
-lui, n'est pas une donnée de combat : il est lu directement en jeu.
+## Ce qu'il fait
+
+**Audit d'équipement.** Enchantements manquants, châsses vides, emplacements oubliés,
+pièces abîmées, combinaison d'enchantements d'armes. Lu en direct sur tes objets.
+
+**Comparaison à une référence mesurée.** Pour chaque emplacement, l'enchantement que
+portent les 20 joueurs les mieux classés de ta spé, **avec leur taux d'adoption**. Un
+conseil sans taux d'adoption serait un avis ; avec, c'est une mesure.
+
+**Ce qui dort dans tes sacs.** Les pièces que tu transportes et qui valent mieux que
+celles que tu portes — en trois listes qui ne se mélangent jamais :
+
+| Liste | Unité | Source |
+|---|---|---|
+| Simulé | % de DPS | un droptimizer Raidbots que tu as importé |
+| Estimé | points de statistique pondérés | tes poids Pawn, estimation linéaire |
+| Non chiffrable | niveau d'objet seulement | bijou (proc), pièce d'ensemble (bonus 2p/4p) |
+
+Un bijou vaut par son proc, pas par ses points de statistique. Il reste **non chiffré**
+tant qu'une simulation ne le couvre pas, plutôt que chiffré à tort.
+
+**Export SimulationCraft.** Chaîne prête à coller sur Raidbots. Quand l'addon officiel
+SimulationCraft est installé, c'est **sa** chaîne qui est utilisée — elle fait autorité.
+
+**Table de butin par boss.** Les objets que ton droptimizer a réellement simulés,
+regroupés par rencontre, meilleur gain d'abord. Rien n'est fabriqué : la table de butin
+affichée est celle que Raidbots a vue.
+
+**Tournée de guilde.** Qui a un droptimizer à jour, qui a des correctifs en attente, et
+quel boss couvre le plus de besoins. Passe par le canal de **données** de la guilde :
+rien n'apparaît dans le chat, et **rien ne sort tant que tu n'as pas coché le partage**.
+
+**Rappel à l'entrée en instance.** Donjon ou raid avec de l'équipement incomplet →
+message dans le chat et avertissement central. Mieux vaut l'apprendre avant le pull.
+
+---
+
+## D'où viennent les chiffres
+
+Aucune API du jeu n'expose « le meilleur enchantement du patch ». Le classement, lui,
+est mesurable : on regarde ce qui est posé sur les personnages du haut de tableau.
+
+Le relevé est produit **hors du jeu** par l'outil Python `specanalyser`, depuis l'API
+Warcraft Logs, et livré avec l'addon dans `Data/Meta.lua` — 40 spécialisations. Pour
+chacune : les enchantements par emplacement avec leur part, les gemmes par rang de
+châsse, les combinaisons d'enchantements d'armes, la répartition des statistiques
+secondaires.
+
+**Trois règles tenues partout dans l'interface :**
+
+- Rien n'est recopié d'un guide.
+- Rien n'est inventé. Une valeur non mesurée est affichée comme non mesurée.
+- Chaque ligne dit d'où vient son conseil.
+
+C'est aussi pourquoi la jauge **compte** au lieu de noter : elle affiche le nombre de
+correctifs en attente et combien d'emplacements vérifiés sont propres. Il n'y a pas de
+score sur 100 — ce seraient quatre pénalités arbitraires déguisées en mesure.
+
+---
 
 ## Installation
 
@@ -29,138 +78,175 @@ World of Warcraft\_retail_\Interface\AddOns\
 Puis **redémarrer complètement le client** — WoW ne détecte un nouvel addon qu'au
 démarrage — et cocher `SpecAnalyser` dans la liste des addons.
 
+Rien à configurer : la référence mesurée est livrée avec l'addon. À la première
+connexion, la fenêtre s'ouvre seule sur l'onglet Aide.
+
+---
+
 ## L'interface
 
-Fenêtre unique de 940×640, construite comme une armurerie :
+Fenêtre unique de 1040×660, quatre onglets.
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│ SpecAnalyser                              [x] Log automatique        │
-│ Asnodh · Devourer · ilvl 662                     log en cours        │
-├──────────────────────┬───────────────────────────────────────────────┤
-│  [tête]      [gants] │ Equipement │ Analyse │ Historique │ Aide      │
-│  [cou]       [ceint] │                                               │
-│  [épaul]  ▟  [jambe] │ Equipement                                    │
-│  [cape]  ▐█▌ [bottes]│ 2 enchantements manquants · 1 châssis vide    │
-│  [torse]  ▜  [ann 1] │                                               │
-│  [bracl]     [ann 2] │ A CORRIGER                                    │
-│              [bij 1] │   Cape    enchantement manquant               │
-│              [bij 2] │   Anneau 2  1 châssis vide                    │
-│    [arme] [m.gauche] │                                               │
-│  ok  manque  vide    │ DETAIL COMPLET …                              │
-└──────────────────────┴───────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│ SpecAnalyser              [ Havoc · ta spécialisation ▾ ]   référence : …  │
+│ Asnodh · Havoc · ilvl 662                                   poids : 3 j    │
+│                                                                [Rafraîchir]│
+│      [ Équipement ] [ Raid ] [ Guilde ] [ Aide ]                           │
+├──────────────┬──────────────────────────────────┬──────────────────────────┤
+│              │ 2 enchantements manquants · …    │          ╭───╮           │
+│   mannequin  │                                  │         │  3  │  ← jauge │
+│      3D      │ [!] Cape : Glissement du Void    │          ╰───╯           │
+│              │     enchantement manquant        │   3 correctifs en attente│
+│  ┌──┬──┬──┬─┐│     clic gauche : copier le nom  │   13 / 16 propres        │
+│  │  │  │ !│  ││                                  │                          │
+│  ├──┼──┼──┼─┤│ [!] Anneau 2 : 1 châssis vide    │  STATISTIQUES SECONDAIRES│
+│  │  │ *│  │  ││                                  │  Hâte    ████████  18.7 %│
+│  └──┴──┴──┴─┘│ GEMS                             │  Critique ██████    12.4 %│
+│              │   Tête  + Éclat de Vide          │  …                       │
+│  3 correctifs│   Cou   ! vide → Éclat de Vide   │  PRIORITÉ                │
+│  ≥ 4 812 stat│                                  │  Hâte (40%) → Crit (29%) │
+│              │ DANS TES SACS                    │                          │
+│              │   simulé (% DPS)                 │  [ Lien droptimizer    ] │
+│              │   +1,24 %  Gants  [objet] i275   │  [ Copier pour droptim.] │
+└──────────────┴──────────────────────────────────┴──────────────────────────┘
 ```
 
-**À gauche** : ton personnage en 3D (rotation à la souris), encadré par ses emplacements
-d'équipement. Chaque case est bordée de vert (ok), d'orange (il manque quelque chose) ou de
-gris (vide), avec un `!` sur les cases à problème. Survole une case pour l'infobulle de
-l'objet suivie de ce qui lui manque.
+**La grille**, à gauche : 16 cases de 44 px sous le mannequin. La bordure porte l'état
+— vert `ok`, orange `manque quelque chose`, gris `vide` — et une pastille porte la
+même information par un **glyphe** : `!` rouge si un enchantement ou une gemme manque,
+`*` or si une meilleure pièce dort dans tes sacs. La couleur seule ne porte jamais
+l'information : un daltonien deutan lit les mêmes états.
 
-**À droite**, trois onglets dans l'entête (plus `Aide` en bas à droite) :
+**Clic gauche** sur une case → la pièce s'ouvre dans un panneau de détail qui **reste
+affiché**. **Clic droit** → ignorer l'alerte de cette pièce.
+
+**Le total récupérable**, sous la grille : combien de points de statistique tu laisses
+sur la table. C'est le chiffre qui décide si tu passes chez l'enchanteur maintenant.
+
+### Les quatre onglets
 
 | Onglet | Contenu |
 |---|---|
-| **ÉQUIPEMENT** | Résumé, liste des pièces à corriger, puis le détail emplacement par emplacement |
-| **ANALYSE** | Entête du run, carte *statistiques clés*, *chronologie des cooldowns*, les trois choses à travailler, le reste, les points forts |
-| **HISTORIQUE** | Menu déroulant à deux groupes — **Donjons** et **Raids** — qui ouvre l'analyse du run choisi |
+| **Équipement** | Grille, cartes de correctifs, gemmage par châsse, contenu des sacs, jauge, statistiques secondaires, priorité mesurée |
+| **Raid** | Rencontres et table de butin, façon journal des aventures. Alimenté par tes droptimizers |
+| **Guilde** | Roster et couverture droptimizer, plus une sous-vue Raid : qui a besoin de quoi |
+| **Aide** | Six cartes : d'où vient la référence, comment la garder à jour, comment lire l'onglet Équipement, questions fréquentes, signalement |
 
-### L'onglet Analyse
+### Intégration aux infobulles
 
-- **Statistiques clés** : score sur 100 avec jauge colorée et verdict (SOLIDE / CORRECT /
-  MOYEN / FRAGILE), puis les neuf mesures du run avec leur icône.
-- **Chronologie des cooldowns** : une ligne par sort suivi. Meta en segments continus,
-  Void Ray, Collapsing Star, Blur et les morts en repères. Uptime Meta affiché à droite.
-- **Les trois choses à travailler** : une carte par constat, bordée par sa sévérité, avec
-  le détail et les **horodatages cliquables**. Cliquer `[16:43]` ouvre la séquence de casts
-  autour de cet instant — l'instant lui-même surligné.
-- **Partager** : ouvre un résumé texte sélectionnable (Ctrl+A, Ctrl+C).
+Sur un objet — sacs, hôtel des ventes, butin, marchand — l'addon ajoute uniquement ce
+qui est **mesuré** : le gain simulé si un droptimizer le couvre, l'écart de niveau
+d'objet contre la pièce portée, et l'enchantement relevé pour cet emplacement avec son
+taux d'adoption. Rien d'estimé : une infobulle se lit en une seconde, sans le contexte
+qui permettrait de relativiser une approximation.
 
-### L'historique
+### Icône de minicarte
 
-Un bouton ouvre un menu déroulant à deux groupes :
+Clic gauche : ouvrir. Clic droit : onglet Équipement. Glisser : déplacer. La pastille
+passe verte, orange ou rouge selon l'état, sans avoir à ouvrir la fenêtre.
+
+---
+
+## La boucle d'utilisation
 
 ```
-[ Choisir un run                                            ▾ ]
-┌──────────────────────────────────────────────────────────────┐
-│ DONJONS                                            4 run(s)  │
-│   02/08 21:04  Ara-Kara +12        analyse   dans les temps  │
-│   01/08 15:11  Pit of Saron +11    analyse   2/3 boss        │
-│ RAIDS                                              2 run(s)  │
-│   28/07 21:30  Sporefall (Mythic)            3/8 boss        │
-└──────────────────────────────────────────────────────────────┘
+1.  /sa                      → ce qui manque, tout de suite
+2.  Corriger enchants et gemmes
+3.  "Copier pour droptimizer" → coller sur raidbots.com/simbot/droptimizer
+4.  "Coller le lien droptimizer" → le lien du rapport revient dans l'addon
+5.  Onglet Raid              → quel boss vaut le coup, objet par objet
 ```
 
-Choisir une ligne marquée `analyse` **bascule directement sur l'onglet Analyse, sur ce run
-précis**. Une ligne sans marqueur n'a pas encore été analysée — le détail rappelle alors la
-commande à lancer.
+Les étapes 3 à 5 sont facultatives. Sans droptimizer, l'addon fait déjà tout l'audit
+d'équipement — il se contente de ne pas chiffrer ce qu'il ne peut pas mesurer.
 
-Le rapprochement session ↔ analyse se fait sur le nom d'instance puis sur l'écart de date.
-Les analyses sans session correspondante (import Warcraft Logs, run joué avant
-l'installation de l'addon) restent listées, marquées `analyse seule`.
-
-**En haut à droite** : l'interrupteur `Log automatique`. Coché, l'addon lance `/combatlog`
-en entrant en instance et l'arrête en sortant. Décoché, il ne touche à rien. La ligne
-au-dessous dit l'état réel : *log en cours*, *en attente : Ara-Kara +12*, ou *inactif*.
-
-L'icône de minicarte : clic gauche pour ouvrir, clic droit pour l'équipement, glisser pour
-la déplacer. Son infobulle résume l'état sans ouvrir la fenêtre. À la toute première
-connexion, la fenêtre s'ouvre seule sur l'onglet explicatif.
-
-## L'onglet Équipement
-
-- **Cartes d'action** : *Priorité absolue* (rouge — arme non enchantée, emplacement vide,
-  pièce abîmée), *Optimisations* (orange — le reste), puis un *Détail complet* repliable.
-- **Survol d'une ligne** → la case correspondante s'illumine sur le mannequin.
-  **Clic gauche** → fiche de la pièce et conseils. **Clic droit** → ignorer l'alerte.
-- **Statistiques secondaires** : quatre jauges avec valeur brute, pourcentage et palier de
-  rendement décroissant atteint.
-- **Ensemble et bijoux** : nombre de pièces d'ensemble et état des bonus 2p/4p.
-- **Copier SimC** : chaîne SimulationCraft prête à coller sur Raidbots.
-
-Sur le mannequin, chaque case porte son niveau d'objet coloré par la qualité, un `!` rouge
-si l'enchantement manque et une icône de châssis si une gemme manque.
-
-## Alertes et habillage
-
-- Entrée en donjon ou raid avec de l'équipement incomplet → message dans le chat et
-  avertissement central. `/sa alerts` pour désactiver.
-- La pastille de la minicarte passe verte, orange ou rouge selon l'état.
-- `/sa theme` bascule entre le cadre Blizzard et un fond sombre à bordure fine.
-
-## Analyse d'équipement
-
-Lit la chaîne de chaque objet équipé et compare :
-
-- **Enchantement** : absent ou présent, sur cape, torse, bracelets, jambes, bottes, les
-  deux anneaux, l'arme, et la main gauche si c'en est une.
-- **Gemmes** : nombre de châssis de l'objet contre nombre de gemmes serties.
-- **Emplacement vide** : une pièce oubliée après un changement de stuff.
-
-La liste des emplacements enchantables est en haut de `Gear.lua` — une ligne à ajouter si
-un patch en introduit un nouveau. L'addon dit **ce qui manque**, pas quel produit acheter :
-le meilleur enchantement dépend du patch et de ta spé.
+---
 
 ## Commandes
 
 | Commande | Effet |
 |---|---|
-| `/sa` | Ouvre la fenêtre |
-| `/sa gear` | Équipement : ce qui manque, aussi dans le chat |
-| `/sa help` | Onglet explicatif + liste des commandes |
-| `/sa status` | État de la journalisation |
-| `/sa log on\|off` | Force la journalisation |
-| `/sa auto` | Bascule la journalisation automatique |
-| `/sa sessions` | Liste les sessions enregistrées |
+| `/sa` | Ouvre ou ferme la fenêtre |
+| `/sa gear` | Onglet Équipement, et le résumé dans le chat |
+| `/sa bags` | Alias de `/sa gear` |
+| `/sa guild` | Onglet Guilde et tournée de guilde |
+| `/sa simc` | Copie la chaîne SimulationCraft |
+| `/sa droptimizer` | Lien du droptimizer, prêt à copier |
+| `/sa weights <chaîne Pawn>` | Enregistre tes poids de statistiques |
+| `/sa lang <auto\|en\|fr>` | Langue de l'interface |
+| `/sa theme` | Bascule l'habillage : sombre → minimal → Blizzard |
+| `/sa alerts` | Active ou coupe le rappel à l'entrée en instance |
 | `/sa minimap` | Affiche ou masque l'icône de minicarte |
-| `/sa purge` | Vide l'historique |
+| `/sa help` | Onglet Aide et liste des commandes |
+| `/sa simcdiag` | Diagnostic de l'export SimulationCraft |
 | `/sa debug` | Messages de debug |
 
-## Boucle d'utilisation
+`/specanalyser` fonctionne partout à la place de `/sa`.
+
+---
+
+## Poids de statistiques
+
+Pour classer les objets de tes sacs, l'addon a besoin de tes poids — ceux de **ta**
+simulation, pas d'une moyenne.
 
 ```
-1. Jouer une clé / un raid              → l'addon logge tout seul
-2. specanalyser analyze --last --to-addon → l'outil Python écrit Data/Reports.lua
-3. /reload puis /sa                      → le rapport s'affiche en jeu
+/sa weights ( Pawn: v1: "Havoc": Agility=1, CriticalStrike=0.81, Haste=0.94, ... )
 ```
+
+Sans poids, une pièce se classe par niveau d'objet et porte la mention « demande une
+simulation ». C'est délibéré : il y avait auparavant un repli qui dérivait les poids de
+la répartition moyenne du haut de tableau, et il était **anti-corrélé** avec ce qu'il
+prétendait mesurer — plus tu accumules une statistique, plus sa part grossit et moins
+son point suivant vaut. Il poussait donc vers la statistique déjà saturée. Mieux vaut
+ne rien classer que mal classer.
+
+---
+
+## Ce que l'addon ne fait pas
+
+**Il n'analyse pas ton gameplay.** Depuis Midnight (patch 12.0), les événements de
+combat sont des *secret values* : un addon peut les afficher, pas les lire, et
+`COMBAT_LOG_EVENT_UNFILTERED` lève une erreur à l'enregistrement. Aucun addon ne peut
+plus le faire — celui-ci ne fait pas semblant.
+
+L'équipement, lui, n'a jamais été une donnée de combat : il est lu directement en jeu.
+
+**Il n'équipe rien à ta place** et ne classe pas les bijoux par tier list. Un bijou vaut
+par son proc ; un classement serait inventé.
+
+**Il ne copie rien dans ton presse-papier** — WoW n'y a pas accès. Toute « copie » passe
+par un champ de saisie déjà sélectionné : `Ctrl+A` puis `Ctrl+C`.
+
+---
+
+## Garder la référence à jour
+
+Le relevé est livré avec l'addon et daté. Pour le régénérer toi-même, avec l'outil
+Python `specanalyser` :
+
+```bash
+specanalyser wcl meta --zone <id> --all --to-addon      # le relevé du haut de tableau
+specanalyser raidbots <lien du rapport> --to-addon      # tes propres gains simulés
+```
+
+Puis `/reload` en jeu : un fichier de données généré n'est lu qu'au chargement de
+l'interface.
 
 L'outil Python vit dans `C:\Claude\python\projets\specanalyser`.
+
+---
+
+## Développement
+
+```bash
+tools\check_addon.cmd
+```
+
+Syntaxe, encodage, cohérence des traductions, références croisées entre modules. À
+lancer après toute modification, avant de copier dans le dossier de jeu — aucun
+interpréteur Lua n'est installé sur la machine de développement.
+
+L'architecture, les décisions techniques et les pièges d'API rencontrés sont dans
+[`CLAUDE.md`](CLAUDE.md).
