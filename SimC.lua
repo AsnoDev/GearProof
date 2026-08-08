@@ -17,6 +17,7 @@ local REGIONS = { [1] = "us", [2] = "kr", [3] = "eu", [4] = "tw", [5] = "cn" }
 
 -- Lignes de metier -> jetons SimulationCraft. On passe par l'identifiant et non par le
 -- nom affiche : le nom est traduit, l'identifiant non.
+-- DONNEE DE PATCH : verifiee contre 12.0.7.
 local PROFESSIONS = {
     [171] = "alchemy",
     [164] = "blacksmithing",
@@ -312,17 +313,41 @@ function SimC.FromOfficial()
     -- l'addon n'expose ni global `Simulationcraft`, ni commande contenant SIM, et que son
     -- cadre de copie n'existe PAS avant la premiere utilisation. Deviner un nom a echoue deux
     -- fois ; on reconnait donc le profil a son contenu.
+    -- Un profil SimulationCraft contient toujours une ligne `level=` et une ligne
+    -- d'objet : deux marqueurs valent mieux qu'un seuil de longueur.
+    local function readsAsProfile(object)
+        if type(object) ~= "table" or not object.GetText then return nil end
+        local ok, value = pcall(object.GetText, object)
+        if ok and type(value) == "string"
+            and value:find("level=", 1, true) and value:find("=,id=", 1, true) then
+            return value
+        end
+        return nil
+    end
+
+    -- Noms observes sur des installations reelles. On les essaie AVANT de balayer :
+    -- parcourir `_G` coute une trentaine de milliers d'iterations, et la boucle
+    -- s'executait a chaque tentative de declenchement.
+    local KNOWN = {
+        "SimcEditBox", "SimulationCraftEditBox", "SimcCopyFrameScroll",
+        "SimulationcraftFrameEditBox",
+    }
+
     local function findProfile()
+        for _, name in ipairs(KNOWN) do
+            local value = readsAsProfile(_G[name])
+            if value then return value, name end
+        end
+
+        -- Repli : balayage. Le diagnostic sur une installation reelle a montre que
+        -- l'addon n'expose ni global `Simulationcraft`, ni commande contenant SIM, et
+        -- que son cadre de copie n'existe PAS avant la premiere utilisation. Deviner un
+        -- nom a echoue deux fois ; on reconnait donc le profil a son contenu.
         for name, object in pairs(_G) do
-            if type(name) == "string" and type(object) == "table" and object.GetText
+            if type(name) == "string"
                 and (name:find("Simc") or name:find("Simulation")) then
-                local ok, value = pcall(object.GetText, object)
-                -- Un profil SimulationCraft contient toujours une ligne `level=` et une
-                -- ligne d'objet : deux marqueurs valent mieux qu'un seuil de longueur.
-                if ok and type(value) == "string" and value:find("level=", 1, true)
-                    and value:find("=,id=", 1, true) then
-                    return value, name
-                end
+                local value = readsAsProfile(object)
+                if value then return value, name end
             end
         end
         return nil
@@ -346,17 +371,23 @@ function SimC.FromOfficial()
         table.insert(triggers, function() handler("") end)
     end
 
+    -- Avant de declencher quoi que ce soit : peut-etre que le profil est deja la, d'une
+    -- utilisation precedente. Inutile de reveiller un addon tiers pour rien.
+    local existing, where = findProfile()
+    if existing then return existing, where end
+
     for _, trigger in ipairs(triggers) do
         pcall(trigger)
         local value, name = findProfile()
         if value then
-            -- Sa fenetre s'est ouverte : on la referme, la notre prend le relais.
-            local box = _G[name]
-            local frame = box and box.GetParent and box:GetParent()
-            while frame and frame.GetParent and frame:GetParent() ~= UIParent do
-                frame = frame:GetParent()
-            end
-            if frame and frame.Hide then pcall(frame.Hide, frame) end
+            -- Sa fenetre reste OUVERTE.
+            --
+            -- On la fermait de force, en remontant sa chaine de parents jusqu'a UIParent
+            -- pour appeler Hide dessus. C'est l'interface d'un autre addon : la manipuler
+            -- au motif qu'elle nous gene est le genre de geste qui casse au premier
+            -- changement chez lui, et qui surprend le joueur — il a vu une fenetre
+            -- s'ouvrir, elle disparait toute seule. La notre s'affiche par-dessus, en
+            -- FULLSCREEN_DIALOG, ce qui suffit.
             return value, name
         end
     end
@@ -470,12 +501,6 @@ function SimC.SetDroptimizer(text)
 
     ns.db.droptimizer = { id = id, stamp = time() }
     return true, id
-end
-
-function SimC.DroptimizerURL()
-    local stored = ns.db.droptimizer
-    if not stored or not stored.id then return nil end
-    return "https://www.raidbots.com/simbot/report/" .. stored.id
 end
 
 --- Age du rapport en jours, ou nil.

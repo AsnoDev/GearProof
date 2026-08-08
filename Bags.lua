@@ -64,7 +64,8 @@ local ARMOR_SLOTS = {
 
 -- Sous-classe d'armure maitrisee, par jeton de classe.
 -- Enum.ItemArmorSubclass : 1 = Tissu, 2 = Cuir, 3 = Mailles, 4 = Plaques.
--- Donnee de patch, verifiee contre 12.0.7 : a revoir si Blizzard change une maitrise.
+-- DONNEE DE PATCH : verifiee contre 12.0.7, a revoir si Blizzard change une maitrise
+-- d'armure ou introduit une classe.
 local ARMOR_BY_CLASS = {
     WARRIOR = 4, PALADIN = 4, DEATHKNIGHT = 4,
     HUNTER = 3, SHAMAN = 3, EVOKER = 3,

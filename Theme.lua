@@ -133,11 +133,6 @@ function Theme.Track(card, shade)
     return card
 end
 
---- Retire une carte du suivi. Rarement utile : la table est a cles faibles.
-function Theme.Untrack(card)
-    tracked[card] = nil
-end
-
 local function collectRegions(frame, list)
     if not frame or not frame.GetRegions then return end
     for _, region in ipairs({ frame:GetRegions() }) do

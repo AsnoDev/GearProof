@@ -60,6 +60,7 @@ function Recommendations.Gem(slotName)
 end
 
 --- Classement d'un bijou, ou nil.
+--- Sans appelant depuis le retrait de l'onglet Recommandations, qui sera restaure.
 function Recommendations.Trinket(itemID)
     return itemID and Recommendations.trinkets[itemID]
 end

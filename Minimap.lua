@@ -31,23 +31,22 @@ local function buildTooltip()
     GameTooltip:AddLine("SpecAnalyser")
     GameTooltip:AddLine(" ")
 
-    local count = #((SpecAnalyserData and SpecAnalyserData.reports) or {})
-    GameTooltip:AddLine(count > 0
-        and string.format("%d analysis file(s)", count)
-        or ns.L["gear audit"], 0.8, 0.8, 0.9)
+    -- Il y avait ici un compte de fichiers d'analyse lu dans `SpecAnalyserData`, une
+    -- table que plus rien ne definit depuis le retrait de l'analyse hors-jeu.
+    GameTooltip:AddLine(ns.L["gear audit"], 0.8, 0.8, 0.9)
 
     local _, summary = ns.Gear.Scan()
     if summary.problems > 0 then
-        GameTooltip:AddLine(string.format("%d gear issue(s)", summary.problems), 0.89, 0.64, 0.36)
+        GameTooltip:AddLine(string.format(ns.L["%d gear issue(s)"], summary.problems),
+            0.89, 0.64, 0.36)
     else
         GameTooltip:AddLine(ns.L["Gear complete"], 0.45, 0.78, 0.62)
     end
 
-
     GameTooltip:AddLine(" ")
-    GameTooltip:AddLine("Left click: open", 0, 0.69, 1)
-    GameTooltip:AddLine("Right click: gear", 0, 0.69, 1)
-    GameTooltip:AddLine("Drag: move the icon", 0, 0.69, 1)
+    GameTooltip:AddLine(ns.L["Left click: open"], 0, 0.69, 1)
+    GameTooltip:AddLine(ns.L["Right click: gear"], 0, 0.69, 1)
+    GameTooltip:AddLine(ns.L["Drag: move the icon"], 0, 0.69, 1)
     GameTooltip:Show()
 end
 

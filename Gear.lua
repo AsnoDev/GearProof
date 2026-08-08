@@ -415,11 +415,11 @@ function Gear.PrintReport()
     local entries, summary = Gear.Scan()
 
     if summary.problems == 0 then
-        ns.Print("equipement complet : %d pieces, tout est enchante et serti.", summary.checked)
+        ns.Print(L["gear complete: %d pieces, everything enchanted and socketed"], summary.checked)
         return
     end
 
-    ns.Print("%d probleme(s) d'equipement :", summary.problems)
+    ns.Print(L["%d gear problem(s):"], summary.problems)
     for _, entry in ipairs(entries) do
         if #entry.problems > 0 and not entry.ignored then
             print(string.format("  |cffe3a45c%s|r — %s%s",

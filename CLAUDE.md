@@ -22,37 +22,87 @@ journal fichier reste la source de vérité de l'outil Python, pas de l'addon.
 
 ## Fichiers
 
+### Socle
+
 | Fichier | Rôle |
 |---|---|
-| `Core.lua` | Namespace `ns`, SavedVariables `SpecAnalyserDB`, dispatch d'événements, `/sa` |
-| `Locale.lua` | Traductions ; la **clé est le texte anglais**, donc rien ne manque jamais |
-| `Theme.lua` | Trois habillages (`dark` par défaut, `minimal`, `blizzard`) + registre de cadres |
+| `Core.lua` | Namespace `ns`, SavedVariables, dispatch d'événements sous `pcall`, `/sa` |
+| `Locale.lua` | Traductions **en/fr uniquement** ; la clé EST le texte anglais. `ns.Localize` retient les libellés posés une fois, pour le changement de langue à chaud |
+| `Theme.lua` | Trois habillages (`dark` par défaut, `minimal`, `blizzard`), registre de cadres + `Theme.Track` pour les cartes hors cadre enregistré |
 | `Copy.lua` | Fenêtre de copie partagée (WoW n'accède pas au presse-papier) |
+| `ItemInfo.lua` | **Lecteur unique** de `GetItemInfo` : les 17 positions nommées, une fois |
+| `ItemLink.lua` | Découpage de chaîne d'objet : enchant, gemmes, bonus, modificateurs |
+| `Pool.lua` | Pool de widgets partagé par les vues, avec remise à neuf |
+| `Journal.lua` | **Seul** accès au journal des aventures : pose, lit, restaure la sélection |
+| `Options.lua` | Panneau de réglages dans les Options d'interface du client |
+
+### Données
+
+| Fichier | Rôle |
+|---|---|
 | `Spec.lua` | Spés de la classe, spé active, spé regardée (aperçu) |
-| `Meta.lua` | Lecture du relevé : enchants, gemmes par châsse, paires d'armes, stats, auras |
-| `Sim.lua` | Gains simulés, regroupement par rencontre, liens de butin du journal |
+| `Stats.lua` | Statistiques secondaires et paliers de rendement décroissant |
+| `Meta.lua` | Lecture du relevé + contrôle de version du format |
+| `Sim.lua` | Gains simulés, regroupement par rencontre, liens de butin |
 | `Recommendations.lua` | Façade : table éditable, sinon le relevé |
 | `Weights.lua` | Poids de statistiques depuis une chaîne Pawn — **aucun repli dérivé** |
-| `Gear.lua` | Audit d'équipement : enchants, gemmes, durabilité, set, paire d'armes |
-| `Bags.lua` | Comparaison sacs/équipé, en trois unités jamais mélangées |
-| `SimC.lua` | Export SimulationCraft, délégué à l'addon officiel quand il est présent |
-| `Guild.lua` | Tournée de guilde sur le canal de données, fraîcheur, gains par rencontre |
-| `Armory.lua` | Grille : modèle 3D + cases d'équipement colorées par état |
-| `Gauge.lua` | Jauge circulaire — **compte** les correctifs, ne note pas |
-| `GearView.lua` | Onglet Équipement : cartes, gemmes, détail d'objet, barres de stats |
-| `RaidView.lua` | Onglet Raid : rencontres et table de butin, façon journal des aventures |
-| `GuildView.lua` | Onglet Guilde : roster et sous-vue Raid |
-| `HelpView.lua` | Onglet Aide : six cartes |
-| `UI.lua` | Coquille : entête, onglets, déroulant de spé |
-| `Minimap.lua` | Icône de minicarte maison, sans librairie externe |
-| `Tooltip.lua` | Intégration dans les infobulles d'objets : sacs, HdV, butin |
-| `Alerts.lua` | Audit automatique à l'entrée en donjon ou raid |
 | `Data/Meta.lua` | **Généré et livré** : relevé des 40 spés — ne jamais éditer à la main |
 | `Data/Sim.lua` | **Généré** depuis tes droptimizers — ne jamais éditer à la main |
 
-L'ordre de chargement du `.toc` compte : `Data/*` → `Spec.lua` → `Meta.lua`/`Sim.lua` →
-`Gear.lua` → les vues → `UI.lua`. `Meta.lua` dépend de `Spec.lua` pour savoir quelle spé
-regarder ; `UI.lua` instancie les vues.
+### Métier
+
+| Fichier | Rôle |
+|---|---|
+| `Gear.lua` | Audit d'équipement, **mémoïsé** (TTL 2 s + invalidation par événement) |
+| `Bags.lua` | Comparaison sacs/équipé en trois unités, filtrage d'utilisabilité, **mémoïsé** |
+| `SimC.lua` | Export SimulationCraft, délégué à l'addon officiel quand il est présent |
+| `Guild.lua` | Tournée de guilde : canal authentifié, throttle en réponse, file d'envoi |
+
+### Présentation
+
+| Fichier | Rôle |
+|---|---|
+| `Armory.lua` | Grille : modèle 3D + 16 cases colorées par état |
+| `Gauge.lua` | Jauge circulaire — **compte** les correctifs, ne note pas |
+| `GearView.lua` | Onglet Équipement : cartes triées par gain, gemmes, détail, barres de stats |
+| `RaidView.lua` | Onglet Raid : rencontres et table de butin |
+| `GuildView.lua` | Onglet Guilde : roster et sous-vue Raid |
+| `HelpView.lua` | Onglet Aide : six cartes |
+| `UI.lua` | Coquille : entête, onglets, déroulant de spé, position/taille persistantes |
+| `Minimap.lua` | Icône de minicarte maison, sans librairie externe |
+| `Tooltip.lua` | Intégration dans les infobulles d'objets : sacs, HdV, butin |
+| `Alerts.lua` | Audit automatique à l'entrée en donjon ou raid |
+
+L'ordre de chargement du `.toc` compte : socle → `Data/*` → `Spec.lua` → `Stats.lua` →
+`Meta.lua`/`Sim.lua` → `Gear.lua` → `Bags.lua` → les vues → `UI.lua`. `Meta.lua` dépend de
+`Spec.lua` pour savoir quelle spé regarder ; `UI.lua` instancie les vues.
+
+## Périmètre perdu, à restaurer
+
+Un onglet **Recommandations** (`RecoView.lua`) a existé et a été supprimé sans que ses
+fonctionnalités soient migrées ailleurs. Les données correspondantes sont toujours
+générées et livrées pour les 40 spés, et lues par personne :
+
+- `auras` — buffs portés au pull (`Meta.Auras`)
+- `tertiary` — statistiques tertiaires moyennes (`Meta.Tertiary`)
+- `modes` — **détection de builds bimodaux** : deux écoles distinctes dans une même spé
+  (`crit: low 0.186 n=5 / high 0.323 n=15, gap 0.137`). Aucun lecteur Lua. C'est la
+  fonctionnalité la plus différenciante du relevé.
+- `p25` / `p75` / `spread` — dispersion des statistiques dans le top 20
+
+Les ~55 clés de locale correspondantes sont **conservées volontairement**, en attendant.
+`tools/check_locale.py` les signale comme orphelines : c'est attendu.
+
+## Validation
+
+```bash
+tools\check_addon.cmd
+```
+
+Syntaxe (luaparser), encodage (UTF-8 strict, mojibake, CRLF), cohérence des traductions
+(doublons, clés manquantes, orphelines), références croisées entre modules et globales
+accidentelles. Aucun interpréteur Lua n'est installé : c'est la seule validation
+automatique avant de copier dans le dossier de jeu.
 
 ## Interface
 
@@ -77,8 +127,9 @@ Deux pièges de mise en page, tous deux rencontrés :
 ## Pièges d'API rencontrés
 
 - `GetItemInfo` renvoie **17 valeurs** : `equipLoc` est la 9ᵉ et `setID` la 16ᵉ. Compter
-  les underscores à la main a déjà produit un décalage de deux positions. `Gear.itemInfo`
-  indexe désormais une table de résultats, avec les positions nommées en constantes.
+  les underscores à la main a déjà produit un décalage de deux positions. Il y a
+  désormais **un seul lecteur**, `ItemInfo.lua`, avec les 17 positions nommées : ne
+  jamais rappeler `GetItemInfo` directement ailleurs.
 - `pcall` renvoie son booléen en première position : indexer `results[1 + N]` plutôt que
   de retirer l'élément, sinon un `nil` au milieu crée un trou et décale tout.
 - **Chaîne d'objet : le compteur de bonus est le 13ᵉ champ**, pas le 14ᵉ. Ordre complet
@@ -125,18 +176,16 @@ retourne le total de l'objet — les châssis vides se déduisent par différenc
 de gemmes serties. La liste des emplacements enchantables est en haut du fichier, en dur et
 commentée : c'est une donnée de patch, pas une déduction possible depuis l'API.
 
-## Vérification syntaxique
-
-Aucun interpréteur Lua n'est installé sur la machine. Pour valider avant de copier dans le
-dossier de jeu :
-
-```bash
-C:/Claude/python/projets/specanalyser/.venv/Scripts/python.exe -c "from luaparser import ast; from pathlib import Path; [ast.parse(p.read_text(encoding='utf-8')) for p in Path(r'C:/Claude/lua/projets/SpecAnalyser').rglob('*.lua')]; print('ok')"
-```
-
 ## Conventions
 
 - Interface `120007` (12.0.7) — mettre à jour à chaque patch majeur.
-- Tout appel d'API susceptible de disparaître passe par `pcall` : une API supprimée ne
-  doit jamais empêcher la journalisation de démarrer.
+- Tout appel d'API susceptible de disparaître passe par `pcall`, y compris
+  `RegisterEvent` : un événement retiré par Blizzard doit coûter sa fonctionnalité, pas
+  le chargement du fichier entier.
+- Toute table dont le contenu dépend du patch porte un commentaire `DONNEE DE PATCH`
+  avec la version vérifiée. `grep "DONNEE DE PATCH"` liste ce qu'un patch peut casser.
 - Pas de dépendance externe (pas d'Ace3) : l'addon reste minimal par choix.
+- Fins de ligne **LF** partout, encodage UTF-8 sans BOM. Vérifié automatiquement : deux
+  chaînes ont déjà été livrées en double encodage et s'affichaient cassées en jeu.
+- Toute chaîne vue par le joueur passe par `ns.L` ou `ns.Localize`. Cinq fichiers
+  sortaient du français codé en dur dans un addon annoncé en anglais.

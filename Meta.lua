@@ -10,6 +10,37 @@ ns.Meta = Meta
 -- Aucune API du jeu n'expose "le meilleur enchantement du patch". Le classement, lui,
 -- est mesurable : on regarde ce qui est pose sur les personnages du haut de tableau.
 
+-- Version du format de `Data/Meta.lua`.
+--
+-- Le fichier est genere par un outil qui evolue de son cote ; le lecteur, lui, ne le
+-- savait pas. Un fichier produit par une version plus recente etait lu a l'aveugle : au
+-- mieux des champs ignores, au pire des conseils faux, dans les deux cas en silence.
+--
+-- 1 : format d'origine, sans estampille de version. Accepte — c'est ce qui est installe
+--     aujourd'hui, et le refuser casserait toutes les installations existantes.
+-- 2 : `_stamp.format` et `_stamp.generatedAt` presents.
+local FORMAT_SUPPORTED = 2
+local formatWarned = false
+
+--- Le relevé installe est-il lisible par cette version de l'addon ?
+--- Un format INCONNU est refuse, une fois, avec un message actionnable — plutot que lu
+--- de travers sans que rien ne le dise.
+local function formatIsReadable()
+    if type(SpecAnalyserMeta) ~= "table" then return false end
+
+    local stamp = SpecAnalyserMeta._stamp
+    local format = (type(stamp) == "table" and stamp.format) or 1
+    if format <= FORMAT_SUPPORTED then return true end
+
+    if not formatWarned then
+        formatWarned = true
+        ns.Print("%s%s|r", ns.Theme.C("critical"),
+            string.format(ns.L["the shipped reference is in format %d, this addon reads up to %d — update the addon"],
+                format, FORMAT_SUPPORTED))
+    end
+    return false
+end
+
 local scanner
 
 --- Prefixe localise de la ligne "Enchante : X" dans les infobulles.
@@ -35,7 +66,7 @@ end
 --- bloc a plat, sans dimension de spe) est rattache a la spe active plutot que rejete, pour
 --- ne pas casser une installation existante.
 local function block()
-    if type(SpecAnalyserMeta) ~= "table" then return nil end
+    if not formatIsReadable() then return nil end
     if SpecAnalyserMeta.sample then return SpecAnalyserMeta end
     if not ns.Spec then return nil end
 
@@ -64,8 +95,6 @@ local function block()
     return nil
 end
 
-Meta.Block = block
-
 function Meta.Available()
     local data = block()
     return data ~= nil and (data.sample or 0) > 0
@@ -87,6 +116,13 @@ function Meta.Fights()
     return (data and data.fights) or {}
 end
 
+-- Trois lecteurs ci-dessous n'ont plus d'appelant : `SpecName`, `Auras` et `Tertiary`.
+-- Ce n'est PAS du code mort a supprimer. Ils alimentaient l'onglet Recommandations,
+-- retire sans que ses fonctionnalites soient migrees ailleurs, alors que les donnees
+-- correspondantes sont toujours generees et livrees pour les 40 specialisations. Les
+-- buffs au pull et les statistiques tertiaires sont donc dans Data/Meta.lua, payes en
+-- taille de fichier, et affiches nulle part. Ils reviendront avec l'onglet.
+
 --- Nom de la specialisation telle que le releve la designe.
 function Meta.SpecName()
     local data = block()
@@ -107,12 +143,33 @@ function Meta.AnyAvailable()
     return false
 end
 
---- Estampille du releve embarque : nombre de spes et rencontres relevees.
---- @return table|nil { specs, encounters }
+--- Estampille du releve embarque : format, date, nombre de spes, rencontres relevees.
+--- @return table|nil { format, generatedAt, specs, encounters }
 function Meta.Stamp()
     if type(SpecAnalyserMeta) ~= "table" then return nil end
     local stamp = SpecAnalyserMeta._stamp
     return type(stamp) == "table" and stamp or nil
+end
+
+--- Age du releve en jours, ou nil quand il ne porte pas de date.
+---
+--- L'interface annoncait la taille de l'echantillon sans jamais dire de QUAND il date.
+--- Un releve de six semaines decrit un patch qui n'existe plus.
+function Meta.AgeInDays()
+    local stamp = Meta.Stamp()
+    local generated = stamp and stamp.generatedAt
+    if type(generated) ~= "string" then return nil end
+
+    local year, month, day = generated:match("^(%d%d%d%d)-(%d%d)-(%d%d)")
+    if not year then return nil end
+
+    local ok, then_ = pcall(time, {
+        year = tonumber(year), month = tonumber(month), day = tonumber(day),
+        hour = 12, min = 0, sec = 0,
+    })
+    if not ok or not then_ then return nil end
+
+    return math.max(0, math.floor((time() - then_) / 86400))
 end
 
 --- Enchantement de reference d'un emplacement : identifiant et taux d'adoption.

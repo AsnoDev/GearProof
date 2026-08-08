@@ -35,7 +35,6 @@ local FIELD = {
     setID             = 16,
     isCraftingReagent = 17,
 }
-ItemInfo.FIELD = FIELD
 
 --- Faits d'un objet, par nom de champ.
 ---

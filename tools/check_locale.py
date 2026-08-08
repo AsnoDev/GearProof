@@ -49,6 +49,17 @@ DYNAMIC_KEYS = {
     "Equipment", "Raid", "Guild", "Help",
     # GuildView sous-vues
     "Roster",
+    # Options.lua : les libelles et infobulles passent par une variable
+    # (`checkbox(parent, anchor, key, text, tip, ...)`), pas par un litteral.
+    "Language",
+    "Warn me when I enter a dungeon or raid with incomplete gear",
+    "Checks enchants, sockets, empty slots and durability a few seconds after the loading screen.",
+    "Add measured lines to item tooltips",
+    "Simulated gain, item level against what you wear, and the enchant measured for that slot. Nothing estimated.",
+    "Show the minimap icon",
+    "Share my data with the guild",
+    "Answer the roll call with your spec, item level, pending fixes and droptimizer id. Nothing leaves your client while this is off.",
+    "Debug messages",
     # Bags.REASON_TEXT[...] : pourquoi une piece des sacs n'est pas chiffree
     "proc — sim required",
     "set piece — sim required",

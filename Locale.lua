@@ -14,27 +14,13 @@ ns.translations = translations
 translations.fr = {
     -- Chrome
     ["Equipment"] = "Equipement",
-    ["Analysis"] = "Analyse",
-    ["History"] = "Historique",
     ["Help"] = "Aide",
-    ["Auto logging"] = "Log automatique",
-    ["logging"] = "log en cours",
-    ["disabled"] = "desactive",
-    ["waiting for an instance"] = "en attente d'une instance",
-    ["waiting: %s"] = "en attente : %s",
     ["Skin"] = "Habillage",
-    ["Share"] = "Partager",
-    ["Open the analysis"] = "Ouvrir l'analyse",
-    ["Clear comparison"] = "Vider la comparaison",
     ["Re-enable all"] = "Tout reactiver",
-    ["Copy SimC string"] = "Copier la chaine SimC",
     ["Report a bug"] = "Signaler un bug",
     ["Suggest an idea"] = "Suggerer une idee",
-    ["View"] = "Voir",
-    ["Cmp"] = "Cmp",
 
     -- Equipement
-    ["ok"] = "ok",
     ["missing"] = "manque",
     ["empty"] = "vide",
     ["enchant"] = "enchant",
@@ -214,12 +200,7 @@ translations.fr = {
     ["Then, in game:"] = "Puis, en jeu :",
     ["A generated data file is only read when the interface loads. Without a reload, the new numbers stay invisible."] =
         "Un fichier de donnees genere n'est lu qu'au chargement de l'interface. Sans reload, les nouveaux chiffres restent invisibles.",
-    ["The score"] = "Le score",
-    ["Starts at 100 and drops per fixable problem: missing enchant, empty socket, empty slot, worn out item. It rates what you can fix today, not your skill."] =
-        "Part de 100 et descend par probleme corrigeable : enchantement manquant, chasse vide, emplacement vide, objet use. Il note ce que tu peux corriger aujourd'hui, pas ton niveau de jeu.",
     ["The stat bars"] = "Les barres de statistiques",
-    ["The bar fills with your rating, the white mark is the measured target. Short bar means you are missing points, past the mark means you have too many. The signed number gives the exact gap."] =
-        "La barre se remplit avec ta valeur, le repere blanc est la cible mesuree. Barre courte : il te manque des points. Barre qui depasse le repere : tu en as trop. Le nombre signe donne l'ecart exact.",
     ["The priority line"] = "La ligne de priorite",
     ["The order the top players actually run, with each share. Read once, not repeated on every row."] =
         "L'ordre reellement joue par le haut de tableau, avec la part de chacune. Lu une fois, pas repete sur chaque ligne.",
@@ -244,53 +225,11 @@ translations.fr = {
         "L'audit recalcule enchantements, gemmes et cibles de statistiques pour la specialisation choisie. Ton equipement ne change pas.",
 
     -- Analyse
-    ["KEY STATS"] = "STATISTIQUES CLES",
-    ["COOLDOWN TIMELINE"] = "CHRONOLOGIE DES COOLDOWNS",
-    ["THE THREE THINGS TO WORK ON"] = "LES TROIS CHOSES A TRAVAILLER",
-    ["THE REST"] = "LE RESTE",
-    ["WHAT YOU DO WELL"] = "CE QUE TU FAIS BIEN",
-    ["Critical"] = "Critique",
-    ["Important"] = "Important",
-    ["Minor"] = "Mineur",
-    ["Meta uptime: %d%%"] = "Uptime Meta : %d%%",
-    ["Combat sequence"] = "Sequence de combat",
-    ["See the combat sequence"] = "Voir la sequence de combat",
-    ["No analysis loaded"] = "Aucune analyse chargee",
 
     -- Historique
-    ["History (your recorded sessions)"] = "Historique (tes sessions enregistrees)",
-    ["Selected: %s"] = "Selectionne : %s",
-    ["PERFORMANCE OVER TIME"] = "EVOLUTION DE PERFORMANCE",
-    ["RECORDED SESSIONS"] = "SESSIONS ENREGISTREES",
-    ["COMPARISON"] = "COMPARATEUR",
-    ["No run selected"] = "Aucun run selectionne",
-    ["No session recorded yet."] = "Aucune session enregistree pour l'instant.",
-    ["no analysis"] = "pas d'analyse",
-    ["in time"] = "dans les temps",
-    ["over time"] = "hors temps",
-    ["%d/%d bosses"] = "%d/%d boss",
-    ["finished"] = "termine",
-    ["(your recorded sessions)"] = "(tes sessions enregistrees)",
-    ["score"] = "score",
-    ["dps (relative)"] = "dps (relatif)",
-    ["date            instance                   lvl     dps      score"] =
-        "date            instance                   niv.    dps      score",
-    ["Duration"] = "Duree",
-    ["No analysis for this run."] = "Aucune analyse pour ce run.",
-    ["Pick a second run to compare."] = "Selectionne un second run pour comparer.",
-    ["Click Cmp on two runs to compare them."] = "Clique Cmp sur deux runs pour les comparer.",
-    ["versus"] = "contre",
-    ["Not enough runs yet to draw a curve"] = "Pas encore assez de runs pour tracer une courbe",
-    ["Score"] = "Score",
-    ["Deaths"] = "Morts",
-    ["Dead time"] = "Temps mort",
-    ["Damage taken"] = "Degats subis",
 
     -- Aide
     ["Welcome"] = "Bienvenue",
-    ["Why outside the game?"] = "Pourquoi hors du jeu ?",
-    ["Run an analysis"] = "Lancer une analyse",
-    ["Reading the score"] = "Lire le score",
     ["Frequent questions"] = "Questions frequentes",
     ["Report something"] = "Signaler quelque chose",
 
@@ -311,16 +250,15 @@ translations.fr = {
     ["stat enchant"] = "enchantement de stat",
     ["leg armor"] = "renfort de jambes",
     ["weapon enchant"] = "enchantement d'arme",
-    ["auto logging: %s"] = "log automatique : %s",
-    ["enabled"] = "active",
     ["language: %s"] = "langue : %s",
 
     -- References, poids, sacs
     ["meta reference: %s (%d players)"] = "reference : %s (%d joueurs)",
     ["no meta reference loaded"] = "aucune reference chargee",
+    ["the shipped reference is in format %d, this addon reads up to %d — update the addon"] =
+        "la reference livree est au format %d, cet addon lit jusqu'au %d — mets l'addon a jour",
+    ["reference measured %d day(s) ago"] = "reference mesuree il y a %d jour(s)",
     ["weights: %s (%d days)"] = "poids : %s (%d j)",
-    ["weights: derived from the top ranking (approximate)"] = "poids : deduits du haut de tableau (approx.)",
-    ["no stat weights"] = "aucun poids de stats",
     ["stat weights saved (%s)"] = "poids de stats enregistres (%s)",
     ["unreadable Pawn string"] = "chaine Pawn illisible",
     ["Paste my stat weights"] = "Coller mes poids",
@@ -333,6 +271,13 @@ translations.fr = {
     ["skin: %s"] = "habillage : %s",
     ["gear grid"] = "grille d'equipement",
     ["gear audit"] = "audit d'equipement",
+    ["%d gear issue(s)"] = "%d probleme(s) d'equipement",
+    ["Left click: open"] = "Clic gauche : ouvrir",
+    ["Right click: gear"] = "Clic droit : equipement",
+    ["Drag: move the icon"] = "Glisser : deplacer l'icone",
+    ["gear complete: %d pieces, everything enchanted and socketed"] =
+        "equipement complet : %d pieces, tout est enchante et serti",
+    ["%d gear problem(s):"] = "%d probleme(s) d'equipement :",
     ["In your bags"] = "Dans tes sacs",
     ["Search this in the auction house"] = "A chercher a l'hotel des ventes",
     ["Droptimizer link"] = "Lien droptimizer",
@@ -366,8 +311,6 @@ translations.fr = {
     ["%d fix(es) pending"] = "%d correctif(s) en attente",
     ["stat"] = "stat",
     ["to fix"] = "a corriger",
-    ["Show model"] = "Afficher le modele",
-    ["Hide model"] = "Masquer le modele",
     ["/sa to open  ·  minimap icon  ·  right click a tile to mute its alert"] =
         "/sa pour ouvrir  ·  icone de minicarte  ·  clic droit sur une case pour ignorer son alerte",
     ["your stat weights are out of date — re-run a droptimizer"] =
@@ -395,56 +338,12 @@ translations.fr = {
     ["Reload UI"] = "Recharger",
     ["A freshly generated analysis is only read at load."] =
         "Une analyse fraichement generee n'est lue qu'au chargement.",
-    ["reload scheduled in %ds (%s) — /sa cancel to stop it"] =
-        "rechargement programme dans %ds (%s) — /sa cancel pour l'annuler",
-    ["reload postponed: combat or instance in progress"] =
-        "rechargement repousse : combat ou instance en cours",
-    ["reloading the interface to pick up the new analysis"] =
-        "rechargement de l'interface pour charger la nouvelle analyse",
-    ["scheduled reload cancelled"] = "rechargement annule",
-    ["no reload scheduled"] = "aucun rechargement programme",
-    ["leaving an instance"] = "sortie d'instance",
-    ["new analysis loaded (%d run(s))"] = "nouvelle analyse chargee (%d run(s))",
-    ["auto reload: %s"] = "rechargement auto : %s",
 
     -- Aide
-    ["SpecAnalyser looks at two things."] = "SpecAnalyser regarde deux choses.",
-    ["Your gear, read live in game: enchants, gems, durability, class set."] =
-        "Ton equipement, lu en direct dans le jeu : enchantements, gemmes, durabilite, ensemble de classe.",
-    ["Your gameplay, analysed outside the game from the combat log the client writes itself."] =
-        "Ton gameplay, analyse hors du jeu a partir du fichier de log que le client ecrit lui-meme.",
-    ["Since Midnight, Blizzard cut addon access to combat events: they are flagged as secret values, displayable but unreadable."] =
-        "Depuis Midnight, Blizzard a coupe l'acces des addons aux evenements de combat : ils sont marques comme valeurs secretes, affichables mais illisibles.",
-    ["No addon can analyse your play live any more. The log file stays complete."] =
-        "Aucun addon ne peut plus analyser ton jeu en direct. Le fichier de log, lui, reste complet.",
-    ["Keep Auto logging checked."] = "Garde Log automatique coche.",
-    ["Play your dungeon or raid."] = "Joue ton donjon ou ton raid.",
-    ["On your PC, run:"] = "Sur ton PC, lance :",
-    ["In game: /reload then /sa."] = "En jeu : /reload puis /sa.",
-    ["The analysis lands in the Analysis tab, and the run in History."] =
-        "L'analyse apparait dans l'onglet Analyse, et le run dans l'Historique.",
-    ["excellent, nothing structural to fix"] = "excellent, rien de structurel a corriger",
-    ["solid"] = "solide",
-    ["average, one obvious thing to work on"] = "moyen, un axe de travail evident",
-    ["weak"] = "faible",
-    ["critical"] = "critique",
-    ["The score starts at 100 and removes points per finding, by severity and recurrence. It compares you to yourself, run after run."] =
-        "Le score part de 100 et retire des points par constat, selon sa gravite et sa recurrence. Il sert a te comparer a toi-meme, d'un run a l'autre.",
-    ["Is the data reliable?"] = "Les donnees sont-elles fiables ?",
-    ["It comes from your own combat log. Nothing is estimated: every finding cites its timestamps."] =
-        "Elles viennent de ton propre log de combat. Rien n'est estime : chaque constat cite ses horodatages.",
-    ["Where do the enchant suggestions come from?"] = "D'ou viennent les enchantements conseilles ?",
-    ["From the logs: what the top ranked players of your spec actually wear, with their adoption rate."] =
-        "Des logs : ce que portent reellement les joueurs les mieux classes de ta spe, avec leur taux d'adoption.",
-    ["History is empty?"] = "L'historique est vide ?",
-    ["It fills up on the first dungeon played with the addon active."] =
-        "Il se remplit au premier donjon joue avec l'addon actif.",
     ["Both buttons prepare a ready to paste text, with the technical details already filled in."] =
         "Les deux boutons preparent un texte pret a coller, avec les informations techniques deja remplies.",
     ["Bug report"] = "Rapport de bug",
     ["Suggestion"] = "Suggestion",
-    ["Analysis computed outside the game by the specanalyser Python tool"] =
-        "Analyse hors-jeu par l'outil Python specanalyser",
 
     -- Alertes
     ["%d missing enchant(s)"] = "%d enchantement(s) manquant(s)",

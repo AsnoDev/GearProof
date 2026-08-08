@@ -76,11 +76,6 @@ function Weights.SetFromPawn(text)
     return true, name
 end
 
-function Weights.Clear()
-    ns.db.weights = nil
-    if ns.Bags then ns.Bags.Invalidate() end
-end
-
 --- Poids actifs et leur provenance.
 --- @return table weights, string source, number|nil stamp
 function Weights.Current()

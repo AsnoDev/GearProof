@@ -6,6 +6,11 @@ SpecAnalyserMeta = {
     -- Estampille du releve. `_stamp` n'est pas une specialisation : les lecteurs
     -- iterent SpecAnalyserMeta et ignorent les cles commencant par un blanc souligne.
     _stamp = {
+        -- Version du FORMAT, lue par Meta.lua. A incrementer quand la forme des blocs
+        -- change, pour qu'un addon plus ancien refuse le fichier au lieu de le lire de
+        -- travers en silence.
+        format = 2,
+        generatedAt = "2026-08-03",
         specs = 40,
         encounters = { "Belo'ren, Child of Al'ar", "Midnight Falls" },
     },

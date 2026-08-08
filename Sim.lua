@@ -119,14 +119,6 @@ function Sim.LootLink(encounterID, itemID, difficulty, instanceID)
     return table_[itemID]
 end
 
---- Niveau d'objet reel d'une piece de butin, ou nil.
-function Sim.LootItemLevel(encounterID, itemID, difficulty, instanceID)
-    local link = Sim.LootLink(encounterID, itemID, difficulty, instanceID)
-    if not link or not C_Item or not C_Item.GetDetailedItemLevelInfo then return nil end
-    local ok, level = pcall(C_Item.GetDetailedItemLevelInfo, link)
-    return ok and level or nil
-end
-
 --- Nom d'une rencontre depuis son identifiant de journal, ou nil.
 ---
 --- Les noms de profileset de Raidbots portent l'instance et la rencontre du journal des
@@ -195,12 +187,4 @@ function Sim.ByEncounter()
     -- Les rencontres les plus payantes en tete : c'est la question que se pose un raid.
     table.sort(order, function(a, b) return a.best > b.best end)
     return #order > 0 and order or nil
-end
-
---- Nombre de rapports charges.
-function Sim.Count()
-    if not Sim.Available() then return 0 end
-    local count = 0
-    for _ in pairs(SpecAnalyserSim) do count = count + 1 end
-    return count
 end

@@ -141,9 +141,20 @@ local function updateReferences()
         -- comme tel.
         local fights = ns.Meta.Fights()
         local where = (#fights > 0 and table.concat(fights, ", ")) or ns.Meta.Source() or "?"
-        metaStatus:SetText(string.format("%s%s%s",
+
+        -- L'age du releve, quand il est date. La taille de l'echantillon etait annoncee
+        -- sans jamais dire de QUAND il vient : un releve de six semaines decrit un patch
+        -- qui n'existe plus, et rien ne le signalait.
+        local age = ns.Meta.AgeInDays()
+        local suffix = ""
+        if age and age >= 14 then
+            suffix = string.format("  %s%s|r", ns.Theme.C("bis"),
+                string.format(L["reference measured %d day(s) ago"], age))
+        end
+
+        metaStatus:SetText(string.format("%s%s%s%s",
             COLORS.muted, string.format(L["meta reference: %s (%d players)"],
-                where, ns.Meta.Sample()), COLORS.reset))
+                where, ns.Meta.Sample()), COLORS.reset, suffix))
     elseif ns.Meta.AnyAvailable() then
         -- Nuance qui compte : des donnees sont installees, mais pas pour cette spe.
         metaStatus:SetText(COLORS.major
@@ -469,13 +480,6 @@ function UI.Refresh()
         if frame and frame:IsShown() then refresh() end
     end)
 end
-
-ns.On("PLAYER_LOGIN", function()
-    local count = #((SpecAnalyserData and SpecAnalyserData.reports) or {})
-    if count > 0 and SpecAnalyserData.generatedAt then
-        ns.Print("%d analyse(s) disponible(s). |cff9d95b6/sa|r pour les consulter.", count)
-    end
-end)
 
 -- Un changement d'equipement invalide l'onglet Equipement et la pastille de minicarte.
 --
