@@ -51,6 +51,12 @@ def main() -> int:
         if raw.startswith(b"\xef\xbb\xbf"):
             report.error(where, "BOM UTF-8 en tete — a retirer")
 
+        # Le depot etait deja mixte : trois fichiers en CRLF, le reste en LF. Un editeur
+        # qui reecrit un fichier entier change ses fins de ligne sans le dire, et le diff
+        # devient illisible. LF partout, verifie.
+        if b"\r\n" in raw:
+            report.error(where, "fins de ligne CRLF — le depot est en LF")
+
         try:
             text = raw.decode("utf-8")
         except UnicodeDecodeError as exc:
