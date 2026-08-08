@@ -198,6 +198,7 @@ end
 
 --- Decoupe une charge utile sur des frontieres de separateur.
 --- @param budget number octets disponibles pour le morceau, en-tete deduite
+--- @return table|nil morceaux, ou nil si la charge utile ne tient pas dans la borne
 local function chunkPayload(payload, budget)
     local chunks = {}
     budget = math.max(32, budget or 200)
@@ -210,8 +211,10 @@ local function chunkPayload(payload, budget)
         table.insert(chunks, payload:sub(1, cut))
         payload = payload:sub(cut + 1)
 
-        -- Une charge utile absurde vient d'un bug, pas d'un droptimizer : on s'arrete.
-        if #chunks >= MAX_CHUNKS then return chunks end
+        -- Trop de morceaux : on n'envoie RIEN. Couper la liste en annoncant un total
+        -- complet ferait assembler au recepteur une charge amputee qu'il croirait
+        -- entiere — donc des gains faux, affiches sans le moindre signe.
+        if #chunks >= MAX_CHUNKS then return nil end
     end
     if #payload > 0 then table.insert(chunks, payload) end
     return chunks
@@ -256,6 +259,12 @@ local function sendSim()
     -- sur l'expediteur du message, seule source qu'un tiers ne peut pas falsifier.
     local budget = MESSAGE_LIMIT - (#ITEMS + 10)
     local chunks = chunkPayload(payload, budget)
+    if not chunks then
+        ns.Debug("charge utile de %d octets au-dela de %d morceaux : rien n'est envoye",
+            #payload, MAX_CHUNKS)
+        return
+    end
+
     for index, chunk in ipairs(chunks) do
         post(table.concat({ ITEMS, index, #chunks, chunk }, "~"))
     end
