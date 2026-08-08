@@ -54,7 +54,7 @@ end)
 
 function ns.Print(fmt, ...)
     local msg = select("#", ...) > 0 and string.format(fmt, ...) or fmt
-    print("|cff8b6bffSpecAnalyser|r: " .. msg)
+    print("|cff8b6bffGearProof|r: " .. msg)
 end
 
 function ns.Debug(fmt, ...)

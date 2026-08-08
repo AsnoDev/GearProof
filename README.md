@@ -234,7 +234,8 @@ specanalyser raidbots <lien du rapport> --to-addon      # tes propres gains simu
 Puis `/reload` en jeu : un fichier de données généré n'est lu qu'au chargement de
 l'interface.
 
-L'outil Python vit dans `C:\Claude\python\projets\specanalyser`.
+L'outil Python `specanalyser` vit dans `C:\Claude\python\projets\specanalyser` — il
+garde son nom : c'est un outil d'analyse, pas l'addon.
 
 ---
 

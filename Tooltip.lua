@@ -16,7 +16,7 @@ ns.Tooltip = Tooltip
 -- Rien d'estime n'est affiche ici : une infobulle est lue en une seconde, sans le contexte
 -- qui permettrait de relativiser un chiffre approximatif.
 
-local ADDED = "|cff00B0FFSpecAnalyser|r"
+local ADDED = "|cff00B0FFGearProof|r"
 
 --- Emplacements de la feuille de personnage pour un type d'objet equipable.
 local function slotsFor(equipLoc)
