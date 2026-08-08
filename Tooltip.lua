@@ -112,9 +112,13 @@ function Tooltip.LinesFor(link)
 end
 
 --- Branche l'addon sur les infobulles d'objets.
+---
+--- L'enregistrement est DEFINITIF : `AddTooltipPostCall` n'a pas de contrepartie, et la
+--- version precedente testait le reglage ici, une fois, a la connexion. Couper
+--- l'integration depuis les options n'avait donc aucun effet avant un /reload — et comme
+--- rien n'ecrivait jamais `db.tooltip`, le reglage etait purement decoratif.
+--- Le test vit maintenant dans le crochet lui-meme, ou il coute une comparaison.
 function Tooltip.Register()
-    if ns.db and ns.db.tooltip == false then return end
-
     -- TooltipDataProcessor est l'unique point d'entree depuis Dragonflight ; les anciens
     -- crochets GameTooltip:SetScript n'ont plus d'effet. Tout est sous pcall : une API qui
     -- change de nom ne doit pas empecher le reste de l'addon de fonctionner.
@@ -122,6 +126,7 @@ function Tooltip.Register()
     if not Enum or not Enum.TooltipDataType or not Enum.TooltipDataType.Item then return end
 
     local function decorate(tooltip, data)
+        if ns.db and ns.db.tooltip == false then return end
         if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip then return end
 
         local link = data and data.hyperlink

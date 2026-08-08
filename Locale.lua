@@ -143,6 +143,9 @@ translations.fr = {
     ["%d items simulated"] = "%d objets simules",
     ["%d items simulated by your droptimizer"] = "%d objets simules par ton droptimizer",
     ["simulated at ilvl"] = "simule en ilvl",
+    ["Ctrl+A then Ctrl+C to copy"] = "Ctrl+A puis Ctrl+C pour copier",
+    ["Class set"] = "Ensemble",
+    ["%d pieces"] = "%d pieces",
     ["GEMS"] = "GEMMES",
     ["empty → %s"] = "vide → %s",
     ["Item data not loaded yet — click again in a moment."] =
@@ -370,6 +373,24 @@ translations.fr = {
     ["your stat weights are out of date — re-run a droptimizer"] =
         "tes poids de stats datent — relance un droptimizer",
 
+    -- Panneau d'options
+    ["Nothing needs configuring: the measured reference ships with the addon."] =
+        "Rien a configurer : la reference mesuree est livree avec l'addon.",
+    ["Language"] = "Langue",
+    ["Warn me when I enter a dungeon or raid with incomplete gear"] =
+        "M'avertir a l'entree en donjon ou raid si l'equipement est incomplet",
+    ["Checks enchants, sockets, empty slots and durability a few seconds after the loading screen."] =
+        "Verifie enchantements, chasses, emplacements vides et durabilite quelques secondes apres l'ecran de chargement.",
+    ["Add measured lines to item tooltips"] = "Ajouter les lignes mesurees aux infobulles d'objets",
+    ["Simulated gain, item level against what you wear, and the enchant measured for that slot. Nothing estimated."] =
+        "Gain simule, niveau d'objet contre ce que tu portes, et l'enchantement releve pour cet emplacement. Rien d'estime.",
+    ["Show the minimap icon"] = "Afficher l'icone de minicarte",
+    ["Share my data with the guild"] = "Partager mes donnees avec la guilde",
+    ["Answer the roll call with your spec, item level, pending fixes and droptimizer id. Nothing leaves your client while this is off."] =
+        "Repondre a l'appel avec ta spe, ton ilvl, tes correctifs en attente et l'identifiant de ton droptimizer. Rien ne sort tant que c'est decoche.",
+    ["Debug messages"] = "Messages de debug",
+    ["Settings"] = "Reglages",
+
     -- Rechargement
     ["Reload UI"] = "Recharger",
     ["A freshly generated analysis is only read at load."] =
@@ -453,16 +474,43 @@ function ns.CurrentLanguage()
     return CLIENT_MAP[GetLocale()] or "en"
 end
 
---- Recharge la table de traduction active.
+-- Widgets dont le libelle doit suivre la langue.
+--
+-- Tout texte pose dans un `Create()` n'etait jamais repose : onglets, boutons de
+-- l'entete, titres des cartes d'aide, boutons de l'onglet Guilde. `/sa lang fr` laissait
+-- donc la moitie de la fenetre en anglais jusqu'au prochain /reload, et l'appel a
+-- `UI.Show()` cense regler ca ne touchait aucun de ces FontStrings.
+local retranslate = {}
+
+--- Pose un libelle traduit et retient le widget pour les changements de langue.
+--- @param setter string|nil methode a appeler, `SetText` par defaut
+function ns.Localize(widget, key, setter)
+    if not widget or not key then return widget end
+    setter = setter or "SetText"
+    if type(widget[setter]) ~= "function" then return widget end
+
+    table.insert(retranslate, { widget = widget, key = key, setter = setter })
+    widget[setter](widget, L[key])
+    return widget
+end
+
+--- Recharge la table de traduction active, puis repose tous les libelles enregistres.
 function ns.ApplyLanguage()
     for key in pairs(L) do L[key] = nil end
 
     local code = ns.CurrentLanguage()
     local table_ = translations[code]
-    if not table_ then return code end
-
-    for key, value in pairs(table_) do
-        L[key] = value
+    if table_ then
+        for key, value in pairs(table_) do
+            L[key] = value
+        end
     end
+
+    for _, item in ipairs(retranslate) do
+        -- Sous pcall : un widget detruit ou un setter disparu ne doit pas empecher les
+        -- suivants d'etre retraduits.
+        pcall(item.widget[item.setter], item.widget, L[item.key])
+    end
+
     return code
 end

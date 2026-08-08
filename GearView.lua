@@ -442,6 +442,26 @@ local function layoutSide(summary)
         top = top - 28
     end
 
+    -- Ensemble de classe.
+    --
+    -- `summary.setID` et `summary.setPieces` etaient calcules a CHAQUE scan et affiches
+    -- nulle part. L'etat 2p/4p est la premiere question d'un joueur de raid, et la
+    -- reponse etait deja en memoire.
+    view.setLine:ClearAllPoints()
+    view.setLine:SetPoint("TOPLEFT", view.side, "TOPLEFT", 0, top - 6)
+    local pieces = summary.setPieces or 0
+    if summary.setID and pieces > 0 then
+        local function bonus(count)
+            return string.format("%s%dp|r", pieces >= count and hex(COLORS.good) or "|cff615c73", count)
+        end
+        view.setLine:SetText(string.format("%s%s|r  |cffE8E8E8%s|r   %s  %s",
+            hex(COLORS.accent), L["Class set"],
+            string.format(L["%d pieces"], pieces), bonus(2), bonus(4)))
+        top = top - 22
+    else
+        view.setLine:SetText("")
+    end
+
     view.simc:ClearAllPoints()
     view.simc:SetPoint("TOPLEFT", view.side, "TOPLEFT", 0, top - 12)
 
@@ -493,7 +513,7 @@ function GearView.Create(parent)
     view.reset = CreateFrame("Button", nil, view, "UIPanelButtonTemplate")
     view.reset:SetSize(110, 20)
     view.reset:SetPoint("TOPLEFT", view.summary, "BOTTOMLEFT", 0, -2)
-    view.reset:SetText(L["Re-enable all"])
+    ns.Localize(view.reset, "Re-enable all")
     view.reset:SetScript("OnClick", function()
         -- Passe par Gear : ecrire `ns.db.ignoredSlots` en direct laissait le cache
         -- d'audit intact et la vue se redessinait sur l'ancien etat.
@@ -530,9 +550,13 @@ function GearView.Create(parent)
     view.priority:SetWidth(SIDE_WIDTH - 8)
     view.priority:SetSpacing(3)
 
+    view.setLine = view.side:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    view.setLine:SetJustifyH("LEFT")
+    view.setLine:SetWidth(SIDE_WIDTH - 8)
+
     view.simc = CreateFrame("Button", nil, view.side, "UIPanelButtonTemplate")
     view.simc:SetSize(SIDE_WIDTH - 8, 24)
-    view.simc:SetText(L["Droptimizer link"])
+    ns.Localize(view.simc, "Droptimizer link")
     view.simc:SetScript("OnClick", function() ns.SimC.ShowDroptimizer() end)
 
     -- Bloc de simulation : la chaine part vers Raidbots, les poids reviennent a la main.
@@ -543,12 +567,12 @@ function GearView.Create(parent)
     -- Copie de la chaine SimC : c'est ce qu'on colle DANS le droptimizer.
     view.simcCopy = CreateFrame("Button", nil, view.side, "UIPanelButtonTemplate")
     view.simcCopy:SetSize(SIDE_WIDTH - 8, 22)
-    view.simcCopy:SetText(L["Droptimizer Copy"])
+    ns.Localize(view.simcCopy, "Droptimizer Copy")
     view.simcCopy:SetScript("OnClick", function() ns.SimC.Show() end)
 
     view.paste = CreateFrame("Button", nil, view.side, "UIPanelButtonTemplate")
     view.paste:SetSize(SIDE_WIDTH - 8, 22)
-    view.paste:SetText(L["Paste droptimizer link"])
+    ns.Localize(view.paste, "Paste droptimizer link")
     view.paste:SetScript("OnClick", function()
         ns.Copy.Prompt(L["Droptimizer report"],
             L["Paste the Raidbots report link, or a Pawn string"],
@@ -762,14 +786,42 @@ function GearView.Refresh()
     -- La piece selectionnee passe en tete : c'est ce qu'on vient de cliquer.
     top = layoutDetail(top, width, selectedSlot and summary.bySlot[selectedSlot] or nil)
 
-    for _, entry in ipairs(entries) do
+    -- Ordre de la liste : le plus urgent d'abord.
+    --
+    -- Elle suivait l'ordre de `Gear.SLOTS`, c'est-a-dire l'ordre de la feuille de
+    -- personnage. Un enchantement de jambes a 4 000 points se retrouvait donc sous une
+    -- durabilite a 34 %, et une piece ignoree au milieu des actives. Trois rangs, dans
+    -- l'ordre ou un joueur veut agir : les ignorees en dernier, les problemes bloquants
+    -- en tete, et a rang egal le plus gros gain en premier.
+    local pending = {}
+    for index, entry in ipairs(entries) do
         if not entry.skipped and #entry.problems > 0 then
             local critical = entry.empty or entry.damaged
                 or (entry.missingEnchant and (entry.slot == "MainHandSlot" or entry.slot == "SecondaryHandSlot"))
-            local color = entry.ignored and COLORS.minor or (critical and COLORS.critical or COLORS.major)
-            top = layoutIssue(entry, width, top, color)
-            shown = shown + 1
+            table.insert(pending, {
+                entry = entry,
+                order = index,
+                critical = critical,
+                rank = entry.ignored and 3 or (critical and 1 or 2),
+                -- Points recuperables sur cette piece. Zero quand l'enchantement n'est
+                -- pas mesurable : le tri retombe alors sur l'ordre d'origine.
+                value = entry.missingEnchant
+                    and (ns.Gear.EnchantPoints(entry.link, entry.slot)) or 0,
+            })
         end
+    end
+
+    table.sort(pending, function(a, b)
+        if a.rank ~= b.rank then return a.rank < b.rank end
+        if a.value ~= b.value then return a.value > b.value end
+        return a.order < b.order
+    end)
+
+    for _, item in ipairs(pending) do
+        local color = item.entry.ignored and COLORS.minor
+            or (item.critical and COLORS.critical or COLORS.major)
+        top = layoutIssue(item.entry, width, top, color)
+        shown = shown + 1
     end
 
     if shown == 0 then

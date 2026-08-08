@@ -247,8 +247,13 @@ function RaidView.Refresh()
         button:SetPoint("TOPLEFT", 0, top)
 
         local active = group.encounter == selected
-        button:SetBackdropColor(1, 1, 1, active and 0.07 or 0.02)
-        button:SetBackdropBorderColor(0, 0.69, 1, active and 0.6 or 0.08)
+        -- Selection par teinte d'accent, pas par un blanc code en dur : invisible sur
+        -- le cadre clair du client.
+        if active then
+            ns.Theme.ApplyCard(button, ns.Theme.RGB.link)
+        else
+            ns.Theme.ApplyCard(button)
+        end
 
         button.portrait:SetTexture(bossPortrait(group.instance, group.encounter)
             or "Interface\\Icons\\INV_Misc_QuestionMark")

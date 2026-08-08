@@ -27,7 +27,6 @@ local function ensurePopup()
 
     popup.hint = popup:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     popup.hint:SetPoint("TOPLEFT", 16, -48)
-    popup.hint:SetText("Ctrl+A puis Ctrl+C pour copier")
 
     local scroll = CreateFrame("ScrollFrame", nil, popup, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 14, -68)
@@ -65,19 +64,28 @@ end
 
 --- Redimensionne la fenetre selon le contenu : un nom d'enchantement n'a pas besoin
 --- du meme cadre qu'une chaine SimulationCraft de cinquante lignes.
-local function fitToContent(frame, text)
-    local lines, longest = 1, 0
-    for line in tostring(text or ""):gmatch("[^\n]*") do
+---
+--- Le motif etait `[^\n]*`, qui matche aussi la chaine VIDE entre deux lignes : gmatch
+--- rendait donc deux resultats par ligne, et la hauteur calculee valait le double de la
+--- vraie. Le `- 1` en compensation n'en corrigeait qu'un seul. `[^\n]+` ne matche que des
+--- lignes non vides — une ligne vide de plus ou de moins ne change rien a la hauteur.
+--- @param reserve number|nil place a garder sous la zone de saisie (bouton)
+local function fitToContent(frame, text, reserve)
+    local lines, longest = 0, 0
+    for line in tostring(text or ""):gmatch("[^\n]+") do
         lines = lines + 1
         longest = math.max(longest, #line)
     end
-    lines = math.max(1, lines - 1)
+    lines = math.max(1, lines)
 
     local width = math.min(620, math.max(320, longest * 7 + 90))
-    local height = math.min(420, math.max(112, lines * 14 + 92))
+    local height = math.min(420, math.max(112, lines * 14 + 92)) + (reserve or 0)
 
     frame:SetSize(width, height)
     frame.edit:SetWidth(width - 74)
+
+    -- La zone de saisie s'arrete au-dessus du bouton, au lieu de passer dessous.
+    frame.scroll:SetPoint("BOTTOMRIGHT", -32, 14 + (reserve or 0))
 end
 
 --- Demande une saisie a l'utilisateur (collage d'une chaine).
@@ -89,14 +97,16 @@ function Copy.Prompt(title, hint, callback)
 
     frame.header:SetText(title or "")
     frame.hint:SetText(hint or "")
-    fitToContent(frame, string.rep(" ", 60))
+    -- 30 px reserves sous la zone de saisie : c'est la hauteur du bouton, qui se posait
+    -- sinon par-dessus le champ.
+    fitToContent(frame, string.rep(" ", 60), 30)
     frame.edit:SetText("")
     frame.edit:SetFocus()
 
     if not frame.accept then
         frame.accept = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
         frame.accept:SetSize(120, 22)
-        frame.accept:SetPoint("BOTTOMRIGHT", -32, 16)
+        frame.accept:SetPoint("BOTTOMRIGHT", -32, 12)
     end
 
     frame.accept:SetText(OKAY or "OK")
@@ -116,7 +126,8 @@ function Copy.Show(title, text)
     local titleText = frame.TitleText or (frame.TitleContainer and frame.TitleContainer.TitleText)
     if titleText then titleText:SetText("SpecAnalyser") end
     frame.header:SetText(title or "")
-    frame.hint:SetText("Ctrl+A / Ctrl+C")
+    -- Le texte etait code en dur en francais dans un addon annonce en anglais.
+    frame.hint:SetText(ns.L["Ctrl+A then Ctrl+C to copy"])
     fitToContent(frame, text)
     frame.edit:SetText(text or "")
     frame.edit:HighlightText()

@@ -21,6 +21,9 @@ local TABS = {
 }
 
 local WIDTH, HEIGHT = 1040, 660
+-- Plancher de redimensionnement : en dessous, la colonne laterale de l'onglet Equipement
+-- (236 px) et la grille (191 px) ne laissent plus de place aux cartes.
+local MIN_WIDTH, MIN_HEIGHT = 900, 560
 local CONTENT_LEFT = 16
 
 local L = ns.L
@@ -212,7 +215,7 @@ local function createTabButton(parent, index, definition)
 
     button.label = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     button.label:SetPoint("CENTER")
-    button.label:SetText(L[definition.label])
+    ns.Localize(button.label, definition.label)
 
     button:SetScript("OnEnter", function()
         if button.key ~= activeTab then button.label:SetTextColor(1, 1, 1) end
@@ -237,21 +240,74 @@ local function createHost(name)
     return host
 end
 
+--- Retient ou l'on a laisse la fenetre.
+---
+--- Elle revenait au centre a chaque /reload, dans une taille fixe de 1040x660 qui
+--- deborde d'un ecran 1366x768. Deux gestes a refaire a chaque session.
+local function rememberPlacement()
+    if not frame then return end
+    local point, _, relativePoint, x, y = frame:GetPoint(1)
+    if not point then return end
+    ns.db.frame = {
+        point = point, relativePoint = relativePoint,
+        x = math.floor(x + 0.5), y = math.floor(y + 0.5),
+        width = math.floor(frame:GetWidth() + 0.5),
+        height = math.floor(frame:GetHeight() + 0.5),
+    }
+end
+
+local function restorePlacement()
+    local saved = ns.db and ns.db.frame
+    if type(saved) ~= "table" or not saved.point then
+        frame:SetPoint("CENTER")
+        return
+    end
+
+    -- Bornes : une taille sauvegardee peut venir d'un ecran qu'on n'a plus.
+    local width = math.max(MIN_WIDTH, math.min(saved.width or WIDTH, UIParent:GetWidth()))
+    local height = math.max(MIN_HEIGHT, math.min(saved.height or HEIGHT, UIParent:GetHeight()))
+    frame:SetSize(width, height)
+    frame:SetPoint(saved.point, UIParent, saved.relativePoint or saved.point,
+        saved.x or 0, saved.y or 0)
+end
+
 local function createFrame()
     frame = CreateFrame("Frame", "SpecAnalyserFrame", UIParent, "BasicFrameTemplateWithInset")
     frame:SetSize(WIDTH, HEIGHT)
-    frame:SetPoint("CENTER")
     -- Sans strata explicite, les barres d'action et les autres addons passent devant.
     frame:SetFrameStrata("HIGH")
     frame:SetToplevel(true)
     frame:SetMovable(true)
+    frame:SetResizable(true)
+    if frame.SetResizeBounds then
+        frame:SetResizeBounds(MIN_WIDTH, MIN_HEIGHT, 1920, 1200)
+    end
     frame:EnableMouse(true)
     frame:SetScript("OnMouseDown", function(self) self:Raise() end)
     frame:RegisterForDrag("LeftButton")
     frame:SetScript("OnDragStart", frame.StartMoving)
-    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        rememberPlacement()
+    end)
     frame:SetClampedToScreen(true)
     frame:Hide()
+
+    restorePlacement()
+
+    -- Poignee de redimensionnement, en bas a droite. Les vues lisent deja leur largeur
+    -- reelle a chaque rendu : l'essentiel du travail etait deja fait.
+    local grip = CreateFrame("Button", nil, frame)
+    grip:SetSize(16, 16)
+    grip:SetPoint("BOTTOMRIGHT", -4, 4)
+    grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    grip:SetScript("OnMouseDown", function() frame:StartSizing("BOTTOMRIGHT") end)
+    grip:SetScript("OnMouseUp", function()
+        frame:StopMovingOrSizing()
+        rememberPlacement()
+        refresh()
+    end)
 
     local title = frame.TitleText or (frame.TitleContainer and frame.TitleContainer.TitleText)
     if title then title:SetText("SpecAnalyser") end
@@ -278,7 +334,7 @@ local function createFrame()
     local refreshButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     refreshButton:SetSize(90, 20)
     refreshButton:SetPoint("TOPRIGHT", -26, -68)
-    refreshButton:SetText(L["Refresh"])
+    ns.Localize(refreshButton, "Refresh")
     refreshButton:SetScript("OnClick", refresh)
 
     -- Ancre sur la bande vide de l'entete, a droite du titre. Sous le bouton Refresh, il
@@ -328,12 +384,13 @@ local function createFrame()
 
     local footer = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     footer:SetPoint("BOTTOMLEFT", 18, 16)
-    footer:SetText(L["/sa to open  ·  minimap icon  ·  right click a tile to mute its alert"])
+    ns.Localize(footer, "/sa to open  ·  minimap icon  ·  right click a tile to mute its alert")
 
+    -- La poignee de redimensionnement occupe le coin : les boutons remontent de 6 px.
     local themeButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     themeButton:SetSize(90, 20)
-    themeButton:SetPoint("BOTTOMRIGHT", -18, 12)
-    themeButton:SetText(L["Skin"])
+    themeButton:SetPoint("BOTTOMRIGHT", -24, 18)
+    ns.Localize(themeButton, "Skin")
     themeButton:SetScript("OnClick", function()
         -- Toggle reprend tous les cadres enregistres, pop-ups comprises.
         ns.Theme.Toggle()
@@ -343,7 +400,7 @@ local function createFrame()
     local reloadButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     reloadButton:SetSize(90, 20)
     reloadButton:SetPoint("RIGHT", themeButton, "LEFT", -6, 0)
-    reloadButton:SetText(L["Reload UI"])
+    ns.Localize(reloadButton, "Reload UI")
     reloadButton:SetScript("OnClick", ReloadUI)
     reloadButton:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -352,6 +409,13 @@ local function createFrame()
         GameTooltip:Show()
     end)
     reloadButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    -- Reglages : le panneau du client, la ou un joueur cherche en premier.
+    local optionsButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    optionsButton:SetSize(90, 20)
+    optionsButton:SetPoint("RIGHT", reloadButton, "LEFT", -6, 0)
+    ns.Localize(optionsButton, "Settings")
+    optionsButton:SetScript("OnClick", function() ns.Options.Open() end)
 
     ns.Theme.Apply(frame)
     tinsert(UISpecialFrames, "SpecAnalyserFrame")

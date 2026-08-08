@@ -34,6 +34,7 @@ RaidView.lua
 GuildView.lua
 HelpView.lua
 UI.lua
+Options.lua
 Minimap.lua
 Tooltip.lua
 Alerts.lua

@@ -100,14 +100,20 @@ def main() -> int:
     reference_keys = set(re.findall(KEY + r"\s*=", bodies[REFERENCE]))
 
     # 2 et 3. confrontation au code
+    # Deux formes de consommation :
+    #   L["cle"]                        — lecture directe
+    #   ns.Localize(widget, "cle", ...) — libelle pose une fois et retraduit a chaud
+    LOCALIZE = r'ns\.Localize\s*\([^,]+,\s*"((?:[^"\\]|\\.)*)"'
+
     used: dict[str, str] = {}
     for where, path in lua_files():
         if where == "Locale.lua":
             continue
         text = path.read_text(encoding="utf-8")
         for line_number, line in enumerate(text.splitlines(), start=1):
-            for key in re.findall(r"\bL" + KEY, line):
-                used.setdefault(key, f"{where}:{line_number}")
+            for pattern in (r"\bL" + KEY, LOCALIZE):
+                for key in re.findall(pattern, line):
+                    used.setdefault(key, f"{where}:{line_number}")
 
     for key, origin in sorted(used.items()):
         if key not in reference_keys and key not in DYNAMIC_KEYS:

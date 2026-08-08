@@ -65,18 +65,18 @@ function GuildView.Create(parent)
 
     view.title = view:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     view.title:SetPoint("TOPLEFT", 2, -2)
-    view.title:SetText(L["Guild audit"])
+    ns.Localize(view.title, "Guild audit")
 
     view.hint = view:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     view.hint:SetPoint("TOPLEFT", 2, -26)
     view.hint:SetWidth(600)
     view.hint:SetJustifyH("LEFT")
-    view.hint:SetText(L["Members running SpecAnalyser answer the roll call. Nothing is sent unless sharing is on."])
+    ns.Localize(view.hint, "Members running SpecAnalyser answer the roll call. Nothing is sent unless sharing is on.")
 
     view.request = CreateFrame("Button", nil, view, "UIPanelButtonTemplate")
     view.request:SetSize(150, 22)
     view.request:SetPoint("TOPLEFT", 0, -50)
-    view.request:SetText(L["Roll call"])
+    ns.Localize(view.request, "Roll call")
     view.request:SetScript("OnClick", function()
         if ns.Guild.Request() then GuildView.Refresh() end
     end)
@@ -84,7 +84,7 @@ function GuildView.Create(parent)
     view.export = CreateFrame("Button", nil, view, "UIPanelButtonTemplate")
     view.export:SetSize(150, 22)
     view.export:SetPoint("LEFT", view.request, "RIGHT", 6, 0)
-    view.export:SetText(L["Copy for Discord"])
+    ns.Localize(view.export, "Copy for Discord")
     view.export:SetScript("OnClick", function()
         ns.Copy.Show(L["Guild audit"], ns.Guild.Export())
     end)
@@ -94,7 +94,7 @@ function GuildView.Create(parent)
     view.share:SetPoint("LEFT", view.export, "RIGHT", 16, 0)
     view.share.text = view.share:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     view.share.text:SetPoint("LEFT", view.share, "RIGHT", 2, 0)
-    view.share.text:SetText(L["Share my data"])
+    ns.Localize(view.share.text, "Share my data")
     view.share:SetScript("OnClick", function(self)
         ns.db.shareWithGuild = self:GetChecked() and true or false
     end)
@@ -154,8 +154,11 @@ function GuildView.Refresh()
 
     for _, button in ipairs(view.modes) do
         local active = button.key == guildMode
-        button:SetBackdropColor(1, 1, 1, active and 0.08 or 0.02)
-        button:SetBackdropBorderColor(0, 0.69, 1, active and 0.6 or 0.10)
+        if active then
+            ns.Theme.ApplyCard(button, ns.Theme.RGB.link)
+        else
+            ns.Theme.ApplyCard(button)
+        end
         button.text:SetText((active and hex("link") or hex("text")) .. L[button.label] .. "|r")
     end
 

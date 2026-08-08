@@ -83,7 +83,7 @@ function HelpView.Create(parent)
 
     support.bug = CreateFrame("Button", nil, support, "UIPanelButtonTemplate")
     support.bug:SetHeight(22)
-    support.bug:SetText(L["Report a bug"])
+    ns.Localize(support.bug, "Report a bug")
     support.bug:SetScript("OnClick", function()
         ns.Copy.Show(L["Bug report"], table.concat({
             "## Bug", "",
@@ -96,7 +96,7 @@ function HelpView.Create(parent)
 
     support.idea = CreateFrame("Button", nil, support, "UIPanelButtonTemplate")
     support.idea:SetHeight(22)
-    support.idea:SetText(L["Suggest an idea"])
+    ns.Localize(support.idea, "Suggest an idea")
     support.idea:SetScript("OnClick", function()
         ns.Copy.Show(L["Suggestion"], table.concat({
             "## Idea", "",
@@ -109,7 +109,7 @@ function HelpView.Create(parent)
     view.credits = view:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     view.credits:SetPoint("BOTTOMLEFT", 2, 2)
     view.credits:SetJustifyH("LEFT")
-    view.credits:SetText(L["Reference measured outside the game by the specanalyser Python tool, from Warcraft Logs"])
+    ns.Localize(view.credits, "Reference measured outside the game by the specanalyser Python tool, from Warcraft Logs")
 
     return view
 end

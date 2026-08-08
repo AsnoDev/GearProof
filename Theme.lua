@@ -92,7 +92,7 @@ end
 
 --- Applique le style de carte, avec une teinte d'accent optionnelle.
 function Theme.ApplyCard(card, accent)
-    if not card.SetBackdropColor then return end
+    if not card or not card.SetBackdropColor then return end
     local style = Theme.Style()
 
     if accent then
@@ -103,6 +103,39 @@ function Theme.ApplyCard(card, accent)
         card:SetBackdropColor(unpack(style.card))
         card:SetBackdropBorderColor(unpack(style.border))
     end
+end
+
+-- Cartes suivies individuellement, hors de tout cadre enregistre.
+--
+-- `Theme.Apply` ne reprend que les cadres qu'on lui a donnes et leur `themeCards`. Les
+-- tuiles de la grille, les lignes de butin et les boutons de sous-vue vivent dans des
+-- hotes d'onglet qui ne sont pas enregistres : ils codaient donc leurs couleurs en dur et
+-- restaient sombres en habillage `blizzard`, au milieu d'un cadre clair.
+local tracked = setmetatable({}, { __mode = "k" })
+
+--- Suit une carte pour qu'elle reprenne l'habillage a chaque changement.
+---
+--- @param shade number|nil multiplicateur d'opacite. Quand il est fourni, SEUL le fond
+---   est pose : la bordure appartient a l'appelant. C'est le cas des tuiles de la grille,
+---   dont la bordure porte l'etat de la piece — l'ecraser ferait disparaitre le vert,
+---   l'orange et le rouge a chaque changement d'habillage.
+function Theme.Track(card, shade)
+    if not card or not card.SetBackdropColor then return card end
+    tracked[card] = shade or false
+
+    if shade then
+        local style = Theme.Style()
+        card:SetBackdropColor(style.card[1], style.card[2], style.card[3],
+            math.min(1, (style.card[4] or 1) * shade))
+    else
+        Theme.ApplyCard(card)
+    end
+    return card
+end
+
+--- Retire une carte du suivi. Rarement utile : la table est a cles faibles.
+function Theme.Untrack(card)
+    tracked[card] = nil
 end
 
 local function collectRegions(frame, list)
@@ -161,10 +194,13 @@ function Theme.Apply(frame)
     end
 end
 
---- Reapplique l'habillage courant a tous les cadres deja crees.
+--- Reapplique l'habillage courant a tous les cadres et cartes deja crees.
 function Theme.Refresh()
     for frame in pairs(registered) do
         Theme.Apply(frame)
+    end
+    for card, shade in pairs(tracked) do
+        Theme.Track(card, shade or nil)
     end
 end
 

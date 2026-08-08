@@ -153,7 +153,9 @@ local function createTile(parent, slotName, index)
         edgeFile = "Interface\\Buttons\\WHITE8X8",
         edgeSize = 2,
     })
-    tile:SetBackdropColor(0, 0, 0, 0.45)
+    -- Le fond de tuile suivait un noir code en dur : en habillage `blizzard`, seize
+    -- carres noirs au milieu d'un cadre clair. Il passe par l'habillage, comme le reste.
+    ns.Theme.Track(tile, 1.4)
 
     tile.icon = tile:CreateTexture(nil, "ARTWORK")
     tile.icon:SetPoint("TOPLEFT", 3, -3)
@@ -356,8 +358,9 @@ function Armory.Refresh()
     if fixes == 0 then
         recoverable.label:SetText("|cff615c73" .. L["nothing to recover"] .. "|r")
         recoverable.value:SetText("|cff4ab882" .. L["Gear complete"] .. "|r")
-        recoverable:SetBackdropColor(0.29, 0.72, 0.51, 0.10)
-        recoverable:SetBackdropBorderColor(0.29, 0.72, 0.51, 0.35)
+        -- Teinte d'accent gerée par l'habillage : l'opacite d'un vert sur fond sombre
+        -- n'est pas celle d'un vert sur le cadre du client.
+        ns.Theme.ApplyCard(recoverable, ns.Theme.RGB.good)
     else
         recoverable.label:SetText(string.format("|cff615c73" .. L["%d fix(es) pending"] .. "|r", fixes))
         if stat > 0 then
@@ -367,8 +370,7 @@ function Armory.Refresh()
         else
             recoverable.value:SetText(string.format("|cffe3a45c%d %s|r", fixes, L["to fix"]))
         end
-        recoverable:SetBackdropColor(0.89, 0.64, 0.36, 0.10)
-        recoverable:SetBackdropBorderColor(0.89, 0.64, 0.36, 0.35)
+        ns.Theme.ApplyCard(recoverable, ns.Theme.RGB.bis)
     end
 
     if not panel.modelReady then
