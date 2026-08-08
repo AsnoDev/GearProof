@@ -11,9 +11,14 @@ Core.lua
 Locale.lua
 Theme.lua
 Copy.lua
+ItemInfo.lua
+ItemLink.lua
+Pool.lua
+Journal.lua
 Data\Meta.lua
 Data\Sim.lua
 Spec.lua
+Stats.lua
 Meta.lua
 Sim.lua
 Recommendations.lua

@@ -128,7 +128,7 @@ local function talentString()
     return nil
 end
 
---- Une ligne d'objet. `parsed` vient de `Gear.ParseLink` ou d'une entree de `Gear.Scan`.
+--- Une ligne d'objet. `parsed` vient de `ItemLink.Parse` ou d'une entree de `Gear.Scan`.
 --- L'ordre des champs suit celui de l'addon officiel.
 local function itemLine(slotToken, parsed)
     if not slotToken or not parsed or not parsed.itemID or parsed.itemID == 0 then return nil end
@@ -190,7 +190,7 @@ local function bagLines()
             -- ligne suffit, comme dans l'export officiel.
             if not seen[candidate.link] then
                 seen[candidate.link] = true
-                local line = itemLine(bagSlotToken(definition.slot), ns.Gear.ParseLink(candidate.link))
+                local line = itemLine(bagSlotToken(definition.slot), ns.ItemLink.Parse(candidate.link))
                 if line then
                     local facts = candidate.facts or {}
                     table.insert(lines, "#")

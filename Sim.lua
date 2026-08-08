@@ -67,7 +67,11 @@ local lootCache = {}
 --- 44 sur une piece de raid. Le journal, lui, expose le butin reel de la rencontre pour une
 --- difficulte donnee, avec les identifiants de bonus qui portent le vrai niveau.
 --- @return string|nil lien d'objet
-function Sim.LootLink(encounterID, itemID, difficulty)
+--- @param instanceID number|nil instance du journal, quand l'appelant la connait.
+---   Le journal se positionne d'abord sur l'instance : sans elle, `EJ_SelectEncounter`
+---   travaille sur ce qui etait deja selectionne. La cle de cache n'en depend pas — le
+---   couple rencontre + difficulte designe deja une table de butin unique.
+function Sim.LootLink(encounterID, itemID, difficulty, instanceID)
     if not encounterID or not itemID then return nil end
 
     local difficultyID = DIFFICULTY[difficulty or ""] or 16
@@ -75,45 +79,49 @@ function Sim.LootLink(encounterID, itemID, difficulty)
 
     local table_ = lootCache[key]
     if not table_ then
-        table_ = {}
+        -- La lecture passe par Journal.Read : il pose l'etat, lit, puis rend au joueur la
+        -- selection qu'il avait. On reglait ici directement, et un joueur avec le journal
+        -- ouvert voyait sa selection changer sans avoir rien demande.
+        table_ = ns.Journal.Read(instanceID, difficultyID, encounterID, function()
+            local found = {}
+
+            local count = 0
+            local getNum = (C_EncounterJournal and C_EncounterJournal.GetNumLoot) or EJ_GetNumLoot
+            if type(getNum) == "function" then
+                local ok, value = pcall(getNum)
+                if ok then count = value or 0 end
+            end
+
+            local getLoot = (C_EncounterJournal and C_EncounterJournal.GetLootInfoByIndex)
+                or EJ_GetLootInfoByIndex
+            for index = 1, count do
+                if type(getLoot) ~= "function" then break end
+                local ok, info = pcall(getLoot, index)
+                -- Selon la version, l'API rend une table ou une suite de valeurs : on accepte
+                -- les deux plutot que de parier sur une forme.
+                if ok and type(info) == "table" then
+                    local id = info.itemID
+                    local link = info.itemLink or info.link
+                    if id and link then found[id] = link end
+                end
+            end
+
+            return found
+        end)
+
+        -- Le journal peut etre indisponible — ouvert par le joueur, notamment. Un echec
+        -- ne se met PAS en cache : la prochaine ouverture reussira, et mettre une table
+        -- vide en cache figerait « pas de butin » pour toute la session.
+        if not table_ then return nil end
         lootCache[key] = table_
-
-        -- Le journal se regle avant d'etre lu : instance, difficulte, rencontre.
-        if type(EJ_SelectEncounter) == "function" then
-            if type(EJ_SetDifficulty) == "function" then
-                pcall(EJ_SetDifficulty, difficultyID)
-            end
-            pcall(EJ_SelectEncounter, encounterID)
-        end
-
-        local count = 0
-        local getNum = (C_EncounterJournal and C_EncounterJournal.GetNumLoot) or EJ_GetNumLoot
-        if type(getNum) == "function" then
-            local ok, value = pcall(getNum)
-            if ok then count = value or 0 end
-        end
-
-        local getLoot = (C_EncounterJournal and C_EncounterJournal.GetLootInfoByIndex)
-            or EJ_GetLootInfoByIndex
-        for index = 1, count do
-            if type(getLoot) ~= "function" then break end
-            local ok, info = pcall(getLoot, index)
-            -- Selon la version, l'API rend une table ou une suite de valeurs : on accepte les
-            -- deux plutot que de parier sur une forme.
-            if ok and type(info) == "table" then
-                local id = info.itemID
-                local link = info.itemLink or info.link
-                if id and link then table_[id] = link end
-            end
-        end
     end
 
     return table_[itemID]
 end
 
 --- Niveau d'objet reel d'une piece de butin, ou nil.
-function Sim.LootItemLevel(encounterID, itemID, difficulty)
-    local link = Sim.LootLink(encounterID, itemID, difficulty)
+function Sim.LootItemLevel(encounterID, itemID, difficulty, instanceID)
+    local link = Sim.LootLink(encounterID, itemID, difficulty, instanceID)
     if not link or not C_Item or not C_Item.GetDetailedItemLevelInfo then return nil end
     local ok, level = pcall(C_Item.GetDetailedItemLevelInfo, link)
     return ok and level or nil

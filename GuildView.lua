@@ -281,14 +281,7 @@ layoutRosterRow = function(row, width)
 end
 
 itemName = function(itemID)
-    local getInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
-    if not getInfo then return nil end
-    local results = { pcall(getInfo, itemID) }
-    if not results[1] then return nil end
-    local colors = ITEM_QUALITY_COLORS or {}
-    local quality = results[4]
-    local color = (quality and colors[quality] and colors[quality].hex) or "|cffE8E8E8"
-    return results[2] and (color .. results[2] .. "|r") or nil
+    return ns.ItemInfo.ColoredName(itemID)
 end
 
 function GuildView.RefreshRaid()

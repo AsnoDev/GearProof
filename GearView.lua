@@ -27,30 +27,26 @@ local L = ns.L
 
 local view, pools, selectedSlot
 local layoutUpgrades, layoutGems
+-- Declaration en amont : `GearView.Create` construit les pools et a donc besoin des
+-- fabriques, dont celle-ci est definie plus bas. Sans ca, `local function newPanel`
+-- creerait un nouveau nom et le pool capturerait nil.
+local newPanel
 
 local function hex(color)
     return string.format("|cff%02x%02x%02x", color[1] * 255, color[2] * 255, color[3] * 255)
 end
 
 -- --------------------------------------------------------------------- pooling
+--
+-- Les pools sont crees dans `GearView.Create`, une fois `view` disponible : les fabriques
+-- ancrent leurs cadres sur `view.content`.
 
 local function resetPools()
-    for _, pool in pairs(pools) do
-        for _, widget in ipairs(pool.items) do widget:Hide() end
-        pool.used = 0
-    end
+    ns.Pool.ResetAll(pools)
 end
 
-local function acquire(kind, factory)
-    local pool = pools[kind]
-    pool.used = pool.used + 1
-    local widget = pool.items[pool.used]
-    if not widget then
-        widget = factory()
-        pool.items[pool.used] = widget
-    end
-    widget:Show()
-    return widget
+local function acquire(kind)
+    return pools[kind]:Acquire()
 end
 
 --- Carte d'un probleme : bandeau colore, icone, titre, conseil.
@@ -206,7 +202,7 @@ end
 local function layoutDetail(top, width, entry)
     if not entry or not entry.link then return top end
 
-    local card = acquire("detail", newDetail)
+    local card = acquire("detail")
     card:SetParent(view.content)
     card:ClearAllPoints()
     card:SetPoint("TOPLEFT", 0, top)
@@ -240,7 +236,7 @@ local function layoutDetail(top, width, entry)
 end
 
 local function layoutIssue(entry, width, top, color)
-    local card = acquire("issue", newIssueCard)
+    local card = acquire("issue")
     card:SetParent(view.content)
     card:ClearAllPoints()
     card:SetPoint("TOPLEFT", 0, top)
@@ -346,7 +342,7 @@ local function layoutIssue(entry, width, top, color)
 end
 
 local function layoutSide(summary)
-    local stats = ns.Gear.Stats()
+    local stats = ns.Stats.Current()
 
     -- Emplacements propres : ceux qu'on a verifies moins ceux qui portent un probleme. Deux
     -- nombres comptes, pas une note ponderee par des penalites inventees.
@@ -362,7 +358,7 @@ local function layoutSide(summary)
 
     -- Repartition : part de chaque statistique dans le budget secondaire total.
     local total = 0
-    for _, definition in ipairs(ns.Gear.STATS) do
+    for _, definition in ipairs(ns.Stats.LIST) do
         total = total + (stats[definition.key] and stats[definition.key].rating or 0)
     end
 
@@ -377,12 +373,12 @@ local function layoutSide(summary)
 
     -- Ordre fixe, celui de la feuille de personnage. Trier par ecart deplacait les lignes
     -- d'une session a l'autre et coutait la memoire du geste.
-    for _, definition in ipairs(ns.Gear.STATS) do
+    for _, definition in ipairs(ns.Stats.LIST) do
         local data = stats[definition.key] or { rating = 0, percent = 0, tier = 0 }
         local share = total > 0 and ((data.rating or 0) / total) or 0
         local color = STAT_COLORS[definition.key] or COLORS.accent
 
-        local row = acquire("statrow", newStatRow)
+        local row = acquire("statrow")
         row:SetParent(view.side)
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", 0, top)
@@ -470,11 +466,23 @@ function GearView.Create(parent)
     view = CreateFrame("Frame", nil, parent)
     view:SetAllPoints(parent)
 
+    -- Les cartes de probleme portent quatre textes et trois scripts qui ne sont pas tous
+    -- reecrits par chaque usage : la carte « Rien a corriger » n'en pose que deux. Sans
+    -- remise a neuf, elle heritait de la ligne de gestes de son occupant precedent.
+    local function resetIssueCard(card)
+        card.title:SetText("")
+        card.body:SetText("")
+        card.hint:SetText("")
+        card:SetScript("OnEnter", nil)
+        card:SetScript("OnLeave", nil)
+        card:SetScript("OnClick", nil)
+    end
+
     pools = {
-        issue = { items = {}, used = 0 },
-        statrow = { items = {}, used = 0 },
-        panel = { items = {}, used = 0 },
-        detail = { items = {}, used = 0 },
+        issue = ns.Pool.New(newIssueCard, resetIssueCard),
+        statrow = ns.Pool.New(newStatRow),
+        panel = ns.Pool.New(newPanel),
+        detail = ns.Pool.New(newDetail),
     }
 
     view.summary = view:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -560,7 +568,7 @@ function GearView.Create(parent)
 end
 
 --- Carte simple, titre + corps de texte, pour les blocs sans interaction.
-local function newPanel()
+newPanel = function()
     local card = CreateFrame("Frame", nil, view.content, "BackdropTemplate")
     card:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
@@ -623,7 +631,7 @@ layoutGems = function(width, top, entries)
 
     if #lines == 0 then return top end
 
-    local card = acquire("panel", newPanel)
+    local card = acquire("panel")
     card:SetParent(view.content)
     card:ClearAllPoints()
     card:SetPoint("TOPLEFT", 0, top - 6)
@@ -656,7 +664,7 @@ layoutUpgrades = function(width, top)
     local simmed, unrated, _, estimated = ns.Bags.Compare()
     if #simmed == 0 and #unrated == 0 and #estimated == 0 then return top end
 
-    local card = acquire("panel", newPanel)
+    local card = acquire("panel")
     card:SetParent(view.content)
     card:ClearAllPoints()
     card:SetPoint("TOPLEFT", 0, top - 6)
@@ -765,7 +773,7 @@ function GearView.Refresh()
     end
 
     if shown == 0 then
-        local card = acquire("issue", newIssueCard)
+        local card = acquire("issue")
         card:SetParent(view.content)
         card:ClearAllPoints()
         card:SetPoint("TOPLEFT", 0, 0)
@@ -779,12 +787,8 @@ function GearView.Refresh()
         card.title:SetText(L["Nothing to fix"])
         card.body:SetWidth(width - 46)
         card.body:SetText("|cffcfc9dd" .. L["Everything is enchanted, socketed and in shape."] .. "|r")
-        -- La carte sort du pool des cartes de probleme : sans ce vidage, la ligne de
-        -- gestes de la carte precedente restait affichee sous « Rien a corriger ».
-        card.hint:SetText("")
-        card:SetScript("OnEnter", nil)
-        card:SetScript("OnLeave", nil)
-        card:SetScript("OnClick", nil)
+        -- Ligne de gestes et scripts sont deja vides par le pool : cette carte ne pose
+        -- que ce qu'elle affiche.
         top = -62
     end
 

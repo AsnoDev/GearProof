@@ -142,7 +142,7 @@ function Meta.StatPriority()
     if not profile then return nil end
 
     local order = {}
-    for _, definition in ipairs(ns.Gear.STATS) do
+    for _, definition in ipairs(ns.Stats.LIST) do
         local entry = profile[definition.key]
         -- Une cle absente n'est pas un zero : le releve ne l'a simplement pas vue.
         if entry then
@@ -269,14 +269,9 @@ end
 --- Sert a lire le nom de l'enchantement et a afficher l'infobulle du jeu.
 function Meta.ForgedLink(referenceLink, slot, enchantID)
     enchantID = enchantID or Meta.Enchant(slot)
-    if not referenceLink or not enchantID then return nil end
-
-    local itemString = referenceLink:match("|Hitem:([%-%d:]+)")
-    if not itemString then return nil end
-
-    local parts = { strsplit(":", itemString) }
-    parts[2] = tostring(enchantID)
-    return "|cffffffff|Hitem:" .. table.concat(parts, ":") .. "|h[x]|h|r"
+    -- Le decoupage vit dans ItemLink : la position du champ d'enchantement etait ecrite
+    -- ici en dur (`parts[2]`) alors qu'elle est nommee la-bas.
+    return ns.ItemLink.WithEnchant(referenceLink, enchantID)
 end
 
 --- Nom lisible d'un enchantement, lu dans l'infobulle d'un objet reel dont on remplace
@@ -405,10 +400,9 @@ end
 --- Nom d'une gemme depuis son identifiant d'objet.
 function Meta.GemName(gemID)
     if not gemID then return nil end
-    local getInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
-    if not getInfo then return nil end
-    local ok, name = pcall(getInfo, gemID)
-    if ok and name then return name end
+
+    local facts = ns.ItemInfo.Get(gemID)
+    if facts and facts.name then return facts.name end
 
     -- L'objet n'est pas encore en cache : on le demande pour la prochaine ouverture.
     if C_Item and C_Item.RequestLoadItemDataByID then

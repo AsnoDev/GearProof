@@ -7,145 +7,42 @@ local L = ns.L
 
 -- L'equipement n'est pas une donnee de combat : le lire reste autorise depuis Midnight.
 
--- Emplacements verifies. `enchant = true` signifie "doit porter un enchantement".
--- Si un patch ajoute un emplacement enchantable (rune de tete, epaules...), il suffit
--- d'ajouter une ligne ici. `simc` est le nom attendu par SimulationCraft.
+-- Emplacements verifies, dans l'ordre de lecture de la feuille de personnage.
+--
+-- `simc` est le nom attendu par SimulationCraft. `hint` precise la NATURE de
+-- l'enchantement attendu quand il en manque un — un renfort de jambes n'est pas un
+-- enchantement de statistique, et le joueur doit savoir quoi acheter.
+--
+-- Il y avait ici un champ `enchant`, cense dire quels emplacements doivent porter un
+-- enchantement. Il n'etait plus lu par personne, et pour cause : il a ete mesure FAUX
+-- dans les deux sens — il reclamait Cape et Poignets, que 0 joueur sur 20 du haut de
+-- tableau n'enchante, et ignorait Tete, Epaules et Mains, enchantees a 65-80 %. Seul le
+-- releve decide, via `Meta.ExpectsEnchant`. Le champ est retire pour qu'on ne le croie
+-- plus vivant.
 Gear.SLOTS = {
-    { slot = "HeadSlot",          label = "Head",        simc = "head" },
-    { slot = "NeckSlot",          label = "Neck",     simc = "neck" },
-    { slot = "ShoulderSlot",      label = "Shoulders",     simc = "shoulder" },
-    { slot = "BackSlot",          label = "Cloak",        simc = "back",      enchant = true,     hint = "stat enchant" },
-    { slot = "ChestSlot",         label = "Chest",       simc = "chest",     enchant = true,     hint = "stat enchant" },
-    { slot = "WristSlot",         label = "Wrists",   simc = "wrist",     enchant = true,     hint = "stat enchant" },
-    { slot = "HandsSlot",         label = "Hands",       simc = "hands" },
-    { slot = "WaistSlot",         label = "Waist",    simc = "waist" },
-    { slot = "LegsSlot",          label = "Legs",      simc = "legs",      enchant = true,     hint = "leg armor" },
-    { slot = "FeetSlot",          label = "Feet",      simc = "feet",      enchant = true,     hint = "stat enchant" },
-    { slot = "Finger0Slot",       label = "Ring 1",    simc = "finger1",   enchant = true,     hint = "stat enchant" },
-    { slot = "Finger1Slot",       label = "Ring 2",    simc = "finger2",   enchant = true,     hint = "stat enchant" },
-    { slot = "Trinket0Slot",      label = "Trinket 1",     simc = "trinket1" },
-    { slot = "Trinket1Slot",      label = "Trinket 2",     simc = "trinket2" },
-    { slot = "MainHandSlot",      label = "Weapon",        simc = "main_hand", enchant = true,     hint = "weapon enchant" },
-    { slot = "SecondaryHandSlot", label = "Off hand", simc = "off_hand",  enchant = "weapon", hint = "weapon enchant" },
+    { slot = "HeadSlot",          label = "Head",      simc = "head",      hint = "stat enchant" },
+    { slot = "NeckSlot",          label = "Neck",      simc = "neck" },
+    { slot = "ShoulderSlot",      label = "Shoulders", simc = "shoulder",  hint = "stat enchant" },
+    { slot = "BackSlot",          label = "Cloak",     simc = "back",      hint = "stat enchant" },
+    { slot = "ChestSlot",         label = "Chest",     simc = "chest",     hint = "stat enchant" },
+    { slot = "WristSlot",         label = "Wrists",    simc = "wrist",     hint = "stat enchant" },
+    { slot = "HandsSlot",         label = "Hands",     simc = "hands",     hint = "stat enchant" },
+    { slot = "WaistSlot",         label = "Waist",     simc = "waist" },
+    { slot = "LegsSlot",          label = "Legs",      simc = "legs",      hint = "leg armor" },
+    { slot = "FeetSlot",          label = "Feet",      simc = "feet",      hint = "stat enchant" },
+    { slot = "Finger0Slot",       label = "Ring 1",    simc = "finger1",   hint = "stat enchant" },
+    { slot = "Finger1Slot",       label = "Ring 2",    simc = "finger2",   hint = "stat enchant" },
+    { slot = "Trinket0Slot",      label = "Trinket 1", simc = "trinket1" },
+    { slot = "Trinket1Slot",      label = "Trinket 2", simc = "trinket2" },
+    { slot = "MainHandSlot",      label = "Weapon",    simc = "main_hand", hint = "weapon enchant" },
+    { slot = "SecondaryHandSlot", label = "Off hand",  simc = "off_hand",  hint = "weapon enchant" },
 }
 
--- Seuils de rendement decroissant, en points de statistique (patch 12.0.7).
--- Ce sont des donnees de patch : a revoir a chaque extension.
-Gear.DIMINISHING = {
-    haste       = { 1320, 1760, 2200 },
-    mastery     = { 1380, 1840, 2300 },
-    crit        = { 1380, 1840, 2300 },
-    versatility = { 1620, 2160, 2700 },
-}
+-- La lecture de GetItemInfo vit dans ItemInfo.lua : un seul endroit ou les dix-sept
+-- positions sont nommees, pour tout l'addon.
 
-Gear.STATS = {
-    { key = "haste",       label = "Haste" },
-    { key = "crit",        label = "Crit" },
-    { key = "mastery",     label = "Mastery" },
-    { key = "versatility", label = "Versatility" },
-}
-
--- GetItemInfo renvoie 17 valeurs ; on ne garde que la 1re, la 3e, la 9e et la 16e.
--- Compter les positions a la main est une source d'erreur : on passe par une table.
-local ITEM_INFO_NAME, ITEM_INFO_QUALITY, ITEM_INFO_EQUIPLOC, ITEM_INFO_SETID = 1, 3, 9, 16
-
-local function itemInfo(link)
-    local getInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
-    if not getInfo or not link then return nil end
-
-    -- results[1] est le booleen de pcall : les valeurs de GetItemInfo commencent a 2.
-    -- On indexe directement plutot que de retirer l'element : un nil au milieu creerait
-    -- un trou dans la table et decalerait tout.
-    local results = { pcall(getInfo, link) }
-    if not results[1] then return nil end
-
-    return {
-        name = results[1 + ITEM_INFO_NAME],
-        quality = results[1 + ITEM_INFO_QUALITY],
-        equipLoc = results[1 + ITEM_INFO_EQUIPLOC],
-        setID = results[1 + ITEM_INFO_SETID],
-    }
-end
-
--- Champs de la chaine d'objet, dans l'ordre (warcraft.wiki.gg/wiki/ItemString) :
---   itemID, enchantID, gem1..gem4, suffixID, uniqueID, linkLevel, specializationID,
---   modifiersMask, itemContext, numBonusIDs[, bonusID...], numModifiers[, type, valeur...]
--- Le compteur de bonus est donc le 13e champ. L'avoir lu au 14e produisait un
--- `bonus_id` amputé de son premier identifiant et pollué par le bloc de modificateurs,
--- ce qui suffisait a fausser une simulation.
-local LINK_ITEM_ID, LINK_ENCHANT_ID = 1, 2
-local LINK_GEM_FIRST, LINK_GEM_LAST = 3, 6
-local LINK_BONUS_COUNT = 13
-
--- Garde-fou : si le decoupage derape, un compteur absurde arrete la lecture au lieu de
--- balayer toute la chaine.
-local MAX_LIST = 32
-
--- Modificateurs que SimulationCraft attend nommement.
-local MOD_CONTENT_TUNING = 28
-local MOD_CRAFTED_STAT_1, MOD_CRAFTED_STAT_2 = 29, 30
-local MOD_CRAFTING_QUALITY = 38
-
---- Extrait enchantement, gemmes, bonus et modificateurs de la chaine d'objet.
-local function parseLink(link)
-    local itemString = link and link:match("|Hitem:([%-%d:]+)")
-    if not itemString then return nil end
-
-    local parts = { strsplit(":", itemString) }
-    local function number(index)
-        return tonumber(parts[index]) or 0
-    end
-
-    local gems = {}
-    for index = LINK_GEM_FIRST, LINK_GEM_LAST do
-        local gem = number(index)
-        if gem > 0 then table.insert(gems, gem) end
-    end
-
-    local bonuses = {}
-    local bonusCount = number(LINK_BONUS_COUNT)
-    if bonusCount < 0 or bonusCount > MAX_LIST then bonusCount = 0 end
-    for index = LINK_BONUS_COUNT + 1, LINK_BONUS_COUNT + bonusCount do
-        local bonus = tonumber(parts[index])
-        if bonus then table.insert(bonuses, bonus) end
-    end
-
-    -- Le bloc de modificateurs suit les identifiants de bonus, par paires (type, valeur).
-    local modifiers = {}
-    local countIndex = LINK_BONUS_COUNT + bonusCount + 1
-    local modifierCount = number(countIndex)
-    if modifierCount > 0 and modifierCount <= MAX_LIST then
-        for pair = 0, modifierCount - 1 do
-            local kind = tonumber(parts[countIndex + 1 + pair * 2])
-            local value = tonumber(parts[countIndex + 2 + pair * 2])
-            if kind and value then modifiers[kind] = value end
-        end
-    end
-
-    local craftedStats = {}
-    for _, key in ipairs({ MOD_CRAFTED_STAT_1, MOD_CRAFTED_STAT_2 }) do
-        if modifiers[key] then table.insert(craftedStats, modifiers[key]) end
-    end
-
-    return {
-        itemID = number(LINK_ITEM_ID),
-        enchantID = number(LINK_ENCHANT_ID),
-        gems = gems,
-        bonuses = bonuses,
-        contentTuning = modifiers[MOD_CONTENT_TUNING],
-        craftedStats = craftedStats,
-        -- La qualite d'artisanat est un palier de 1 a 5 ; hors de cette plage, la valeur
-        -- lue n'est pas ce qu'on croit et il vaut mieux ne rien ecrire.
-        craftingQuality = (modifiers[MOD_CRAFTING_QUALITY] or 0) >= 1
-            and (modifiers[MOD_CRAFTING_QUALITY] or 0) <= 5
-            and modifiers[MOD_CRAFTING_QUALITY] or nil,
-    }
-end
-
---- Meme lecture, pour un objet qui n'est pas porte (sacs, banque).
-function Gear.ParseLink(link)
-    return parseLink(link)
-end
+-- Le decoupage de la chaine d'objet vit dans ItemLink.lua.
+local parseLink = function(link) return ns.ItemLink.Parse(link) end
 
 local function socketCount(link)
     local stats
@@ -166,14 +63,6 @@ local function socketCount(link)
         end
     end
     return total
-end
-
-local function itemLevel(link)
-    if C_Item and C_Item.GetDetailedItemLevelInfo then
-        local ok, level = pcall(C_Item.GetDetailedItemLevelInfo, link)
-        if ok and level then return level end
-    end
-    return nil
 end
 
 local function durability(slotID)
@@ -275,10 +164,10 @@ local function rawScan()
         else
             summary.checked = summary.checked + 1
 
-            local info = itemInfo(link) or {}
+            local info = ns.ItemInfo.Get(link) or {}
             local parsed = parseLink(link) or { enchantID = 0, gems = {}, bonuses = {}, craftedStats = {} }
 
-            entry.itemLevel = itemLevel(link)
+            entry.itemLevel = ns.ItemInfo.Level(link)
             entry.name = info.name
             entry.contentTuning = parsed.contentTuning
             entry.craftedStats = parsed.craftedStats
@@ -287,7 +176,7 @@ local function rawScan()
             -- Sert a la comparaison des sacs : une deux mains portee change ce qu'une
             -- arme a une main veut dire, et ce qu'une deux mains candidate remplace.
             entry.equipLoc = info.equipLoc
-            entry.setID = (info.setID and info.setID > 0) and info.setID or nil
+            entry.setID = info.setID
             entry.enchantID = parsed.enchantID
             entry.gems = #parsed.gems
             entry.gemIDs = parsed.gems
@@ -519,49 +408,6 @@ function Gear.Recoverable()
     end
 
     return math.floor(stat), measured, fixes
-end
-
---- Statistiques secondaires courantes, avec leur palier de rendement decroissant.
-function Gear.Stats()
-    local function rating(id)
-        local ok, value = pcall(GetCombatRating, id)
-        return (ok and value) or 0
-    end
-    local function percent(fn, ...)
-        if type(fn) ~= "function" then return 0 end
-        local ok, value = pcall(fn, ...)
-        return (ok and value) or 0
-    end
-
-    local values = {
-        haste = {
-            rating = rating(CR_HASTE_SPELL or 20),
-            percent = percent(GetHaste),
-        },
-        crit = {
-            rating = rating(CR_CRIT_SPELL or 11),
-            percent = math.max(percent(GetCritChance), percent(GetSpellCritChance, 2)),
-        },
-        mastery = {
-            rating = rating(CR_MASTERY or 26),
-            percent = percent(GetMasteryEffect),
-        },
-        versatility = {
-            rating = rating(CR_VERSATILITY_DAMAGE_DONE or 29),
-            percent = percent(GetCombatRatingBonus, CR_VERSATILITY_DAMAGE_DONE or 29),
-        },
-    }
-
-    for key, entry in pairs(values) do
-        local thresholds = Gear.DIMINISHING[key] or {}
-        entry.tier = 0
-        for index, threshold in ipairs(thresholds) do
-            if entry.rating >= threshold then entry.tier = index end
-        end
-        entry.nextThreshold = thresholds[entry.tier + 1]
-    end
-
-    return values
 end
 
 --- Resume texte, utilise par la commande /sa gear.

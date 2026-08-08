@@ -26,23 +26,15 @@ local function hex(key)
     return ns.Theme.C(key)
 end
 
+-- Pooling partage : voir Pool.lua. Cette vue en avait sa propre copie, identique au
+-- caractere pres a celle de GearView.
+
 local function resetPools()
-    for _, pool in pairs(pools) do
-        for _, widget in ipairs(pool.items) do widget:Hide() end
-        pool.used = 0
-    end
+    ns.Pool.ResetAll(pools)
 end
 
-local function acquire(kind, factory)
-    local pool = pools[kind]
-    pool.used = pool.used + 1
-    local widget = pool.items[pool.used]
-    if not widget then
-        widget = factory()
-        pool.items[pool.used] = widget
-    end
-    widget:Show()
-    return widget
+local function acquire(kind)
+    return pools[kind]:Acquire()
 end
 
 --- Seuils d'AFFICHAGE. Ils ne pretendent pas qu'un gain de 2 % « compte » et qu'un gain de
@@ -54,31 +46,33 @@ local function tint(percent)
 end
 
 --- Portrait d'un boss, comme le journal l'affiche.
---- `EJ_SelectInstance` doit preceder la lecture : le journal est un objet a etat.
+---
+--- Mis en cache par rencontre. La version precedente reglait le journal a CHAQUE boss et
+--- a CHAQUE rafraichissement — donc une dizaine de changements d'etat par ouverture de
+--- l'onglet, sur une interface partagee avec le joueur. Un portrait ne change pas.
+local portraitCache = {}
+
 local function bossPortrait(instanceID, encounterID)
+    if not encounterID then return nil end
+
+    local cached = portraitCache[encounterID]
+    if cached ~= nil then return cached or nil end
+
     if type(EJ_GetCreatureInfo) ~= "function" then return nil end
-    if instanceID and instanceID > 0 and type(EJ_SelectInstance) == "function" then
-        pcall(EJ_SelectInstance, instanceID)
-    end
-    local results = { pcall(EJ_GetCreatureInfo, 1, encounterID) }
-    -- EJ_GetCreatureInfo : id, nom, description, displayInfo, iconImage.
-    return results[1] and results[1 + 5] or nil
+
+    local portrait = ns.Journal.Read(instanceID, nil, nil, function()
+        -- EJ_GetCreatureInfo : id, nom, description, displayInfo, iconImage.
+        local results = { pcall(EJ_GetCreatureInfo, 1, encounterID) }
+        return results[1] and results[1 + 5] or nil
+    end)
+
+    -- `false` marque un echec deja constate : on ne relance pas la lecture a chaque
+    -- rendu. `nil` voudrait dire « pas encore essaye ».
+    portraitCache[encounterID] = portrait or false
+    return portrait
 end
 
-local function itemFacts(itemID)
-    local getInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
-    if not getInfo then return nil end
-    local results = { pcall(getInfo, itemID) }
-    if not results[1] then return nil end
-    -- GetItemInfo : nom(1), lien(2), qualite(3), ilvl(4)...
-    return { name = results[2], quality = results[4] }
-end
-
-local function qualityColor(quality)
-    local colors = ITEM_QUALITY_COLORS or {}
-    local entry = quality and colors[quality]
-    return entry and entry.hex or "|cffE8E8E8"
-end
+-- La lecture d'objet passe par ItemInfo.lua : nom, qualite et code couleur.
 
 -- --------------------------------------------------------------------- widgets
 
@@ -155,10 +149,18 @@ function RaidView.Create(parent)
     view = CreateFrame("Frame", nil, parent)
     view:SetAllPoints(parent)
 
+    -- Les lignes de butin et les boutons de boss portent des scripts de survol qui ne
+    -- sont pas tous reecrits d'un rendu a l'autre : le pool les vide.
+    local function resetRow(row)
+        row:SetScript("OnEnter", nil)
+        row:SetScript("OnLeave", nil)
+        row:SetScript("OnClick", nil)
+    end
+
     pools = {
-        boss = { items = {}, used = 0 },
-        loot = { items = {}, used = 0 },
-        header = { items = {}, used = 0 },
+        boss = ns.Pool.New(newBoss, resetRow),
+        loot = ns.Pool.New(newLoot, resetRow),
+        header = ns.Pool.New(newHeader),
     }
 
     view.intro = view:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -232,14 +234,14 @@ function RaidView.Refresh()
         local instanceName = ns.Sim.InstanceName(group.instance)
         if instanceName and not instanceShown[group.instance] then
             instanceShown[group.instance] = true
-            local title = acquire("header", newHeader)
+            local title = acquire("header")
             title:ClearAllPoints()
             title:SetPoint("TOPLEFT", 4, top - 4)
             title:SetText(hex("link") .. instanceName:upper() .. "|r")
             top = top - 22
         end
 
-        local button = acquire("boss", newBoss)
+        local button = acquire("boss")
         button:SetParent(view.list)
         button:ClearAllPoints()
         button:SetPoint("TOPLEFT", 0, top)
@@ -276,7 +278,7 @@ function RaidView.Refresh()
 
     local lootTop = 0
     for _, item in ipairs(chosen.items) do
-        local row = acquire("loot", newLoot)
+        local row = acquire("loot")
         row:SetParent(view.content)
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", 0, lootTop)
@@ -294,13 +296,11 @@ function RaidView.Refresh()
 
         -- Le lien du journal porte deja le nom colore a la qualite : quand il est la, on
         -- l'affiche tel quel plutot que de reconstruire.
-        local link = ns.Sim.LootLink(item.encounter, item.id, item.difficulty)
+        local link = ns.Sim.LootLink(item.encounter, item.id, item.difficulty, item.instance)
         if link then
             row.name:SetText(link)
         else
-            local facts = itemFacts(item.id)
-            row.name:SetText((facts and facts.name)
-                and (qualityColor(facts.quality) .. facts.name .. "|r")
+            row.name:SetText(ns.ItemInfo.ColoredName(item.id)
                 or (hex("muted") .. "item:" .. item.id .. "|r"))
         end
 
@@ -320,7 +320,7 @@ function RaidView.Refresh()
             -- Le lien du journal d'abord : il porte les identifiants de bonus, donc le VRAI
             -- niveau. `SetItemByID` ne connait que le modele et affichait 44 sur une piece de
             -- raid — c'est pour ca que l'Adventure Guide, lui, avait juste.
-            local link = ns.Sim.LootLink(item.encounter, item.id, item.difficulty)
+            local link = ns.Sim.LootLink(item.encounter, item.id, item.difficulty, item.instance)
             local shown = link and pcall(GameTooltip.SetHyperlink, GameTooltip, link)
             if not shown and not pcall(GameTooltip.SetItemByID, GameTooltip, item.id) then
                 GameTooltip:AddLine("item:" .. item.id)

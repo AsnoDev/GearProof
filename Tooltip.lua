@@ -24,26 +24,20 @@ local function slotsFor(equipLoc)
     return ns.Bags.SLOTS_FOR(equipLoc)
 end
 
+--- Le niveau EFFECTIF, pas le niveau de base.
+---
+--- `ItemInfo.Detailed` retombe sur le niveau du modele quand le niveau reel n'est pas
+--- disponible : ici, on ne veut pas de ce repli. Le niveau du modele est indifferent aux
+--- bonus et au surclassement — il vaut 44 sur une piece de raid — et une infobulle se lit
+--- en une seconde, sans le contexte qui permettrait de relativiser un chiffre faux. Sans
+--- niveau reel, on n'affiche pas d'ecart.
 local function itemFacts(link)
-    local getInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
-    if not getInfo or not link then return nil end
-
-    local results = { pcall(getInfo, link) }
-    if not results[1] then return nil end
-
-    local level
-    if C_Item and C_Item.GetDetailedItemLevelInfo then
-        local ok, value = pcall(C_Item.GetDetailedItemLevelInfo, link)
-        if ok then level = value end
-    end
-
-    -- Le niveau EFFECTIF, pas le niveau de base : `results[5]` est le niveau de reference de
-    -- l'objet, indifferent aux bonus et au surclassement. Le confondre avec le niveau reel
-    -- fausse toute comparaison. Sans GetDetailedItemLevelInfo, on ne devine pas.
+    local facts = ns.ItemInfo.Get(link)
+    if not facts then return nil end
     return {
-        equipLoc = results[10],
-        itemLevel = level,
-        itemID = tonumber(link:match("Hitem:(%d+)")),
+        equipLoc = facts.equipLoc,
+        itemLevel = ns.ItemInfo.Level(link),
+        itemID = ns.ItemInfo.ID(link),
     }
 end
 

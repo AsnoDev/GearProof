@@ -168,27 +168,6 @@ local function containerLink(bag, slot)
     return nil
 end
 
-local function itemFacts(link)
-    local getInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
-    if not getInfo then return nil end
-
-    local results = { pcall(getInfo, link) }
-    if not results[1] then return nil end
-
-    local level
-    if C_Item and C_Item.GetDetailedItemLevelInfo then
-        local ok, value = pcall(C_Item.GetDetailedItemLevelInfo, link)
-        if ok then level = value end
-    end
-
-    return {
-        name = results[2],
-        quality = results[4],
-        equipLoc = results[10],
-        setID = results[17],
-        itemLevel = level or results[5],
-    }
-end
 
 --- Sacs du personnage, plus la banque si elle est ouverte.
 local function candidateBags()
@@ -209,7 +188,9 @@ function Bags.Candidates()
         for slot = 1, containerSlots(bag) do
             local link = containerLink(bag, slot)
             if link then
-                local facts = itemFacts(link)
+                -- Detailed, pas Get : la comparaison a besoin du niveau EFFECTIF, bonus
+                -- compris. Le niveau du modele vaut 44 sur une piece de raid.
+                local facts = ns.ItemInfo.Detailed(link)
                 local targets = facts and EQUIP_TO_SLOTS[facts.equipLoc or ""]
                 if targets and Bags.CanUse(link, facts.equipLoc) then
                     for _, target in ipairs(targets) do

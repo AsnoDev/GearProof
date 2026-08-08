@@ -95,7 +95,7 @@ function Weights.Current()
     --
     -- Une part de budget n'est pas une valeur par point. Elle reflete ce qui a drop, et
     -- surtout la forme des rendements decroissants que cet addon embarque lui-meme dans
-    -- Gear.DIMINISHING : plus tu accumules une statistique, plus sa part grossit et moins
+    -- Stats.DIMINISHING : plus tu accumules une statistique, plus sa part grossit et moins
     -- son point suivant vaut. Le repli poussait donc vers la statistique deja saturee.
     --
     -- Sans chaine Pawn, on ne rend rien. Une piece se classe alors par ilvl, marquee « il
