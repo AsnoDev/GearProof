@@ -15,6 +15,7 @@ local COLORS = {
 
 local TABS = {
     { key = "gear",  label = "Equipment" },
+    { key = "reco",  label = "Recommendations" },
     { key = "raid",  label = "Raid" },
     { key = "guild", label = "Guild" },
     { key = "help",  label = "Help" },
@@ -189,6 +190,8 @@ function refresh()
 
     if activeTab == "gear" then
         ns.GearView.Refresh()
+    elseif activeTab == "reco" then
+        ns.RecoView.Refresh()
     elseif activeTab == "raid" then
         ns.RaidView.Refresh()
     elseif activeTab == "guild" then
@@ -207,7 +210,7 @@ end
 
 local function createTabButton(parent, index, definition)
     -- La rangee d'onglets doit s'arreter avant la case "Log automatique" en haut a droite.
-    local width, gap = 124, 6
+    local width, gap = 108, 6
     local total = #TABS * width + (#TABS - 1) * gap
     local available = WIDTH - CONTENT_LEFT - 210
     local startX = CONTENT_LEFT + math.max(0, (available - total) / 2)
@@ -389,6 +392,7 @@ local function createFrame()
     -- elle n'a rien a faire derriere l'analyse ou l'historique.
     hosts = {}
     ns.GearView.Create(createHost("gear"))
+    ns.RecoView.Create(createHost("reco"))
     ns.RaidView.Create(createHost("raid"))
     ns.GuildView.Create(createHost("guild"))
     ns.HelpView.Create(createHost("help"))

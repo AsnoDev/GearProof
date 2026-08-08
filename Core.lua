@@ -214,7 +214,8 @@ local function usage()
     print("  " .. c .. "/sa weights <Pawn string>|r — store your stat weights")
     print("  " .. c .. "/sa guild|r — guild roll call")
     print("  " .. c .. "/sa theme|r — cycle the skin")
-    print("  " .. c .. "/sa options|r — settings panel")
+    print("  " .. c .. "/gp reco|r — what to put on, by category")
+    print("  " .. c .. "/gp options|r — settings panel")
     print("  " .. c .. "/sa lang <auto|en|fr>|r — interface language")
     print("  " .. c .. "/sa alerts|r — gear warning when entering an instance")
     print("  " .. c .. "/sa minimap|r — show or hide the minimap icon")
@@ -277,6 +278,8 @@ SlashCmdList.GEARPROOF = function(input)
         ns.db.gearAlerts = not (ns.db.gearAlerts ~= false)
         ns.Print("instance gear warning: %s",
             ns.db.gearAlerts and "|cff00E676on|r" or "|cffFFC107off|r")
+    elseif cmd == "reco" or cmd == "recommendations" or cmd == "conseils" then
+        ns.UI.Show("reco")
     elseif cmd == "options" or cmd == "config" or cmd == "reglages" then
         ns.Options.Open()
     elseif cmd == "help" then

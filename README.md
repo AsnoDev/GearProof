@@ -85,7 +85,7 @@ connexion, la fenêtre s'ouvre seule sur l'onglet Aide.
 
 ## L'interface
 
-Fenêtre unique de 1040×660, quatre onglets.
+Fenêtre unique de 1040×660, redimensionnable, cinq onglets.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
@@ -129,6 +129,7 @@ sur la table. C'est le chiffre qui décide si tu passes chez l'enchanteur mainte
 | Onglet | Contenu |
 |---|---|
 | **Équipement** | Grille, cartes de correctifs, gemmage par châsse, contenu des sacs, jauge, statistiques secondaires, priorité mesurée |
+| **Recommandations** | Ce qu'il faut **poser**, par catégorie : enchantements, gemmes par rang de châsse, bijoux, correctifs, buffs au pull, provenance complète |
 | **Raid** | Rencontres et table de butin, façon journal des aventures. Alimenté par tes droptimizers |
 | **Guilde** | Roster et couverture droptimizer, plus une sous-vue Raid : qui a besoin de quoi |
 | **Aide** | Six cartes : d'où vient la référence, comment la garder à jour, comment lire l'onglet Équipement, questions fréquentes, signalement |

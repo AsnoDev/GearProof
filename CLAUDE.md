@@ -67,6 +67,7 @@ journal fichier reste la source de vérité de l'outil Python, pas de l'addon.
 | `GearView.lua` | Onglet Équipement : cartes triées par gain, gemmes, détail, barres de stats |
 | `RaidView.lua` | Onglet Raid : rencontres et table de butin |
 | `GuildView.lua` | Onglet Guilde : roster et sous-vue Raid |
+| `RecoView.lua` | Onglet Recommandations : ce qu'il faut POSER, par categorie |
 | `HelpView.lua` | Onglet Aide : six cartes |
 | `UI.lua` | Coquille : entête, onglets, déroulant de spé, position/taille persistantes |
 | `Minimap.lua` | Icône de minicarte maison, sans librairie externe |
@@ -77,21 +78,28 @@ L'ordre de chargement du `.toc` compte : socle → `Data/*` → `Spec.lua` → `
 `Meta.lua`/`Sim.lua` → `Gear.lua` → `Bags.lua` → les vues → `UI.lua`. `Meta.lua` dépend de
 `Spec.lua` pour savoir quelle spé regarder ; `UI.lua` instancie les vues.
 
-## Périmètre perdu, à restaurer
+## Deux écoles dans une même spé
 
-Un onglet **Recommandations** (`RecoView.lua`) a existé et a été supprimé sans que ses
-fonctionnalités soient migrées ailleurs. Les données correspondantes sont toujours
-générées et livrées pour les 40 spés, et lues par personne :
+`RecoView.lua` → catégorie **Général** lit `modes`, la seule donnée du relevé qui dise
+qu'une **moyenne ne décrit personne**.
 
-- `auras` — buffs portés au pull (`Meta.Auras`)
-- `tertiary` — statistiques tertiaires moyennes (`Meta.Tertiary`)
-- `modes` — **détection de builds bimodaux** : deux écoles distinctes dans une même spé
-  (`crit: low 0.186 n=5 / high 0.323 n=15, gap 0.137`). Aucun lecteur Lua. C'est la
-  fonctionnalité la plus différenciante du relevé.
-- `p25` / `p75` / `spread` — dispersion des statistiques dans le top 20
+Le générateur teste si la répartition d'une statistique est bimodale : deux groupes
+séparés plutôt qu'un nuage autour d'une moyenne. Une spé dont la maîtrise se joue soit
+à 21 % (13 joueurs) soit à 38 % (7 joueurs) n'a pas de cible à 27 % — viser la moyenne,
+c'est ne jouer aucun des deux builds. `Meta.Modes()` filtre sur un écart ≥ 8 points et
+≥ 3 joueurs par groupe : des seuils d'**affichage**, en dessous desquels deux groupes
+proches ne racontent rien de plus qu'une moyenne. Il dit aussi de quel côté tu es, sans
+verdict.
 
-Les ~55 clés de locale correspondantes sont **conservées volontairement**, en attendant.
-`tools/check_locale.py` les signale comme orphelines : c'est attendu.
+Aucun concurrent n'a l'équivalent, et pour cause : il faut le relevé brut pour le
+calculer. C'est le différenciant qu'il ne faut pas perdre une seconde fois.
+
+Reste non lu dans les données : `p25` / `p75` / `spread` — la dispersion. Une piste, pas
+une dette : ils diraient si le top 20 est resserré ou dispersé sur une statistique.
+
+Les ~39 clés de locale encore orphelines sont d'anciens libellés de cet onglet non
+repris par la reconstruction. `tools/check_locale.py` les signale : c'est attendu tant
+que la mise en page n'est pas figée.
 
 ## Validation
 
@@ -106,7 +114,8 @@ automatique avant de copier dans le dossier de jeu.
 
 ## Interface
 
-Fenêtre 1040×660, quatre onglets : Équipement, Raid, Guilde, Aide.
+Fenêtre 1040×660 redimensionnable, cinq onglets : Équipement, Recommandations, Raid,
+Guilde, Aide.
 
 `Armory` (191 de large) : `PlayerModel` de 236 px surmontant une grille de 4×4 cases de 44 px.
 La bordure de chaque case est une texture pleine sous l'icône : vert `ok`, orange `manque`,

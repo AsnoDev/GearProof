@@ -33,6 +33,7 @@ Gauge.lua
 GearView.lua
 RaidView.lua
 GuildView.lua
+RecoView.lua
 HelpView.lua
 UI.lua
 Options.lua

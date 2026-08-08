@@ -141,6 +141,18 @@ translations.fr = {
 
     -- Onglet Recommandations.
     ["Recommendations"] = "Recommandations",
+    ["What the top players of your spec actually put on. Each line says where its advice comes from."] =
+        "Ce que posent reellement les meilleurs joueurs de ta spe. Chaque ligne dit d'ou vient son conseil.",
+    ["%d%% of the top players run two DIFFERENT weapon enchants"] =
+        "%d%% du haut de tableau portent deux enchantements d'armes DIFFERENTS",
+    -- Detection de builds bimodaux. La donnee existait depuis toujours et n'avait
+    -- aucun lecteur : c'est le seul endroit ou l'addon peut dire qu'une moyenne ne
+    -- decrit personne.
+    ["Reference"] = "Reference",
+    ["Two builds measured"] = "Deux builds mesures",
+    ["The top players split into two groups on these stats. The average describes neither."] =
+        "Le haut de tableau se separe en deux groupes sur ces statistiques. La moyenne ne decrit ni l'un ni l'autre.",
+    ["you are here"] = "tu es ici",
     ["Enchants"] = "Enchantements",
     ["Gems"] = "Gemmes",
     ["Trinkets"] = "Bijoux",

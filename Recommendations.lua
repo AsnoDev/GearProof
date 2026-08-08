@@ -11,7 +11,6 @@ local _, ns = ...
 -- Exemple :
 --   Recommendations.enchants.BackSlot = "Enchantement de cape : Glissement du Vide"
 --   Recommendations.gems.default      = "Gemme Hate + Maitrise"
---   Recommendations.trinkets[219314]  = "S"
 
 local Recommendations = {
     -- Par emplacement, le texte affiche quand l'enchantement manque.
@@ -31,11 +30,6 @@ local Recommendations = {
     -- d'emplacement prend le dessus.
     gems = {
         -- default = "…",
-    },
-
-    -- Classement de bijou par identifiant d'objet : "S", "A", "B"…
-    trinkets = {
-        -- [219314] = "S",
     },
 
     -- Repartition visee des statistiques secondaires, en fraction du budget total.
@@ -59,11 +53,11 @@ function Recommendations.Gem(slotName)
     return Recommendations.gems[slotName] or Recommendations.gems.default or ns.Meta.GemAdvice()
 end
 
---- Classement d'un bijou, ou nil.
---- Sans appelant depuis le retrait de l'onglet Recommandations, qui sera restaure.
-function Recommendations.Trinket(itemID)
-    return itemID and Recommendations.trinkets[itemID]
-end
+-- Il y avait ici `Recommendations.Trinket`, un classement de bijou par tier list.
+-- Supprime : un bijou vaut par son proc, pas par des points de statistique, et un
+-- classement ecrit a la main serait exactement l'avis non mesure que tout le reste de
+-- l'addon refuse. L'onglet Recommandations affiche le gain simule du droptimizer, ou
+-- « non chiffre » avec la raison.
 
 --- Part visee d'une statistique secondaire (0 a 1), ou nil.
 --- La cible manuelle prime ; sinon on prend la moyenne relevee sur le haut de tableau.

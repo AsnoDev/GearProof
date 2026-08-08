@@ -129,19 +129,6 @@ function Meta.Fights()
     return (data and data.fights) or {}
 end
 
--- Trois lecteurs ci-dessous n'ont plus d'appelant : `SpecName`, `Auras` et `Tertiary`.
--- Ce n'est PAS du code mort a supprimer. Ils alimentaient l'onglet Recommandations,
--- retire sans que ses fonctionnalites soient migrees ailleurs, alors que les donnees
--- correspondantes sont toujours generees et livrees pour les 40 specialisations. Les
--- buffs au pull et les statistiques tertiaires sont donc dans Data/Meta.lua, payes en
--- taille de fichier, et affiches nulle part. Ils reviendront avec l'onglet.
-
---- Nom de la specialisation telle que le releve la designe.
-function Meta.SpecName()
-    local data = block()
-    return data and data.spec or nil
-end
-
 --- Y a-t-il un releve pour au moins une specialisation ?
 --- Sert a distinguer « aucune donnee installee » de « pas de donnee pour CETTE spe ».
 function Meta.AnyAvailable()
@@ -274,6 +261,61 @@ function Meta.Tertiary()
     local data = block()
     local entry = data and data.tertiary
     return type(entry) == "table" and entry or nil
+end
+
+--- Deux ecoles dans une meme specialisation, quand le releve en detecte.
+---
+--- C'est la donnee la plus interessante du releve, et elle n'a jamais eu de lecteur.
+--- Le generateur teste si la repartition d'une statistique est BIMODALE : deux groupes
+--- separes plutot qu'un nuage autour d'une moyenne. Quand c'est le cas, la moyenne ne
+--- decrit AUCUN des deux — dire « vise 27 % de maitrise » a une spe qui joue soit 21 %
+--- soit 38 % est un conseil que personne ne suit.
+---
+--- Le seuil de 8 points d'ecart et de 3 joueurs par groupe est un seuil d'AFFICHAGE :
+--- en dessous, deux groupes proches ne racontent rien qu'une moyenne ne dise deja.
+---
+--- @return table|nil { { key, label, low, lowN, high, highN, gap, side } }
+---   `side` dit de quel cote TU es, "low" ou "high".
+local MODE_MIN_GAP = 0.08
+local MODE_MIN_GROUP = 3
+
+function Meta.Modes()
+    local data = block()
+    local modes = data and data.modes
+    if type(modes) ~= "table" then return nil end
+
+    local stats = ns.Stats.Current()
+    local total = 0
+    for _, definition in ipairs(ns.Stats.LIST) do
+        total = total + ((stats[definition.key] or {}).rating or 0)
+    end
+
+    local found = {}
+    for _, definition in ipairs(ns.Stats.LIST) do
+        local entry = modes[definition.key]
+        if type(entry) == "table" and (entry.gap or 0) >= MODE_MIN_GAP
+            and (entry.lowN or 0) >= MODE_MIN_GROUP and (entry.highN or 0) >= MODE_MIN_GROUP then
+
+            -- De quel cote es-tu ? On compare TA part de budget aux deux centres, et on
+            -- prend le plus proche. Pas de verdict : la ou tu te situes, rien de plus.
+            local side
+            if total > 0 then
+                local share = ((stats[definition.key] or {}).rating or 0) / total
+                side = math.abs(share - (entry.low or 0)) <= math.abs(share - (entry.high or 0))
+                    and "low" or "high"
+            end
+
+            table.insert(found, {
+                key = definition.key, label = definition.label,
+                low = entry.low or 0, lowN = entry.lowN or 0,
+                high = entry.high or 0, highN = entry.highN or 0,
+                gap = entry.gap or 0, side = side,
+            })
+        end
+    end
+
+    table.sort(found, function(a, b) return a.gap > b.gap end)
+    return #found > 0 and found or nil
 end
 
 --- Combinaisons d'enchantements d'armes relevees, la plus jouee en tete.
