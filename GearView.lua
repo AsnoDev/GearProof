@@ -311,7 +311,7 @@ local function layoutIssue(entry, width, top, color)
     card:SetScript("OnClick", function(self, button)
         if button == "RightButton" then
             ns.Gear.SetIgnored(entry.slot, not entry.ignored)
-            ns.UI.Refresh()
+            ns.UI.RefreshNow()
             return
         end
 
@@ -487,8 +487,10 @@ function GearView.Create(parent)
     view.reset:SetPoint("TOPLEFT", view.summary, "BOTTOMLEFT", 0, -2)
     view.reset:SetText(L["Re-enable all"])
     view.reset:SetScript("OnClick", function()
-        ns.db.ignoredSlots = {}
-        ns.UI.Refresh()
+        -- Passe par Gear : ecrire `ns.db.ignoredSlots` en direct laissait le cache
+        -- d'audit intact et la vue se redessinait sur l'ancien etat.
+        ns.Gear.ResetIgnored()
+        ns.UI.RefreshNow()
     end)
 
     -- Colonne 1 : la grille compacte, dans l'onglet et non plus dans la fenetre.
@@ -550,7 +552,7 @@ function GearView.Create(parent)
                 else
                     ns.Print(L["nothing readable in that paste"])
                 end
-                ns.UI.Refresh()
+                ns.UI.RefreshNow()
             end)
     end)
 
@@ -707,18 +709,13 @@ layoutUpgrades = function(width, top)
     return top - height - 14
 end
 
---- Mercredi = reset EU. On considere la sim perimee si elle date d'avant.
-local function simIsStale()
-    local age = ns.Weights.AgeInDays()
-    if not age then return true end
-    return age >= 7
-end
-
 --- Ouvre une piece dans le panneau de detail. `nil` referme le panneau.
 --- Recliquer la meme case referme aussi : c'est le geste attendu d'une selection.
 function GearView.Select(slotName)
     selectedSlot = (slotName ~= selectedSlot) and slotName or nil
-    if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+    -- RefreshNow, pas Refresh : un clic sur une tuile doit ouvrir le panneau tout de
+    -- suite, pas un quart de seconde plus tard.
+    if ns.UI and ns.UI.RefreshNow then ns.UI.RefreshNow() end
 end
 
 function GearView.Refresh()
@@ -782,6 +779,9 @@ function GearView.Refresh()
         card.title:SetText(L["Nothing to fix"])
         card.body:SetWidth(width - 46)
         card.body:SetText("|cffcfc9dd" .. L["Everything is enchanted, socketed and in shape."] .. "|r")
+        -- La carte sort du pool des cartes de probleme : sans ce vidage, la ligne de
+        -- gestes de la carte precedente restait affichee sous « Rien a corriger ».
+        card.hint:SetText("")
         card:SetScript("OnEnter", nil)
         card:SetScript("OnLeave", nil)
         card:SetScript("OnClick", nil)
@@ -791,8 +791,17 @@ function GearView.Refresh()
     top = layoutGems(width, top, entries)
     top = layoutUpgrades(width, top)
 
-    view.content:SetHeight(math.max(1, -top + 10))
-    view.scroll:SetVerticalScroll(0)
+    local height = math.max(1, -top + 10)
+    view.content:SetHeight(height)
+
+    -- La position de defilement se conserve. Elle etait remise a zero a chaque
+    -- rafraichissement : ignorer une piece en bas de liste renvoyait le joueur en haut,
+    -- a chaque clic. On se contente de la ramener dans les bornes du nouveau contenu.
+    local visible = view.scroll:GetHeight() or 0
+    local maximum = math.max(0, height - visible)
+    if view.scroll:GetVerticalScroll() > maximum then
+        view.scroll:SetVerticalScroll(maximum)
+    end
 
     layoutSide(summary)
 end

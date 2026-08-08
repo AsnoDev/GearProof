@@ -70,11 +70,15 @@ function Weights.SetFromPawn(text)
         source = "pawn",
         stamp = time(),
     }
+    -- De nouveaux poids reclassent tout le contenu des sacs : le cache de comparaison
+    -- ne decrit plus la realite.
+    if ns.Bags then ns.Bags.Invalidate() end
     return true, name
 end
 
 function Weights.Clear()
     ns.db.weights = nil
+    if ns.Bags then ns.Bags.Invalidate() end
 end
 
 --- Poids actifs et leur provenance.

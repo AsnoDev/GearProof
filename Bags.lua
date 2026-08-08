@@ -111,9 +111,9 @@ function Bags.Candidates()
     return found
 end
 
---- Compare les candidats aux pieces portees.
+--- Compare les candidats aux pieces portees. Calcul brut : passer par `Bags.Compare`.
 --- @return table simmed (% DPS), table unrated (ilvl seul), table summary, table estimated (points)
-function Bags.Compare()
+local function rawCompare()
     local entries, summary = ns.Gear.Scan()
     local weights = ns.Weights.Current()
     local candidates = Bags.Candidates()
@@ -207,4 +207,41 @@ function Bags.Compare()
     table.sort(unrated, function(a, b) return a.levelDelta > b.levelDelta end)
 
     return simmed, unrated, summary, estimated
+end
+
+-- Cache de comparaison.
+--
+-- `Bags.Compare` parcourt tous les sacs, resout chaque objet equipable, puis calcule
+-- une somme ponderee par piece portee ET par candidat. Il etait appele deux fois par
+-- rafraichissement de l'onglet Equipement, et une fois de plus a chaque survol d'une
+-- tuile de la grille — le geste le plus frequent de l'interface.
+--
+-- Meme regle que pour `Gear.Scan` : les listes rendues ne sont mutees par personne.
+local cachedCompare, compareAt = nil, 0
+local COMPARE_TTL = 2
+
+function Bags.Invalidate()
+    cachedCompare, compareAt = nil, 0
+end
+
+function Bags.Compare()
+    local now = GetTime()
+    if not cachedCompare or (now - compareAt) >= COMPARE_TTL then
+        cachedCompare = { rawCompare() }
+        compareAt = now
+    end
+    local result = cachedCompare
+    return result[1], result[2], result[3], result[4]
+end
+
+-- Le contenu des sacs, l'equipement porte et l'ouverture de la banque changent la liste
+-- des candidats. Les poids de statistiques et l'import d'un droptimizer changent leur
+-- classement : ces deux-la invalident depuis leur propre module.
+for _, event in ipairs({
+    "BAG_UPDATE_DELAYED",
+    "PLAYER_EQUIPMENT_CHANGED",
+    "BANKFRAME_OPENED",
+    "BANKFRAME_CLOSED",
+}) do
+    ns.On(event, Bags.Invalidate)
 end

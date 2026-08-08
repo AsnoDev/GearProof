@@ -66,14 +66,21 @@ local function build()
 end
 
 --- Etat courant, reconstruit a la demande.
+---
+--- Un etat PARTIEL n'est jamais mis en cache. Les donnees de specialisation ne sont pas
+--- toujours pretes juste apres la connexion : `build()` rendait alors une table avec
+--- `active = nil` et une liste vide, et cette table restait en cache jusqu'au prochain
+--- changement de spe — donc, en pratique, jusqu'au `/reload`. L'addon annoncait « pas de
+--- releve pour cette specialisation » pour le reste de la session, sur une spe
+--- parfaitement relevee. On retente au prochain appel plutot que de figer une reponse
+--- qu'on sait fausse.
 function Spec.Info()
     if cache then return cache end
-    -- Les donnees de specialisation ne sont pas toujours pretes juste apres la connexion.
-    if SpecInfo and SpecInfo.IsInitialized then
-        local ok, ready = pcall(SpecInfo.IsInitialized)
-        if ok and ready == false then return nil end
-    end
-    cache = build()
+
+    local built = build()
+    if not built or not built.active or #built.list == 0 then return built end
+
+    cache = built
     return cache
 end
 

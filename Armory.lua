@@ -202,7 +202,7 @@ local function createTile(parent, slotName, index)
     tile:SetScript("OnClick", function(_, mouseButton)
         if mouseButton == "RightButton" then
             ns.Gear.SetIgnored(slotName, not ns.Gear.IsIgnored(slotName))
-            ns.UI.Refresh()
+            ns.UI.RefreshNow()
             return
         end
 
@@ -258,18 +258,28 @@ function Armory.Create(parent)
     recoverable.value:SetPoint("BOTTOMLEFT", 8, 6)
 
     -- Rotation a la souris : le modele reste vivant sans bouton supplementaire.
-    model:EnableMouse(true)
-    model:SetScript("OnMouseDown", function(self)
-        self.dragging = true
-        self.lastX = select(1, GetCursorPosition())
-    end)
-    model:SetScript("OnMouseUp", function(self) self.dragging = nil end)
-    model:SetScript("OnUpdate", function(self)
-        if not self.dragging then return end
+    --
+    -- Le OnUpdate se monte au clic et se demonte au relachement. Il etait auparavant
+    -- installe en permanence pour ne servir que pendant un glisser : un appel par frame,
+    -- toute la session, pour tester un booleen.
+    local function onDrag(self)
         local x = select(1, GetCursorPosition())
         self.rotation = (self.rotation or 0.35) + (x - (self.lastX or x)) * 0.01
         self.lastX = x
         pcall(self.SetRotation, self, self.rotation)
+    end
+
+    model:EnableMouse(true)
+    model:SetScript("OnMouseDown", function(self)
+        self.lastX = select(1, GetCursorPosition())
+        self:SetScript("OnUpdate", onDrag)
+    end)
+    model:SetScript("OnMouseUp", function(self)
+        self:SetScript("OnUpdate", nil)
+    end)
+    -- Relacher hors du cadre laissait le modele tourner indefiniment.
+    model:SetScript("OnHide", function(self)
+        self:SetScript("OnUpdate", nil)
     end)
 
     Armory.Refresh()

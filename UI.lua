@@ -385,8 +385,25 @@ function UI.Show(tab)
 end
 
 
-function UI.Refresh()
+--- Redessine tout de suite. Pour les gestes du joueur : un clic doit repondre.
+function UI.RefreshNow()
     if frame and frame:IsShown() then refresh() end
+end
+
+--- Redessine au plus une fois par quart de seconde.
+---
+--- A reserver aux declencheurs PASSIFS : messages de guilde, changements d'equipement,
+--- evenements du client. Une tournee de guilde a trente membres produisait quatre-vingt-
+--- dix appels en quelques secondes, chacun redessinant l'onglet actif — donc, sur
+--- l'onglet Equipement, cinq scans complets et deux parcours de sacs par appel.
+local pendingRefresh
+function UI.Refresh()
+    if pendingRefresh then return end
+    pendingRefresh = true
+    C_Timer.After(0.25, function()
+        pendingRefresh = nil
+        if frame and frame:IsShown() then refresh() end
+    end)
 end
 
 ns.On("PLAYER_LOGIN", function()
@@ -396,11 +413,21 @@ ns.On("PLAYER_LOGIN", function()
     end
 end)
 
--- Un changement d'equipement invalide le mannequin, l'onglet Equipement et la pastille.
+-- Un changement d'equipement invalide l'onglet Equipement et la pastille de minicarte.
+--
+-- Un seul rendez-vous differe pour les deux. Changer un set complet emet seize
+-- evenements d'affilee, et chacun invalide le cache d'audit : sans ce regroupement, la
+-- pastille declenchait seize scans reels, cache ou pas.
+local pendingEquipment
 ns.On("PLAYER_EQUIPMENT_CHANGED", function()
-    if frame then
-        ns.Armory.Refresh()
-        if frame:IsShown() and activeTab == "gear" then ns.GearView.Refresh() end
-    end
-    ns.MinimapButton.Refresh()
+    if pendingEquipment then return end
+    pendingEquipment = true
+    C_Timer.After(0.25, function()
+        pendingEquipment = nil
+        if frame and frame:IsShown() then
+            refresh()          -- rafraichit aussi la grille et la pastille
+        else
+            ns.MinimapButton.Refresh()
+        end
+    end)
 end)

@@ -24,12 +24,21 @@ local defaults = {
 ns.events = CreateFrame("Frame")
 ns.handlers = {}
 
+--- Abonne un gestionnaire a un evenement du client.
+---
+--- `RegisterEvent` leve une erreur Lua sur un nom d'evenement inconnu, et une erreur au
+--- chargement d'un fichier interrompt tout ce qui suit dans ce fichier. Un evenement
+--- retire par Blizzard doit couter la fonctionnalite qui en depend, pas l'addon.
 function ns.On(event, handler)
     if not ns.handlers[event] then
+        if not pcall(ns.events.RegisterEvent, ns.events, event) then
+            ns.Debug("evenement inconnu, ignore : %s", event)
+            return false
+        end
         ns.handlers[event] = {}
-        ns.events:RegisterEvent(event)
     end
     table.insert(ns.handlers[event], handler)
+    return true
 end
 
 ns.events:SetScript("OnEvent", function(_, event, ...)
@@ -91,6 +100,20 @@ ns.On("PLAYER_SPECIALIZATION_CHANGED", function(unit)
     if unit == "player" then specChanged() end
 end)
 
+-- La specialisation n'est pas toujours connue a PLAYER_LOGIN : sur un client lent ou au
+-- premier lancement apres un patch, les donnees arrivent quelques secondes plus tard.
+-- On repousse plutot que de conclure — annoncer « pas de releve pour cette spe » sur une
+-- spe parfaitement relevee est le pire message possible a la connexion.
+local function whenSpecKnown(action, attempt)
+    attempt = attempt or 1
+    if ns.Spec.Active() or attempt > 4 then
+        action()
+        return
+    end
+    ns.Debug("spec pas encore connue, tentative %d", attempt)
+    C_Timer.After(attempt, function() whenSpecKnown(action, attempt + 1) end)
+end
+
 ns.On("PLAYER_LOGIN", function()
     ns.Spec.Register()
     ns.Tooltip.Register()
@@ -121,13 +144,21 @@ ns.On("PLAYER_LOGIN", function()
     if not ns.db.seenIntro then
         ns.db.seenIntro = true
         ns.Print("installed. Nothing to configure — the measured reference ships with the addon.")
-        announceReference()
+        whenSpecKnown(function()
+            ns.Spec.Register()
+            announceReference()
+        end)
         C_Timer.After(3, function() ns.UI.Show("help") end)
         return
     end
 
     ns.Print("v%s loaded. |cff00B0FF/sa|r to open, |cff00B0FF/sa help|r for the commands.", ns.version)
-    announceReference()
+    whenSpecKnown(function()
+        -- Re-enregistrer : le premier appel a pu tomber avant que la spe soit connue,
+        -- et l'outil Python lit cette table dans les SavedVariables.
+        ns.Spec.Register()
+        announceReference()
+    end)
 
     -- Rappel des poids de statistiques. Il ne se declenche QUE si des poids existent et ont
     -- vieilli : depuis que le repli derive du releve est supprime, leur absence est l'etat

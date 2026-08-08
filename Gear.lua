@@ -192,6 +192,15 @@ end
 function Gear.SetIgnored(slotName, ignored)
     ns.db.ignoredSlots = ns.db.ignoredSlots or {}
     ns.db.ignoredSlots[slotName] = ignored and true or nil
+    Gear.Invalidate()
+end
+
+--- Reactive toutes les alertes ignorees.
+--- Passe par ici plutot que d'ecrire `ns.db.ignoredSlots` en direct : le cache d'audit
+--- doit tomber en meme temps que le reglage, sinon la vue se redessine sur l'ancien.
+function Gear.ResetIgnored()
+    ns.db.ignoredSlots = {}
+    Gear.Invalidate()
 end
 
 --- Verifie les deux armes ENSEMBLE, pas chacune de son cote.
@@ -226,9 +235,9 @@ local function auditWeaponPair(bySlot, summary)
         ns.Meta.Sample()))
 end
 
---- Analyse l'equipement porte.
+--- Analyse l'equipement porte. Lecture brute, sans cache : passer par `Gear.Scan`.
 --- @return table entries, table summary
-function Gear.Scan()
+local function rawScan()
     local entries = {}
     local summary = {
         missingEnchants = 0,
@@ -347,6 +356,48 @@ function Gear.Scan()
     return entries, summary
 end
 
+-- Cache d'audit.
+--
+-- `Gear.Scan` est appele depuis douze endroits, dont cinq fois pour UN SEUL
+-- rafraichissement de l'onglet Equipement et une fois par infobulle d'objet survolee.
+-- Un scan coute une centaine d'appels d'API : seize liens d'objet, autant de
+-- GetItemInfo, de GetDetailedItemLevelInfo, de GetItemStats et de durabilites.
+-- Survoler l'hotel des ventes revenait a scanner l'equipement complet par ligne.
+--
+-- Les tables rendues ne sont mutees par aucun appelant — seul `rawScan` les remplit —
+-- donc les partager est sans risque.
+--
+-- Le TTL n'est pas le mecanisme, c'est le garde-fou : la durabilite baisse en combat
+-- sans qu'aucun evenement ne le dise, et une valeur figee mentirait.
+local cachedEntries, cachedSummary, cachedAt = nil, nil, 0
+local SCAN_TTL = 2
+
+function Gear.Invalidate()
+    cachedEntries, cachedSummary, cachedAt = nil, nil, 0
+end
+
+--- Analyse l'equipement porte, mise en cache.
+--- @return table entries, table summary
+function Gear.Scan()
+    local now = GetTime()
+    if cachedEntries and (now - cachedAt) < SCAN_TTL then
+        return cachedEntries, cachedSummary
+    end
+    cachedEntries, cachedSummary = rawScan()
+    cachedAt = now
+    return cachedEntries, cachedSummary
+end
+
+-- Tout ce qui rend l'audit faux fait tomber le cache, et rien d'autre.
+for _, event in ipairs({
+    "PLAYER_EQUIPMENT_CHANGED",
+    "UPDATE_INVENTORY_DURABILITY",
+    "SOCKET_INFO_CLOSE",
+    "ACTIVE_TALENT_GROUP_CHANGED",
+}) do
+    ns.On(event, Gear.Invalidate)
+end
+
 --- Somme des statistiques brutes d'un objet ou d'une chaine forgee.
 local function rawStats(link)
     local stats
@@ -381,9 +432,31 @@ end
 --- le total retombe a zero et l'interface n'affiche rien : mieux vaut pas de chiffre qu'un
 --- chiffre faux.
 --- @return number points, table|nil lignes brutes du client
+---
+--- Mise en cache permanente : le resultat ne depend que du couple (objet, enchantement),
+--- et un enchantement ne change pas de valeur en cours de session. Sans cache, deux
+--- lectures d'infobulle par enchantement manquant etaient refaites a chaque
+--- `Armory.Refresh` — donc a chaque changement de piece et a chaque survol.
+local enchantPointsCache = {}
+
 function Gear.EnchantPoints(link, slot, enchantID)
-    local lines = ns.Meta.EnchantTooltipLines(link, enchantID or ns.Meta.Enchant(slot))
-    if not lines then return 0, nil end
+    enchantID = enchantID or ns.Meta.Enchant(slot)
+    if not link or not enchantID then return 0, nil end
+
+    -- L'itemID suffit a identifier l'objet : deux exemplaires du meme objet rendent la
+    -- meme infobulle d'enchantement, quels que soient leurs bonus.
+    local itemID = link:match("|Hitem:(%d+)") or link
+    local key = itemID .. ":" .. enchantID
+
+    local hit = enchantPointsCache[key]
+    if hit then return hit.points, hit.lines end
+
+    local lines = ns.Meta.EnchantTooltipLines(link, enchantID)
+    if not lines then
+        -- Un echec vient presque toujours d'un objet pas encore en cache cote client :
+        -- on ne memorise pas, la prochaine tentative reussira.
+        return 0, nil
+    end
 
     local points = 0
     for _, line in ipairs(lines) do
@@ -392,6 +465,7 @@ function Gear.EnchantPoints(link, slot, enchantID)
         end
     end
 
+    enchantPointsCache[key] = { points = points, lines = lines }
     return points, lines
 end
 
