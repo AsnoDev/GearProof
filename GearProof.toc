@@ -18,6 +18,7 @@ Pool.lua
 Journal.lua
 Data\Meta.lua
 Data\Sim.lua
+Data\Build.lua
 Spec.lua
 Stats.lua
 Meta.lua

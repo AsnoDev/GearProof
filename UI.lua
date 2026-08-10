@@ -326,8 +326,15 @@ local function createFrame()
         refresh()
     end)
 
+    -- La barre de titre porte la version ET le tampon de build. C'est le seul endroit
+    -- toujours visible, et il repond a la question qui a coute le plus de temps dans ce
+    -- projet : « est-ce que le jeu a bien charge la derniere copie ? »
     local title = frame.TitleText or (frame.TitleContainer and frame.TitleContainer.TitleText)
-    if title then title:SetText("GearProof") end
+    if title then
+        title:SetText(string.format("GearProof  %s%s%s|r",
+            COLORS.muted, ns.version or "?",
+            ns.build and ("  ·  " .. ns.build) or ""))
+    end
 
     -- Entete : DEUX rangees, chacune avec un role.
     --

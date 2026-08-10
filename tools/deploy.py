@@ -22,6 +22,7 @@ import shutil
 import string
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from common import ADDON_ROOT
@@ -134,6 +135,18 @@ def main() -> int:
     for relative, payload in preserved.items():
         (target / relative).write_bytes(payload)
         print(f"       {relative} conserve ({len(payload)} octets, donnees du joueur)")
+
+    # Tampon de build, ecrit APRES la copie : l'entete de la fenetre l'affiche, et
+    # « je n'ai aucun changement en jeu » devient une question a laquelle le joueur
+    # repond seul, en lisant. Sans lui il a fallu comparer a la main des horodatages de
+    # fichiers et de SavedVariables pour decouvrir qu'un /reload avait simplement precede
+    # le deploiement de quelques secondes.
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    (target / "Data" / "Build.lua").write_text(
+        "-- Genere par tools\\deploy.cmd — ne pas editer.\n"
+        f'GearProofBuild = "{stamp}"\n',
+        encoding="utf-8", newline="\n")
+    print(f"       build {stamp}")
 
     print(f"[ok]   {len(files)} fichiers copies")
     print(f"       vers {target}")

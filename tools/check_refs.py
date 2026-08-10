@@ -31,6 +31,7 @@ ALLOWED_GLOBALS = {
     "GearProofDB",
     "GearProofMeta",
     "GearProofSim",
+    "GearProofBuild",
     "SLASH_GEARPROOF1",
     "SLASH_GEARPROOF2",
     "SLASH_GEARPROOF3",

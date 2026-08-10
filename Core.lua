@@ -2,6 +2,13 @@ local addonName, ns = ...
 
 ns.version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version") or "0.1.0"
 
+-- Tampon de la derniere copie vers le dossier de jeu, ecrit par `tools\deploy.cmd`.
+-- Affiche dans la barre de titre : c'est ce qui permet de repondre seul a « je n'ai
+-- aucun changement en jeu » — soit le tampon est celui de la derniere copie et le
+-- probleme est ailleurs, soit il est plus ancien et le /reload a precede le
+-- deploiement.
+ns.build = (type(GearProofBuild) == "string" and GearProofBuild ~= "dev") and GearProofBuild or nil
+
 -- Depuis Midnight (12.0), COMBAT_LOG_EVENT_UNFILTERED est interdit aux addons et les
 -- valeurs de combat sont des "secret values". Cet addon ne lit donc AUCUNE donnee de
 -- combat : il declenche la journalisation fichier, enregistre des metadonnees de session,
