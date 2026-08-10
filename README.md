@@ -76,10 +76,34 @@ World of Warcraft\_retail_\Interface\AddOns\
 ```
 
 Puis **redémarrer complètement le client** — WoW ne détecte un nouvel addon qu'au
-démarrage — et cocher `GearProof` dans la liste des addons.
+démarrage, jamais sur `/reload` — et cocher `GearProof` dans la liste des addons.
 
 Rien à configurer : la référence mesurée est livrée avec l'addon. À la première
 connexion, la fenêtre s'ouvre seule sur l'onglet Aide.
+
+### Tu viens de SpecAnalyser
+
+GearProof reprend tes réglages — emplacements ignorés, poids de statistiques, lien de
+droptimizer, habillage — mais il ne peut les lire **que si l'ancien addon est encore
+activé** au moment où le nouveau démarre : WoW ne donne à un addon que ses propres
+SavedVariables.
+
+1. Installer `GearProof` **sans toucher** à `SpecAnalyser`.
+2. Redémarrer le client, laisser les deux cochés, se connecter une fois. Un message
+   confirme la reprise. Les deux addons tournent en parallèle le temps de cette
+   connexion : deux icônes de minicarte, c'est normal.
+3. Décocher `SpecAnalyser`, puis supprimer son dossier.
+
+Sauter l'étape 2 ne casse rien — GearProof repart simplement d'une configuration neuve.
+
+### Développement
+
+```bash
+tools\deploy.cmd
+```
+
+Valide puis copie dans le dossier AddOns détecté. Un échec de validation interdit la
+copie : remplacer un addon qui marche par un addon cassé ne rend service à personne.
 
 ---
 
