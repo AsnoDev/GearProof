@@ -190,10 +190,6 @@ local DIFFICULTY = {
     ["raid-mythic"] = 16,
 }
 
--- Butin du journal, par rencontre et par difficulte. Le journal est un objet a etat et le
--- consulter coute cher : on ne le fait qu'une fois par couple.
-local lootCache = {}
-
 -- Le butin arrive APRES la selection de la rencontre, par evenement. Sans cette
 -- invalidation, la premiere lecture — toujours vide — n'aurait jamais de seconde chance,
 -- et les infobulles resteraient sur le niveau du modele.
@@ -210,69 +206,43 @@ for _, event in ipairs({ "EJ_LOOT_DATA_RECIEVED", "EJ_LOOT_DATA_RECEIVED" }) do
     end)
 end
 
---- Lien COMPLET d'un objet de butin, bonus IDs compris, tel que le journal des aventures le
---- connait.
+--- Lien COMPLET d'un objet de butin, bonus IDs compris, tel que le journal le connait.
 ---
 --- C'est la reponse a « pourquoi l'Adventure Guide affiche le bon niveau et pas nous » :
---- `GameTooltip:SetItemByID` ne connait que le MODELE de l'objet, donc son niveau de base —
---- 44 sur une piece de raid. Le journal, lui, expose le butin reel de la rencontre pour une
---- difficulte donnee, avec les identifiants de bonus qui portent le vrai niveau.
+--- `GameTooltip:SetItemByID` ne connait que le MODELE de l'objet, donc son niveau de
+--- base — 44 sur une piece de raid. Le journal, lui, expose le butin reel de la
+--- rencontre pour une difficulte donnee, avec les identifiants de bonus.
+---
+--- La lecture passe par `Journal.Loot`, et c'est ce qui change tout pour les PIECES
+--- D'ENSEMBLE. Il y avait ici un second lecteur du journal, presque identique, a une
+--- chose pres : il ne posait pas le filtre de butin. Or le journal ne montre les pieces
+--- de classe que si l'on filtre sur une classe — sans filtre il rend le JETON, pas la
+--- piece. Toutes les pieces de tier retombaient donc sur `SetItemByID` et affichaient 44,
+--- pendant que les objets ordinaires, eux, avaient leur lien.
+---
+--- Deux lecteurs pour la meme donnee, divergeant sur un detail invisible : c'est la
+--- duplication qui a coute le plus cher dans ce depot. Il n'en reste qu'un.
 --- @return string|nil lien d'objet
---- @param instanceID number|nil instance du journal, quand l'appelant la connait.
----   Le journal se positionne d'abord sur l'instance : sans elle, `EJ_SelectEncounter`
----   travaille sur ce qui etait deja selectionne. La cle de cache n'en depend pas — le
----   couple rencontre + difficulte designe deja une table de butin unique.
 function Sim.LootLink(encounterID, itemID, difficulty, instanceID)
     if not encounterID or not itemID then return nil end
 
     local difficultyID = DIFFICULTY[difficulty or ""] or 16
-    local key = encounterID .. ":" .. difficultyID
 
-    local table_ = lootCache[key]
-    if not table_ then
-        -- La lecture passe par Journal.Read : il pose l'etat, lit, puis rend au joueur la
-        -- selection qu'il avait. On reglait ici directement, et un joueur avec le journal
-        -- ouvert voyait sa selection changer sans avoir rien demande.
-        table_ = ns.Journal.Read(instanceID, difficultyID, encounterID, function()
-            local found = {}
-
-            local count = 0
-            local getNum = (C_EncounterJournal and C_EncounterJournal.GetNumLoot) or EJ_GetNumLoot
-            if type(getNum) == "function" then
-                local ok, value = pcall(getNum)
-                if ok then count = value or 0 end
-            end
-
-            local getLoot = (C_EncounterJournal and C_EncounterJournal.GetLootInfoByIndex)
-                or EJ_GetLootInfoByIndex
-            for index = 1, count do
-                if type(getLoot) ~= "function" then break end
-                local ok, info = pcall(getLoot, index)
-                -- Selon la version, l'API rend une table ou une suite de valeurs : on accepte
-                -- les deux plutot que de parier sur une forme.
-                if ok and type(info) == "table" then
-                    local id = info.itemID
-                    local link = info.itemLink or info.link
-                    if id and link then found[id] = link end
-                end
-            end
-
-            return found
-        end)
-
-        -- Un resultat VIDE n'est pas un resultat.
-        --
-        -- Le journal des aventures charge son butin de facon ASYNCHRONE : juste apres
-        -- `EJ_SelectEncounter`, `EJ_GetNumLoot` rend zero, et la donnee arrive avec
-        -- l'evenement EJ_LOOT_DATA_RECIEVED. Une table vide est pourtant `true` en Lua,
-        -- donc la mettre en cache figeait « pas de butin » pour toute la session — et
-        -- l'infobulle retombait definitivement sur `SetItemByID`, qui ne connait que le
-        -- MODELE de l'objet et affiche son niveau de base : 44 sur une piece de raid.
-        if not table_ or not next(table_) then return nil end
-        lootCache[key] = table_
+    local function find(classID, specID)
+        for _, loot in ipairs(ns.Journal.Loot(instanceID, encounterID, difficultyID, classID, specID)) do
+            if loot.id == itemID then return loot.link end
+        end
+        return nil
     end
 
-    return table_[itemID]
+    -- Filtre sur la classe d'abord : c'est le seul moyen de voir les pieces d'ensemble.
+    local link = find(ns.Spec.ClassID(), ns.Spec.Selected())
+    if link then return link end
+
+    -- Puis SANS filtre. Un droptimizer peut couvrir un objet que le journal ne montre
+    -- pas a cette specialisation ; retomber sur la liste complete evite de perdre un
+    -- lien qu'on avait avant d'ajouter le filtre.
+    return find(nil, nil)
 end
 
 --- Nom d'une rencontre depuis son identifiant de journal, ou nil.

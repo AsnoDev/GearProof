@@ -175,7 +175,9 @@ end
 function Journal.Loot(instanceID, encounterID, difficultyID, classID, specID)
     if not encounterID then return {} end
 
-    local key = table.concat({ encounterID, difficultyID or 0, specID or 0 }, ":")
+    -- La CLASSE fait partie de la cle : sans elle, une lecture filtree et une lecture
+    -- non filtree partagent la meme entree et la premiere arrivee decide pour l'autre.
+    local key = table.concat({ encounterID, difficultyID or 0, classID or 0, specID or 0 }, ":")
     if lootCache[key] then return lootCache[key] end
 
     local found = Journal.Read(instanceID, difficultyID, encounterID, function()
