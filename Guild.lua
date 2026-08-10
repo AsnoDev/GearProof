@@ -438,6 +438,44 @@ function Guild.LootByEncounter()
     return #order > 0 and order or nil
 end
 
+--- Chiffres de tete du roster : ce qu'un officier regarde avant un soir de raid.
+---
+--- Quatre nombres, pas un tableau. « Combien sont prets, combien de gain le raid a
+--- devant lui, et combien de gens ont encore quelque chose a corriger » — c'est la seule
+--- question qui se pose a vingt minutes du premier pull, et elle n'avait aucune reponse
+--- lisible : il fallait parcourir la liste ligne a ligne.
+---
+--- Le gain total est une SOMME de meilleurs gains individuels. Elle ne veut pas dire que
+--- le raid gagnera ce pourcentage — c'est un potentiel cumule, et le libelle le dit.
+--- @return table { ready, total, withFixes, bestSum, bestAverage }
+function Guild.Summary()
+    local summary = { ready = 0, total = 0, withFixes = 0, bestSum = 0, bestAverage = 0 }
+
+    local rated = 0
+    for _, card in pairs(roster) do
+        summary.total = summary.total + 1
+        if card.sim ~= "" and card.simAge >= 0 and card.simAge < STALE_DAYS then
+            summary.ready = summary.ready + 1
+        end
+        if (card.fixes or 0) > 0 then summary.withFixes = summary.withFixes + 1 end
+
+        -- Meilleur gain de ce membre, tous boss confondus.
+        local best = 0
+        for _, items in pairs(card.gains or {}) do
+            for _, gain in pairs(items) do
+                if (gain.percent or 0) > best then best = gain.percent end
+            end
+        end
+        if best > 0 then
+            summary.bestSum = summary.bestSum + best
+            rated = rated + 1
+        end
+    end
+
+    if rated > 0 then summary.bestAverage = summary.bestSum / rated end
+    return summary
+end
+
 --- Resume texte du roster, pret a coller dans Discord.
 function Guild.Export()
     local lines = { "GearProof — guild audit", "" }

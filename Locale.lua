@@ -117,6 +117,12 @@ translations.fr = {
     ["Loot per boss, ranked by the best gain in the guild. Hover an item for the ranking."] =
         "Butin par boss, classe par le meilleur gain de la guilde. Survole un objet pour le classement.",
     ["Guild ranking"] = "Classement de la guilde",
+    ["ready of %d"] = "prets sur %d",
+    ["Total gain on the table"] = "Gain total sur la table",
+    ["Average per member"] = "Moyenne par membre",
+    ["Members with fixes pending"] = "Membres avec correctifs",
+    ["No shared droptimizer yet"] = "Aucun droptimizer partage",
+    ["Best gain here"] = "Meilleur gain ici",
     ["the item level above is the base template, not the drop"] =
         "le niveau d'objet ci-dessus est celui du modele, pas celui du butin",
     ["%d items"] = "%d objets",

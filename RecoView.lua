@@ -167,11 +167,20 @@ local function enchantRow(top, width, slotLabel, name, share, worn, tooltip)
     row.fill:SetPoint("LEFT", row.track, "LEFT", 0, 0)
     row.fill:SetWidth(math.max(1, barWidth * math.min(1, share or 0)))
 
-    local accent = worn and "good" or "critical"
-    row.state:SetText(hex(accent) .. (worn and "+" or "!") .. "|r")
+    -- UN canal visuel, UNE information.
+    --
+    -- La barre encodait deux choses a la fois : sa longueur disait l'adoption, sa couleur
+    -- disait ton etat. On obtenait donc une barre ROUGE a 95 % d'adoption — et l'oeil lit
+    -- « 95 %, en rouge, donc mauvais » avant de comprendre que le rouge parlait d'autre
+    -- chose. Rouge veut dire « probleme » partout ailleurs dans cet addon.
+    --
+    -- Desormais : la barre ne dit QUE l'adoption, dans la teinte d'accent, toujours la
+    -- meme. Ton etat vit dans la colonne de marqueurs a gauche, qui se balaie
+    -- verticalement — ce qu'une couleur de barre ne permet pas.
+    row.state:SetText(hex(worn and "good" or "critical") .. (worn and "+" or "!") .. "|r")
     row.slot:SetText(slotLabel)
     row.name:SetText((worn and hex("text") or hex("critical")) .. name .. "|r")
-    row.fill:SetColorTexture(unpack(ns.Theme.RGB[worn and "link" or "critical"]))
+    row.fill:SetColorTexture(unpack(ns.Theme.RGB.link))
     row.share:SetText(string.format("%d%%", (share or 0) * 100 + 0.5))
 
     if tooltip then

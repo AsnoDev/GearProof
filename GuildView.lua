@@ -11,6 +11,8 @@ local ROW_HEIGHT = 22
 -- Largeur des colonnes du roster. Les decalages de `layoutRosterRow` sont calibres
 -- dessus : les changer sans changer celle-ci fait chevaucher les colonnes.
 local ROSTER_WIDTH = 560
+-- Bande de chiffres de tete, a droite du tableau.
+local SUMMARY_WIDTH = 190
 local view, rows
 local guildMode = "roster"
 
@@ -137,18 +139,49 @@ function GuildView.Create(parent)
     view.header = view:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     view.header:SetPoint("TOPLEFT", 8, -102)
 
+    -- Bande de chiffres de tete, a droite.
+    --
+    -- C'est la meilleure idee des croquis : « combien sont prets, combien de gain le raid
+    -- a devant lui, combien de gens ont encore quelque chose a corriger » repond en un
+    -- coup d'oeil a la seule question d'un officier a vingt minutes du pull. La liste,
+    -- elle, demande de parcourir ligne a ligne.
+    view.summary = CreateFrame("Frame", nil, view, "BackdropTemplate")
+    view.summary:SetWidth(SUMMARY_WIDTH)
+    view.summary:SetPoint("TOPRIGHT", -26, -102)
+    view.summary:SetPoint("BOTTOM", view, "BOTTOM", 0, 4)
+    view.summary:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+    ns.Theme.Track(view.summary)
+
+    view.summaryValue = view.summary:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+    view.summaryValue:SetPoint("TOP", view.summary, "TOP", 0, -16)
+
+    view.summaryLabel = view.summary:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    view.summaryLabel:SetPoint("TOP", view.summaryValue, "BOTTOM", 0, -2)
+
+    view.summaryBody = view.summary:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    view.summaryBody:SetPoint("TOPLEFT", view.summary, "TOPLEFT", 12, -66)
+    view.summaryBody:SetWidth(SUMMARY_WIDTH - 24)
+    view.summaryBody:SetJustifyH("LEFT")
+    view.summaryBody:SetSpacing(6)
+
     view.scroll = CreateFrame("ScrollFrame", nil, view, "UIPanelScrollFrameTemplate")
     view.scroll:SetPoint("TOPLEFT", 0, -118)
-    view.scroll:SetPoint("BOTTOMRIGHT", -26, 0)
+    view.scroll:SetPoint("BOTTOMRIGHT", -(SUMMARY_WIDTH + 38), 0)
 
     view.content = CreateFrame("Frame", nil, view.scroll)
     view.content:SetSize(ROSTER_WIDTH, 1)
     view.scroll:SetScrollChild(view.content)
     ns.Theme.CleanScrollBar(view.scroll)
 
+    -- L'etat vide s'arrete avant la bande de chiffres, comme la zone de defilement :
+    -- sinon son texte centre passe dessous.
     view.empty = CreateFrame("Frame", nil, view)
     view.empty:SetPoint("TOPLEFT", 0, -118)
-    view.empty:SetPoint("BOTTOMRIGHT", -26, 0)
+    view.empty:SetPoint("BOTTOMRIGHT", -(SUMMARY_WIDTH + 38), 0)
     view.empty:Hide()
 
     view.emptyTitle = view.empty:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
@@ -179,6 +212,29 @@ function GuildView.Refresh()
         end
         button.text:SetText((active and hex("link") or hex("text")) .. L[button.label] .. "|r")
     end
+
+    -- Chiffres de tete. Le gros nombre est le compte de PRETS : c'est celui qu'on lit de
+    -- loin. Les trois autres le qualifient, en plus petit.
+    local summary = ns.Guild.Summary()
+    view.summaryValue:SetText(string.format("%s%d|r",
+        summary.ready == summary.total and hex("good") or hex("bis"), summary.ready))
+    view.summaryLabel:SetText(hex("muted")
+        .. string.format(L["ready of %d"], summary.total) .. "|r")
+
+    local lines = {}
+    if summary.bestSum > 0 then
+        table.insert(lines, string.format("%s%s|r\n%s+%.2f%%|r",
+            hex("muted"), L["Total gain on the table"], hex("good"), summary.bestSum))
+        table.insert(lines, string.format("%s%s|r\n%s+%.2f%%|r",
+            hex("muted"), L["Average per member"], hex("text"), summary.bestAverage))
+    else
+        table.insert(lines, hex("muted") .. L["No shared droptimizer yet"] .. "|r")
+    end
+    table.insert(lines, string.format("%s%s|r\n%s%d / %d|r",
+        hex("muted"), L["Members with fixes pending"],
+        summary.withFixes > 0 and hex("bis") or hex("good"),
+        summary.withFixes, summary.total))
+    view.summaryBody:SetText(table.concat(lines, "\n\n"))
 
     -- Fraicheur des droptimizers, toujours visible : c'est la question qu'un officier pose
     -- avant un soir de raid.
@@ -333,7 +389,9 @@ function GuildView.RefreshRaid()
         .. L["Loot per boss, ranked by the best gain in the guild. Hover an item for the ranking."] .. "|r")
 
     -- Toute la largeur du panneau, pas les 560 px du tableau du roster.
-    local width = math.max(560, (view.scroll:GetWidth() or 960) - 8)
+    -- La zone de defilement s'arrete deja avant la bande de chiffres : on prend sa
+    -- largeur reelle, sans plancher a 560 qui la ferait deborder dessous.
+    local width = math.max(420, (view.scroll:GetWidth() or 700) - 8)
     view.content:SetWidth(width)
 
     local offset = 0

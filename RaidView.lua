@@ -203,6 +203,12 @@ function RaidView.Create(parent)
     view.lootNote:SetPoint("TOPLEFT", view.lootTitle, "BOTTOMLEFT", 0, -2)
     view.lootNote:SetJustifyH("LEFT")
 
+    -- Le meilleur gain de la rencontre, aligne a droite du titre.
+    view.lootBest = view:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    view.lootBest:SetPoint("TOPRIGHT", -32, -24)
+    view.lootBest:SetJustifyH("RIGHT")
+    view.lootBest:SetSpacing(2)
+
     view.scroll = CreateFrame("ScrollFrame", nil, view, "UIPanelScrollFrameTemplate")
     view.scroll:SetPoint("TOPLEFT", LIST_WIDTH + 24, -68)
     view.scroll:SetPoint("BOTTOMRIGHT", -28, 0)
@@ -476,6 +482,22 @@ function RaidView.Refresh()
     -- Le butin de la rencontre choisie, et d'elle seule.
     if chosen.fromJournal then journalLoot(chosen) end
     chosen.items = chosen.items or {}
+
+    -- Ce que cette rencontre a de mieux a t'offrir, en un chiffre, a droite du titre.
+    --
+    -- Meme geste que la bande de chiffres de l'onglet Guilde : la liste repond « quoi »,
+    -- ce nombre repond « est-ce que ca vaut le deplacement ». Il n'apparait que sur une
+    -- valeur MESUREE — un ecart de niveau d'objet ne se resume pas a un seul nombre.
+    local best
+    for _, item in ipairs(chosen.items) do
+        if item.percent and (not best or item.percent > best) then best = item.percent end
+    end
+    if best and best > 0 then
+        view.lootBest:SetText(string.format("%s+%.2f%%|r\n%s%s|r",
+            hex(tint(best)), best, hex("muted"), L["Best gain here"]))
+    else
+        view.lootBest:SetText("")
+    end
 
     view.lootNote:SetText(hex("muted") .. string.format(
         chosen.fromJournal and L["%d items this boss can drop for you"]
