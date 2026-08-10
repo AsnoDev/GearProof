@@ -398,12 +398,11 @@ function RaidView.Refresh()
         -- d'un fichier ecrit hors du jeu. L'ancien texte promettait un remplissage
         -- automatique — c'etait faux, et c'est ce qui a fait chercher un bug inexistant.
         view.emptyBody:SetText(hex("muted") .. L["This tab lists the loot each boss can drop for you, ranked by the gain your own simulation measured."] .. "|r")
-        view.emptyHow:SetText(string.format("%s1.|r %s
-%s2.|r %s
-%s3.|r %s",
-            hex("link"), L["Paste your Raidbots report link below."],
-            hex("link"), L["GearProof gives you an address: open it, select everything, copy."],
-            hex("link"), L["Paste that back here. No tool, no reload."]))
+        view.emptyHow:SetText(table.concat({
+            hex("link") .. "1.|r " .. L["Paste your Raidbots report link below."],
+            hex("link") .. "2.|r " .. L["GearProof gives you an address: open it, select everything, copy."],
+            hex("link") .. "3.|r " .. L["Paste that back here. No tool, no reload."],
+        }, "\n"))
         view.emptyAction:Show()
         return
     end
