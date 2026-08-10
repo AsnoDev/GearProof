@@ -183,8 +183,8 @@ translations.fr = {
     ["droptimizer imported: %d items"] = "droptimizer importe : %d objets",
     ["Paste the Raidbots report link, or the report data"] =
         "Colle le lien de ton rapport Raidbots, ou les donnees du rapport",
-    ["Open this address, select everything, copy, then paste it here"] =
-        "Ouvre cette adresse, selectionne tout, copie, puis recolle ici",
+    ["Open this address, select everything, copy — then replace this text with what you copied and validate"] =
+        "Ouvre cette adresse, selectionne tout, copie — puis remplace ce texte par ce que tu as copie et valide",
     ["Paste your Raidbots report link below."] = "Colle le lien de ton rapport Raidbots.",
     ["GearProof gives you an address: open it, select everything, copy."] =
         "GearProof te rend une adresse : ouvre-la, selectionne tout, copie.",

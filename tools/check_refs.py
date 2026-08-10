@@ -92,6 +92,55 @@ def file_scope_locals(text: str) -> dict[str, int]:
     return lines
 
 
+def field_order_errors(text: str, tables: set[str]) -> list[tuple[int, str, int]]:
+    """Champs de table utilises AVANT d'etre crees, dans une meme fonction.
+
+    Le motif dominant de ces vues est `view.chose = CreateFrame(...)` puis
+    `view.chose:Methode()`. Ecrire l'appel plus haut que la creation donne un `attempt to
+    index a nil value` — et comme il part depuis `Create`, la vue ENTIERE meurt : l'onglet
+    reste noir sans que rien ne dise pourquoi. C'est arrive avec `view.emptyAction`.
+
+    Le controle se limite a une meme fonction de premier niveau. Comparer d'une fonction
+    a l'autre produirait des faux positifs : `Refresh` a parfaitement le droit d'utiliser
+    ce que `Create` a pose, quel que soit l'ordre dans le fichier.
+
+    Et il ne porte que sur les tables declarees `local` en COLONNE 0 — `view`, `panel`,
+    `popup`. Un nom de PARAMETRE comme `card` designe un objet different a chaque appel :
+    le comparer a une creation ecrite ailleurs n'a aucun sens, et produisait deux faux
+    positifs sur la fabrique de cartes de GearView.
+
+    @return [(ligne d'usage, "table.champ", ligne de creation)]
+    """
+    lines = text.splitlines()
+
+    # Decoupage en blocs de premier niveau : une fonction commence en colonne 0.
+    starts = [index for index, line in enumerate(lines)
+              if re.match(r"^(local\s+)?function\b", line)]
+    starts.append(len(lines))
+
+    found = []
+    for position in range(len(starts) - 1):
+        first, last = starts[position], starts[position + 1]
+        assigned: dict[str, int] = {}
+        used: dict[str, int] = {}
+
+        for offset in range(first, last):
+            line = strip_noise(lines[offset])
+            for table, field in re.findall(r"\b(\w+)\.(\w+)\s*=[^=]", line):
+                if table in tables:
+                    assigned.setdefault(f"{table}.{field}", offset)
+            for table, field in re.findall(r"\b(\w+)\.(\w+)\s*[:.]", line):
+                if table in tables:
+                    used.setdefault(f"{table}.{field}", offset)
+
+        for name, at in used.items():
+            created = assigned.get(name)
+            if created is not None and created > at:
+                found.append((at + 1, name, created + 1))
+
+    return found
+
+
 def declared_locals(text: str) -> set[str]:
     """Tous les noms lies localement dans le fichier.
 
@@ -145,6 +194,11 @@ def main() -> int:
 
         locals_here = declared_locals(text)
         declared_at = file_scope_locals(text)
+
+        for at, name, created in field_order_errors(text, set(declared_at)):
+            report.error(f"{where}:{at}",
+                         f"{name} est utilise ici mais cree ligne {created} — "
+                         "index sur nil, la fonction entiere echoue")
         # Table locale de CE fichier : `Gear.Scan()` a l'interieur de Gear.lua est un
         # appel legitime, invisible au motif `ns.X.Y`.
         own_tables = {table for table, module in local_to_module.items()

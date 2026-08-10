@@ -89,8 +89,17 @@ local function fitToContent(frame, text, reserve)
 end
 
 --- Demande une saisie a l'utilisateur (collage d'une chaine).
---- `callback` recoit le texte saisi.
-function Copy.Prompt(title, hint, callback)
+---
+--- `initial` pre-remplit le champ et le SELECTIONNE. C'est ce qui permet un aller-retour
+--- dans une seule fenetre : on y met une adresse a copier, le joueur fait Ctrl+C, part
+--- la chercher, revient, remplace le contenu par ce qu'il a copie et valide.
+---
+--- L'etape intermediaire passait par `Copy.Show`, qui n'a PAS de bouton de validation —
+--- c'est une fenetre d'affichage. Le joueur collait ses donnees dedans et n'avait rien
+--- pour les envoyer.
+---
+--- @param callback function recoit le texte saisi
+function Copy.Prompt(title, hint, callback, initial)
     local frame = ensurePopup()
     local titleText = frame.TitleText or (frame.TitleContainer and frame.TitleContainer.TitleText)
     if titleText then titleText:SetText("GearProof") end
@@ -99,8 +108,9 @@ function Copy.Prompt(title, hint, callback)
     frame.hint:SetText(hint or "")
     -- 30 px reserves sous la zone de saisie : c'est la hauteur du bouton, qui se posait
     -- sinon par-dessus le champ.
-    fitToContent(frame, string.rep(" ", 60), 30)
-    frame.edit:SetText("")
+    fitToContent(frame, initial or string.rep(" ", 60), 30)
+    frame.edit:SetText(initial or "")
+    if initial and initial ~= "" then frame.edit:HighlightText() end
     frame.edit:SetFocus()
 
     if not frame.accept then

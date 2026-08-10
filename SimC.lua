@@ -514,7 +514,15 @@ function SimC.HandlePaste(text)
     local url = ns.Sim.ReportCSVURL(text)
     if url and SimC.SetDroptimizer(text) then
         ns.Print(ns.L["droptimizer report stored"])
-        ns.Copy.Show(ns.L["Open this address, select everything, copy, then paste it here"], url)
+        -- Deuxieme etape dans la MEME fenetre : l'adresse est pre-remplie et
+        -- selectionnee, prete pour un Ctrl+C. Le joueur part la chercher, revient,
+        -- remplace le contenu par ce qu'il a copie, et valide avec le meme bouton.
+        --
+        -- Cette etape passait par `Copy.Show`, une fenetre d'AFFICHAGE sans bouton :
+        -- on y collait ses donnees et il n'y avait rien pour les envoyer.
+        ns.Copy.Prompt(ns.L["Droptimizer report"],
+            ns.L["Open this address, select everything, copy — then replace this text with what you copied and validate"],
+            SimC.HandlePaste, url)
         return true
     end
 

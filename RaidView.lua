@@ -218,7 +218,6 @@ function RaidView.Create(parent)
     view.empty:SetPoint("TOPLEFT", 0, -70)
     view.empty:SetPoint("BOTTOMRIGHT", -28, 0)
     view.empty:Hide()
-    view.emptyAction:Hide()
 
     view.emptyTitle = view.empty:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     view.emptyTitle:SetPoint("TOP", view.empty, "TOP", 0, -40)
@@ -409,6 +408,7 @@ function RaidView.Refresh()
         return
     end
     view.empty:Hide()
+    view.emptyAction:Hide()
 
     view.intro:SetText(hex("muted") .. (groups[1].fromJournal
         and L["Loot tables read from the adventure guide, filtered to your spec. Import a droptimizer to replace the estimates with measured gains."]
