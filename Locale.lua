@@ -170,6 +170,11 @@ translations.fr = {
     ["measured by your droptimizer"] = "mesure par ton droptimizer",
     ["import a droptimizer that covers it"] = "importe un droptimizer qui le couvre",
     ["No droptimizer imported yet."] = "Aucun droptimizer importe.",
+    ["This tab lists the loot each boss can drop for you, ranked by the gain your own simulation measured. It fills up as soon as you import one report."] =
+        "Cet onglet liste le butin que chaque boss peut te donner, classe par le gain que ta propre simulation a mesure. Il se remplit des qu'un rapport est importe.",
+    ["Nobody has answered yet."] = "Personne n'a encore repondu.",
+    ["Run the roll call: every guild member running GearProof answers with their spec, item level and pending fixes. Nothing is sent from your client unless you tick sharing."] =
+        "Lance la tournee : chaque membre de la guilde equipe de GearProof repond avec sa spe, son ilvl et ses correctifs en attente. Rien ne part de ton client tant que tu n'as pas coche le partage.",
     ["weapon enchant combination"] = "combinaison d'enchantements d'armes",
     ["durability"] = "durabilite",
     ["empty socket"] = "chasse vide",

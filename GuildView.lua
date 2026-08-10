@@ -142,8 +142,23 @@ function GuildView.Create(parent)
     view.scroll:SetPoint("BOTTOMRIGHT", -26, 0)
 
     view.content = CreateFrame("Frame", nil, view.scroll)
-    view.content:SetSize(560, 1)
+    view.content:SetSize(ROSTER_WIDTH, 1)
     view.scroll:SetScrollChild(view.content)
+    ns.Theme.CleanScrollBar(view.scroll)
+
+    view.empty = CreateFrame("Frame", nil, view)
+    view.empty:SetPoint("TOPLEFT", 0, -118)
+    view.empty:SetPoint("BOTTOMRIGHT", -26, 0)
+    view.empty:Hide()
+
+    view.emptyTitle = view.empty:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    view.emptyTitle:SetPoint("TOP", view.empty, "TOP", 0, -40)
+
+    view.emptyBody = view.empty:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    view.emptyBody:SetPoint("TOP", view.emptyTitle, "BOTTOM", 0, -10)
+    view.emptyBody:SetWidth(460)
+    view.emptyBody:SetJustifyH("CENTER")
+    view.emptyBody:SetSpacing(3)
 
     return view
 end
@@ -224,9 +239,15 @@ function GuildView.Refresh()
         offset = offset + ROW_HEIGHT
     end
 
+    -- Etat vide, pas page noire. Une ligne grise en haut d'un onglet entierement vide se
+    -- lit comme un addon casse, pas comme « il manque une action ».
     if #list <= 1 then
-        view.header:SetText(hex("muted") .. L["Only you so far — ask your guild to run the roll call."] .. "|r")
+        view.header:SetText("")
+        view.empty:Show()
+        view.emptyTitle:SetText(hex("text") .. L["Nobody has answered yet."] .. "|r")
+        view.emptyBody:SetText(hex("muted") .. L["Run the roll call: every guild member running GearProof answers with their spec, item level and pending fixes. Nothing is sent from your client unless you tick sharing."] .. "|r")
     else
+        view.empty:Hide()
         view.header:SetText(L["name            spec          ilvl    fixes     last sim"])
     end
 

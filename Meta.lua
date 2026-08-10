@@ -53,6 +53,12 @@ local function formatIsReadable()
     return false
 end
 
+-- Deux lecteurs ont ete retires ici : `Auras` (buffs au pull) et `Tertiary`. Ils
+-- alimentaient deux categories de l'onglet Recommandations jugees sans valeur a l'usage.
+-- Les donnees `auras`, `auraSample` et `tertiary` sont donc toujours generees et livrees
+-- pour les 40 specialisations sans etre lues : le generateur peut cesser de les emettre,
+-- ou ces lecteurs revenir. C'est un choix a faire, pas un oubli.
+
 local scanner
 
 --- Prefixe localise de la ligne "Enchante : X" dans les infobulles.
@@ -220,6 +226,19 @@ function Meta.StatTarget(key)
     return entry and entry.share or nil
 end
 
+--- Classement des gemmes posees, tous emplacements confondus, la plus jouee en tete.
+---
+--- C'est la forme UTILE de la donnee. L'onglet Recommandations la presentait par
+--- emplacement et par rang de chasse — une quarantaine de lignes pour dire ce que trois
+--- suffisent a dire. Ou poser quelle gemme est une decision de joueur ; ce que l'addon
+--- peut apporter, c'est le classement mesure et le nombre de chasses vides.
+--- @return table|nil { { id, count, share }, ... }
+function Meta.GemRanking()
+    local data = block()
+    local list = data and data.gems
+    return (type(list) == "table" and #list > 0) and list or nil
+end
+
 --- Gemme la plus posee, tous emplacements confondus.
 function Meta.Gem()
     local data = block()
@@ -240,26 +259,6 @@ function Meta.SocketGems(slot)
     local sockets = data and data.sockets
     if type(sockets) ~= "table" then return nil end
     local entry = sockets[slot]
-    return type(entry) == "table" and entry or nil
-end
-
---- Auras portees au pull par les joueurs releves.
----
---- Ce sont des buffs, pas des consommables : les champs `flask`, `food` et `potion` n'existent
---- pas dans la source, et rien ne distingue un flacon d'une Intelligence arcanique. On liste
---- ce qui est mesure et le titre le dit.
---- @return table|nil liste, number echantillon
-function Meta.Auras()
-    local data = block()
-    local list = data and data.auras
-    if type(list) ~= "table" or #list == 0 then return nil, 0 end
-    return list, data.auraSample or 0
-end
-
---- Statistiques tertiaires moyennes du releve, en points.
-function Meta.Tertiary()
-    local data = block()
-    local entry = data and data.tertiary
     return type(entry) == "table" and entry or nil
 end
 

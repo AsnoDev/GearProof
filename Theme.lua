@@ -47,10 +47,20 @@ local STYLES = {
         border = { 1, 1, 1, 0.09 },
         frame = nil,
     },
+    -- Le fond du cadre est OPAQUE.
+    --
+    -- Il etait a 0.96, ce qui parait anodin. Ce n'est pas : `Theme.Apply` masque toutes
+    -- les textures du modele de fenetre, donc ce backdrop est le SEUL fond. Les 4 %
+    -- restants laissaient passer l'interface du joueur — barres d'action, cadres
+    -- d'unite — au travers d'une fenetre pleine de texte. C'est la cause principale de
+    -- l'impression de superposition : des icones et des noms qui apparaissent au milieu
+    -- des donnees sans venir de l'addon.
+    --
+    -- Une fenetre de lecture dense n'a rien a gagner a etre translucide.
     dark = {
-        card = { 0.04, 0.04, 0.06, 0.85 },
+        card = { 0.04, 0.04, 0.06, 0.92 },
         border = { 1, 1, 1, 0.12 },
-        frame = { bg = { 0.035, 0.03, 0.05, 0.96 }, border = { 0.55, 0.42, 1, 0.35 } },
+        frame = { bg = { 0.035, 0.03, 0.05, 1 }, border = { 0.55, 0.42, 1, 0.35 } },
     },
     -- Dark minimaliste : #121212 pour le cadre, #1E1E1E pour les cartes,
     -- #2A2A2A pour les bordures. Aucune texture du client.
@@ -65,7 +75,8 @@ local STYLES = {
 
 STYLES.minimal.card[4] = 1
 STYLES.minimal.border[4] = 1
-STYLES.minimal.frame.bg[4] = 0.88
+-- Opaque, meme raison que pour `dark`.
+STYLES.minimal.frame.bg[4] = 1
 STYLES.minimal.frame.border[4] = 1
 
 local ORDER = { "dark", "minimal", "blizzard" }
@@ -187,6 +198,36 @@ function Theme.Apply(frame)
     for _, card in ipairs(frame.themeCards or {}) do
         Theme.ApplyCard(card)
     end
+end
+
+--- Range la barre de defilement de `UIPanelScrollFrameTemplate`.
+---
+--- Le modele du client pose deux boutons flechés au-dessus et en dessous de la barre,
+--- avec leurs textures d'origine. Sur un fond sombre et sans le cadre du client autour,
+--- ils apparaissent comme deux icones detachees flottant au milieu du contenu — c'est ce
+--- qu'on voit sur les captures, et ca ressemble a un bug d'affichage.
+---
+--- On les masque et on recale la barre : la molette suffit, et un rail fin se lit mieux.
+function Theme.CleanScrollBar(scroll)
+    if not scroll then return end
+
+    local bar = scroll.ScrollBar or _G[(scroll:GetName() or "") .. "ScrollBar"]
+    if not bar then return end
+
+    for _, key in ipairs({ "ScrollUpButton", "ScrollDownButton" }) do
+        local button = bar[key] or _G[(bar:GetName() or "") .. key]
+        if button then
+            button:Hide()
+            button:SetAlpha(0)
+            -- Desarmer aussi : un bouton masque reste cliquable sur certains modeles.
+            if button.EnableMouse then button:EnableMouse(false) end
+        end
+    end
+
+    -- Les fleches occupaient 16 px en haut et en bas : la barre reprend la hauteur.
+    bar:ClearAllPoints()
+    bar:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", 22, 0)
+    bar:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 22, 0)
 end
 
 --- Reapplique l'habillage courant a tous les cadres et cartes deja crees.

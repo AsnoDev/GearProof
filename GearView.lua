@@ -434,13 +434,45 @@ local function layoutSide(summary)
         for _, entry in ipairs(priority) do
             table.insert(parts, string.format("%s (%d%%)", L[entry.label], entry.share * 100 + 0.5))
         end
+        -- Une fleche par ligne plutot qu'une seule ligne qui passe a la ligne toute
+        -- seule : quatre statistiques et leurs parts ne tiennent pas dans 228 px, et le
+        -- retour automatique cassait le compte de hauteur juste en dessous.
+        -- Deux ecoles, quand le releve en detecte.
+        --
+        -- C'est ICI que l'information a un sens, et nulle part ailleurs : elle qualifie
+        -- directement la ligne de priorite juste au-dessus. Une spe dont la maitrise se
+        -- joue soit a 21 % soit a 38 % n'a pas de cible a 27 % — viser la moyenne, c'est
+        -- ne jouer aucun des deux builds. Deux lignes suffisent a le dire.
+        local modes = ns.Meta.Modes()
+        if modes then
+            table.insert(parts, "")
+            table.insert(parts, hex(COLORS.major) .. L["Two builds measured"] .. "|r")
+            for index = 1, math.min(2, #modes) do
+                local mode = modes[index]
+                table.insert(parts, string.format("%s  %s%d%%|r %s·|r %s%d%%|r",
+                    L[mode.label],
+                    mode.side == "low" and hex(COLORS.good) or "|cff8A8A8A",
+                    mode.low * 100 + 0.5,
+                    "|cff5A5A5A",
+                    mode.side == "high" and hex(COLORS.good) or "|cff8A8A8A",
+                    mode.high * 100 + 0.5))
+            end
+        end
+
         view.priority:SetText(string.format("%s%s|r\n|cffE8E8E8%s|r",
-            hex(COLORS.accent), L["PRIORITY"], table.concat(parts, "  →  ")))
-        top = top - 34
+            hex(COLORS.accent), L["PRIORITY"], table.concat(parts, "\n")))
     else
         view.priority:SetText("|cff615c73" .. L["no top-build reference for this spec yet"] .. "|r")
-        top = top - 28
     end
+
+    -- La hauteur est MESUREE, jamais devinee.
+    --
+    -- Elle etait avancee de 34 px en dur, pour un texte qui passait a deux puis trois
+    -- lignes selon la langue et le nombre de statistiques relevees. La ligne « Ensemble »
+    -- juste en dessous se dessinait donc PAR-DESSUS. C'est la forme exacte du bug de
+    -- mise en page que ce depot traine depuis le debut : un decalage constant pour un
+    -- contenu de taille variable.
+    top = top - 8 - math.ceil(view.priority:GetStringHeight() or 16) - 10
 
     -- Ensemble de classe.
     --
@@ -457,7 +489,7 @@ local function layoutSide(summary)
         view.setLine:SetText(string.format("%s%s|r  |cffE8E8E8%s|r   %s  %s",
             hex(COLORS.accent), L["Class set"],
             string.format(L["%d pieces"], pieces), bonus(2), bonus(4)))
-        top = top - 22
+        top = top - 6 - math.ceil(view.setLine:GetStringHeight() or 14) - 6
     else
         view.setLine:SetText("")
     end
@@ -532,6 +564,7 @@ function GearView.Create(parent)
     view.content = CreateFrame("Frame", nil, view.scroll)
     view.content:SetSize(360, 1)
     view.scroll:SetScrollChild(view.content)
+    ns.Theme.CleanScrollBar(view.scroll)
 
     view.side = CreateFrame("Frame", nil, view)
     view.side:SetPoint("TOPRIGHT", 0, -4)

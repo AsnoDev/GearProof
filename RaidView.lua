@@ -182,6 +182,7 @@ function RaidView.Create(parent)
     view.list = CreateFrame("Frame", nil, view.listScroll)
     view.list:SetSize(LIST_WIDTH - 8, 1)
     view.listScroll:SetScrollChild(view.list)
+    ns.Theme.CleanScrollBar(view.listScroll)
 
     -- Table de butin de la rencontre choisie.
     view.lootTitle = view:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -199,6 +200,42 @@ function RaidView.Create(parent)
     view.content = CreateFrame("Frame", nil, view.scroll)
     view.content:SetSize(400, 1)
     view.scroll:SetScrollChild(view.content)
+    ns.Theme.CleanScrollBar(view.scroll)
+
+    -- Etat vide, centre. Il couvre les deux colonnes : quand il n'y a rien a montrer,
+    -- une liste vide a gauche et une table vide a droite ne racontent rien.
+    view.empty = CreateFrame("Frame", nil, view)
+    view.empty:SetPoint("TOPLEFT", 0, -70)
+    view.empty:SetPoint("BOTTOMRIGHT", -28, 0)
+    view.empty:Hide()
+
+    view.emptyTitle = view.empty:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    view.emptyTitle:SetPoint("TOP", view.empty, "TOP", 0, -40)
+
+    view.emptyBody = view.empty:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    view.emptyBody:SetPoint("TOP", view.emptyTitle, "BOTTOM", 0, -10)
+    view.emptyBody:SetWidth(420)
+    view.emptyBody:SetJustifyH("CENTER")
+    view.emptyBody:SetSpacing(3)
+
+    view.emptyAction = CreateFrame("Button", nil, view.empty, "UIPanelButtonTemplate")
+    view.emptyAction:SetSize(200, 24)
+    view.emptyAction:SetPoint("TOP", view.emptyBody, "BOTTOM", 0, -16)
+    ns.Localize(view.emptyAction, "Paste droptimizer link")
+    view.emptyAction:SetScript("OnClick", function()
+        ns.Copy.Prompt(L["Droptimizer report"],
+            L["Paste the Raidbots report link, or a Pawn string"],
+            function(input)
+                if ns.SimC.SetDroptimizer(input) then
+                    ns.Print(L["droptimizer report stored"])
+                elseif ns.Weights.SetFromPawn(input) then
+                    ns.Print(L["stat weights saved (%s)"], "Pawn")
+                else
+                    ns.Print(L["nothing readable in that paste"])
+                end
+                ns.UI.RefreshNow()
+            end)
+    end)
 
     return view
 end
@@ -211,14 +248,24 @@ function RaidView.Refresh()
 
     local groups = ns.Sim.ByEncounter()
     if not groups then
-        view.intro:SetText(hex("muted")
-            .. L["No droptimizer imported yet. Paste a report link in the Equipment tab."] .. "|r")
+        -- Etat vide, pas page noire.
+        --
+        -- Il n'y avait qu'une phrase en gris en haut d'un onglet entierement vide, ce qui
+        -- se lit comme un addon casse plutot que comme « il te manque une etape ». On dit
+        -- ce que l'onglet FERA, et comment y arriver, la ou le regard tombe.
+        view.intro:SetText("")
         view.lootTitle:SetText("")
         view.lootNote:SetText("")
         view.list:SetHeight(1)
         view.content:SetHeight(1)
+
+        view.empty:Show()
+        view.emptyTitle:SetText(hex("text")
+            .. L["No droptimizer imported yet."] .. "|r")
+        view.emptyBody:SetText(hex("muted") .. L["This tab lists the loot each boss can drop for you, ranked by the gain your own simulation measured. It fills up as soon as you import one report."] .. "|r")
         return
     end
+    view.empty:Hide()
 
     view.intro:SetText(hex("muted")
         .. L["Each boss shows the items your droptimizer actually simulated, best gain first."] .. "|r")
