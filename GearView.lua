@@ -606,31 +606,18 @@ function GearView.Create(parent)
     view.paste = CreateFrame("Button", nil, view.side, "UIPanelButtonTemplate")
     view.paste:SetSize(SIDE_WIDTH - 8, 22)
     ns.Localize(view.paste, "Paste droptimizer link")
-    -- Ce bouton n'importe RIEN. Il enregistre un identifiant et sa date, ce qui sert a la
-    -- tournee de guilde. L'infobulle le dit, parce que le libelle seul laissait croire
-    -- que l'onglet Raid allait se remplir.
+    -- Le bouton accepte le lien OU les donnees du rapport, et l'infobulle dit la marche
+    -- a suivre : coller le lien rend l'adresse du CSV, coller le CSV importe pour de
+    -- bon. Un addon ne peut rien telecharger, mais un joueur peut ouvrir une adresse.
     view.paste:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:AddLine(L["Paste droptimizer link"])
-        GameTooltip:AddLine(L["Records the report id so the guild roll call can show your simulation is fresh. The loot table itself is imported on your PC."],
+        GameTooltip:AddLine(L["Paste the report link and GearProof gives you the address of its data. Open it, copy everything, paste it back here — no tool needed."],
             0.8, 0.8, 0.9, true)
         GameTooltip:Show()
     end)
     view.paste:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    view.paste:SetScript("OnClick", function()
-        ns.Copy.Prompt(L["Droptimizer report"],
-            L["Paste the Raidbots report link, or a Pawn string"],
-            function(text)
-                if ns.SimC.SetDroptimizer(text) then
-                    ns.Print(L["droptimizer report stored"])
-                elseif ns.Weights.SetFromPawn(text) then
-                    ns.Print(L["stat weights saved (%s)"], "Pawn")
-                else
-                    ns.Print(L["nothing readable in that paste"])
-                end
-                ns.UI.RefreshNow()
-            end)
-    end)
+    view.paste:SetScript("OnClick", function() ns.SimC.PromptImport() end)
 
     return view
 end

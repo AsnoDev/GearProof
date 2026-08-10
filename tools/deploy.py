@@ -34,6 +34,10 @@ SHIPPED_SUFFIXES = {".lua", ".toc"}
 SHIPPED_EXTRA = {"README.md"}
 EXCLUDED_DIRS = {".git", "tools", "__pycache__"}
 
+# Fichiers que le JOUEUR possede, ecrits hors du depot. Le depot n'en a qu'une amorce
+# vide ; un deploiement ne doit jamais l'ecraser par-dessus des donnees reelles.
+USER_DATA = ["Data/Sim.lua"]
+
 _COMMON_ROOTS = [
     "World of Warcraft",
     "Program Files (x86)/World of Warcraft",
@@ -105,6 +109,16 @@ def main() -> int:
     target = addons / ADDON_NAME
     files = shipped_files()
 
+    # Data/Sim.lua appartient au JOUEUR : c'est son droptimizer importe, ecrit par
+    # `specanalyser raidbots --to-addon`. Le depot n'en contient qu'une amorce vide, et
+    # la copier par-dessus detruirait des donnees que l'addon ne sait pas reconstruire.
+    # On la met de cote avant le nettoyage, et on la rend apres.
+    preserved = {}
+    for relative in USER_DATA:
+        existing = target / relative
+        if existing.is_file() and existing.stat().st_size > (ADDON_ROOT / relative).stat().st_size:
+            preserved[relative] = existing.read_bytes()
+
     # On repart d'un dossier propre : un fichier .lua supprime du depot mais laisse dans
     # le jeu continuerait d'etre charge par le .toc... ou pire, resterait la sans etre
     # charge, a semer le doute pendant le prochain diagnostic.
@@ -116,6 +130,10 @@ def main() -> int:
         destination = target / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ADDON_ROOT / relative, destination)
+
+    for relative, payload in preserved.items():
+        (target / relative).write_bytes(payload)
+        print(f"       {relative} conserve ({len(payload)} octets, donnees du joueur)")
 
     print(f"[ok]   {len(files)} fichiers copies")
     print(f"       vers {target}")

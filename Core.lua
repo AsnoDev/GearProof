@@ -14,11 +14,13 @@ local defaults = {
     theme = "dark",
     tooltip = true,
     gearAlerts = true,
-    gearDetailCollapsed = true,
     ignoredSlots = {},
     shareWithGuild = false,
     language = "en",
-    lastSeenReport = nil,
+    -- Droptimizers colles par le joueur, par identifiant de rapport. Ils vivent dans les
+    -- SavedVariables et non dans `Data/Sim.lua` : ce fichier appartient a l'outil Python,
+    -- et un import fait en jeu ne doit pas dependre de lui.
+    sim = {},
 }
 
 ns.events = CreateFrame("Frame")

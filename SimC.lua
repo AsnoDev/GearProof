@@ -484,6 +484,57 @@ function SimC.Show()
     ns.Copy.Show(ns.L["SimulationCraft string — paste it on raidbots.com"], text)
 end
 
+--- Traite un collage de droptimizer, quel qu'il soit.
+---
+--- Le joueur ne devrait pas avoir a savoir CE qu'il colle. Trois choses peuvent arriver
+--- dans cette boite, et une seule sert a remplir l'onglet Raid :
+---
+---   1. le CSV du rapport      -> import reel des gains par objet
+---   2. le lien du rapport     -> on rend l'adresse du CSV, a ouvrir et copier
+---   3. une chaine Pawn        -> poids de statistiques
+---
+--- On essaie le CSV EN PREMIER : c'est le seul qui apporte la donnee, et c'est aussi le
+--- plus reconnaissable. Un lien ne peut rien telecharger — WoW l'interdit — donc le
+--- reconnaitre sert uniquement a donner l'etape suivante.
+function SimC.HandlePaste(text)
+    if type(text) ~= "string" or text == "" then
+        ns.Print(ns.L["nothing readable in that paste"])
+        return false
+    end
+
+    local reference = (ns.db.droptimizer and ns.db.droptimizer.id) or ""
+    local ok, result = ns.Sim.ImportCSV(text, reference)
+    if ok then
+        ns.Print("%s%s|r", ns.Theme.C("good"),
+            string.format(ns.L["droptimizer imported: %d items"], result))
+        if ns.UI and ns.UI.RefreshNow then ns.UI.RefreshNow() end
+        return true
+    end
+
+    local url = ns.Sim.ReportCSVURL(text)
+    if url and SimC.SetDroptimizer(text) then
+        ns.Print(ns.L["droptimizer report stored"])
+        ns.Copy.Show(ns.L["Open this address, select everything, copy, then paste it here"], url)
+        return true
+    end
+
+    if ns.Weights.SetFromPawn(text) then
+        ns.Print(ns.L["stat weights saved (%s)"], "Pawn")
+        if ns.UI and ns.UI.RefreshNow then ns.UI.RefreshNow() end
+        return true
+    end
+
+    ns.Print(ns.L["nothing readable in that paste"])
+    return false
+end
+
+--- Ouvre la boite de collage du droptimizer.
+function SimC.PromptImport()
+    ns.Copy.Prompt(ns.L["Droptimizer report"],
+        ns.L["Paste the Raidbots report link, or the report data"],
+        SimC.HandlePaste)
+end
+
 local DROPTIMIZER_URL = "https://www.raidbots.com/simbot/droptimizer"
 
 --- Lien du droptimizer, chaine SimC, puis collage du rapport en retour.

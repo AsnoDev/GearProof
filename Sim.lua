@@ -3,19 +3,49 @@ local _, ns = ...
 local Sim = {}
 ns.Sim = Sim
 
--- Gains simules, importes depuis tes propres droptimizers :
---   specanalyser raidbots <lien> --to-addon
+-- Gains simules, venant de tes propres droptimizers.
 --
 -- Quand un objet figure dans une simulation, sa valeur remplace l'estimation lineaire.
 -- C'est la seule maniere honnete de chiffrer un bijou ou une piece d'ensemble : leur
 -- valeur ne se reduit pas a des points de statistique.
+--
+-- DEUX sources, fusionnees :
+--
+--   1. `Data/Sim.lua`, ecrit hors du jeu par `specanalyser raidbots --to-addon`.
+--   2. Le CSV du rapport, COLLE dans l'addon — voir `Sim.ImportCSV`. Il ne demande
+--      aucun outil : c'est la seule voie praticable pour qui installe l'addon depuis
+--      CurseForge, et elle donne exactement les memes chiffres.
+--
+-- Le collage prime a egalite : c'est le plus recent des deux, par construction.
 
--- Meme retrocompatibilite que pour le releve : un Data/Sim.lua genere par l'ancien
--- outil expose `SpecAnalyserSim`.
-local function reports()
+--- Rapports charges depuis un fichier genere.
+--- Retrocompatibilite : un Data/Sim.lua produit par l'ancien outil expose
+--- `SpecAnalyserSim`.
+local function fileReports()
     if type(GearProofSim) == "table" and next(GearProofSim) ~= nil then return GearProofSim end
     if type(SpecAnalyserSim) == "table" and next(SpecAnalyserSim) ~= nil then return SpecAnalyserSim end
     return nil
+end
+
+--- Rapports colles par le joueur, conserves dans les SavedVariables.
+local function pastedReports()
+    local stored = ns.db and ns.db.sim
+    if type(stored) == "table" and next(stored) ~= nil then return stored end
+    return nil
+end
+
+--- Tous les rapports, quelle que soit leur provenance.
+local function reports()
+    local file, pasted = fileReports(), pastedReports()
+    if not file then return pasted end
+    if not pasted then return file end
+
+    local merged = {}
+    for id, report in pairs(file) do merged[id] = report end
+    -- Un meme rapport importe des deux facons : le collage gagne. Il ne peut pas etre
+    -- plus ancien que le fichier — le joueur vient de le faire.
+    for id, report in pairs(pasted) do merged[id] = report end
+    return merged
 end
 
 function Sim.Available()
@@ -52,6 +82,103 @@ function Sim.Percent(itemID, itemLevel)
         end
     end
     return best
+end
+
+-- ------------------------------------------------------------ import par collage
+--
+-- Raidbots sert le tableau de resultats en CSV a une adresse publique :
+--   https://www.raidbots.com/reports/<id>/data.csv
+--
+-- Neuf kilo-octets pour un droptimizer complet — un `EditBox` les avale sans broncher,
+-- la ou le `data.json` du meme rapport en fait 873. Un addon ne peut RIEN telecharger,
+-- mais le joueur, lui, peut ouvrir une adresse et copier.
+--
+-- Le format, verifie sur un rapport reel :
+--
+--   name,dps_mean,dps_min,dps_max,dps_std_dev,dps_mean_std_dev
+--   Asnodk,24058.74...                              <- la baseline, sans separateur
+--   1308/2740/raid-mythic/249296/282/3368/main_hand///,27816.18...
+--   zone/rencontre/difficulte/objet/ilvl/enchant/emplacement
+--
+-- Tout est dans le nom de profileset. La ligne sans `/` est le personnage nu : c'est la
+-- reference contre laquelle chaque gain se calcule.
+
+--- Adresse du CSV d'un rapport, depuis son lien ou son identifiant.
+function Sim.ReportCSVURL(reference)
+    if type(reference) ~= "string" then return nil end
+    local id = reference:match("reports?/([%w%-]+)") or reference:match("^%s*([%w%-]+)%s*$")
+    if not id or #id < 6 then return nil end
+    return "https://www.raidbots.com/reports/" .. id .. "/data.csv", id
+end
+
+-- Positions dans le nom de profileset. Nommees, jamais comptees a la main : c'est
+-- exactement le genre de decalage qui a deja coute un export SimulationCraft entier.
+local FIELD_INSTANCE, FIELD_ENCOUNTER, FIELD_DIFFICULTY = 1, 2, 3
+local FIELD_ITEM, FIELD_ILVL, FIELD_SLOT = 4, 5, 7
+
+--- Analyse le CSV d'un droptimizer et l'enregistre.
+---
+--- @return boolean ok, number|string nombre d'objets, ou la raison de l'echec
+function Sim.ImportCSV(text, reference)
+    if type(text) ~= "string" or #text < 40 then return false, "empty" end
+
+    local baseline, items = nil, {}
+
+    for line in text:gmatch("[^\r\n]+") do
+        -- Le nom peut contenir des virgules ? Non : c'est un chemin en `/`. On coupe
+        -- donc a la PREMIERE virgule, et le reste est numerique.
+        local name, rest = line:match("^([^,]*),(.*)$")
+        local dps = rest and tonumber(rest:match("^([%d%.%-]+)"))
+
+        if name and dps then
+            if not name:find("/", 1, true) then
+                -- Ligne sans separateur : le personnage nu. C'est la baseline, et
+                -- l'entete `name,dps_mean` ne passe pas ici — `dps_mean` n'est pas un
+                -- nombre.
+                baseline = baseline or dps
+            else
+                local fields = { strsplit("/", name) }
+                local itemID = tonumber(fields[FIELD_ITEM])
+                local ilvl = tonumber(fields[FIELD_ILVL])
+                if itemID and ilvl then
+                    -- Un objet peut apparaitre a plusieurs niveaux : on garde le
+                    -- meilleur DPS pour chaque couple, comme le fait l'outil Python.
+                    local kept = items[itemID]
+                    if not kept or dps > kept.dps then
+                        items[itemID] = {
+                            dps = dps,
+                            ilvl = ilvl,
+                            slot = fields[FIELD_SLOT],
+                            encounter = tonumber(fields[FIELD_ENCOUNTER]) or 0,
+                            instance = tonumber(fields[FIELD_INSTANCE]) or 0,
+                            difficulty = fields[FIELD_DIFFICULTY],
+                        }
+                    end
+                end
+            end
+        end
+    end
+
+    if not baseline or baseline <= 0 then return false, "baseline" end
+
+    local count = 0
+    for _, item in pairs(items) do
+        item.percent = (item.dps - baseline) / baseline * 100
+        item.dps = math.floor(item.dps + 0.5)
+        count = count + 1
+    end
+    if count == 0 then return false, "items" end
+
+    local _, id = Sim.ReportCSVURL(reference or "")
+    ns.db.sim = ns.db.sim or {}
+    ns.db.sim[id or "pasted"] = {
+        baseline = math.floor(baseline + 0.5),
+        player = UnitName("player"),
+        stamp = time(),
+        items = items,
+    }
+
+    return true, count
 end
 
 -- Difficultes de Raidbots -> identifiants de difficulte du client. Le journal des aventures

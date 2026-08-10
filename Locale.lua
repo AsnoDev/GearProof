@@ -179,6 +179,19 @@ translations.fr = {
     ["measured by your droptimizer"] = "mesure par ton droptimizer",
     ["import a droptimizer that covers it"] = "importe un droptimizer qui le couvre",
     ["No droptimizer imported yet."] = "Aucun droptimizer importe.",
+    ["Import a droptimizer"] = "Importer un droptimizer",
+    ["droptimizer imported: %d items"] = "droptimizer importe : %d objets",
+    ["Paste the Raidbots report link, or the report data"] =
+        "Colle le lien de ton rapport Raidbots, ou les donnees du rapport",
+    ["Open this address, select everything, copy, then paste it here"] =
+        "Ouvre cette adresse, selectionne tout, copie, puis recolle ici",
+    ["Paste your Raidbots report link below."] = "Colle le lien de ton rapport Raidbots.",
+    ["GearProof gives you an address: open it, select everything, copy."] =
+        "GearProof te rend une adresse : ouvre-la, selectionne tout, copie.",
+    ["Paste that back here. No tool, no reload."] =
+        "Recolle ici. Aucun outil, aucun rechargement.",
+    ["Paste the report link and GearProof gives you the address of its data. Open it, copy everything, paste it back here — no tool needed."] =
+        "Colle le lien du rapport et GearProof te rend l'adresse de ses donnees. Ouvre-la, copie tout, recolle ici — aucun outil requis.",
     ["This tab lists the loot each boss can drop for you, ranked by the gain your own simulation measured. It fills up as soon as you import one report."] =
         "Cet onglet liste le butin que chaque boss peut te donner, classe par le gain que ta propre simulation a mesure. Il se remplit des qu'un rapport est importe.",
     ["Nobody has answered yet."] = "Personne n'a encore repondu.",

@@ -218,6 +218,7 @@ function RaidView.Create(parent)
     view.empty:SetPoint("TOPLEFT", 0, -70)
     view.empty:SetPoint("BOTTOMRIGHT", -28, 0)
     view.empty:Hide()
+    view.emptyAction:Hide()
 
     view.emptyTitle = view.empty:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     view.emptyTitle:SetPoint("TOP", view.empty, "TOP", 0, -40)
@@ -236,6 +237,15 @@ function RaidView.Create(parent)
     view.emptyHow:SetWidth(460)
     view.emptyHow:SetJustifyH("CENTER")
     view.emptyHow:SetSpacing(4)
+
+    -- Un bouton qui FAIT quelque chose. Il acceptait un lien et n'importait rien ; il
+    -- accepte maintenant le lien puis les donnees, et remplit reellement l'onglet.
+    view.emptyAction = CreateFrame("Button", nil, view.empty, "UIPanelButtonTemplate")
+    view.emptyAction:SetSize(220, 24)
+    view.emptyAction:SetPoint("TOP", view.emptyHow, "BOTTOM", 0, -18)
+    ns.Localize(view.emptyAction, "Import a droptimizer")
+    view.emptyAction:SetScript("OnClick", function() ns.SimC.PromptImport() end)
+    view.emptyAction:Hide()
 
     -- Selecteur de difficulte. Il n'apparait que sur la table venue du journal : un
     -- droptimizer a simule UNE difficulte, la changer n'aurait aucun sens.
@@ -389,12 +399,13 @@ function RaidView.Refresh()
         -- d'un fichier ecrit hors du jeu. L'ancien texte promettait un remplissage
         -- automatique — c'etait faux, et c'est ce qui a fait chercher un bug inexistant.
         view.emptyBody:SetText(hex("muted") .. L["This tab lists the loot each boss can drop for you, ranked by the gain your own simulation measured."] .. "|r")
-        view.emptyHow:SetText(string.format("%s%s|r
-|cff8b6bff%s|r
-%s%s|r",
-            hex("text"), L["An addon cannot download anything. Import the report on your PC:"],
-            "specanalyser raidbots <lien du rapport> --to-addon",
-            hex("muted"), L["then /reload in game."]))
+        view.emptyHow:SetText(string.format("%s1.|r %s
+%s2.|r %s
+%s3.|r %s",
+            hex("link"), L["Paste your Raidbots report link below."],
+            hex("link"), L["GearProof gives you an address: open it, select everything, copy."],
+            hex("link"), L["Paste that back here. No tool, no reload."]))
+        view.emptyAction:Show()
         return
     end
     view.empty:Hide()
