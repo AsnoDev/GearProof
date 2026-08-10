@@ -95,10 +95,35 @@ function ItemInfo.QualityColor(quality)
 end
 
 --- Nom colore a la qualite, ou nil si l'objet n'est pas encore charge.
+---
+--- Un objet jamais vu n'est pas dans le cache du client, et `GetItemInfo` rend nil. On
+--- le DEMANDE au passage : la reponse arrive quelques frames plus tard et le prochain
+--- rendu aura le nom. Sans ca, une table de butin de raid s'affiche en « item:249296 »
+--- jusqu'a ce que le joueur ait croise chaque piece.
 function ItemInfo.ColoredName(identifier)
     local facts = ItemInfo.Get(identifier)
-    if not facts or not facts.name then return nil end
-    return ItemInfo.QualityColor(facts.quality) .. facts.name .. "|r"
+    if facts and facts.name then
+        return ItemInfo.QualityColor(facts.quality) .. facts.name .. "|r"
+    end
+
+    local itemID = ItemInfo.ID(identifier)
+    if itemID and C_Item and C_Item.RequestLoadItemDataByID then
+        pcall(C_Item.RequestLoadItemDataByID, itemID)
+        ItemInfo.awaiting = true
+    end
+    return nil
+end
+
+--- Une demande de chargement est-elle en attente ? Consomme le drapeau.
+---
+--- `GET_ITEM_INFO_RECEIVED` se declenche pour TOUT objet que le client charge, y compris
+--- a la demande d'un autre addon ou d'un simple survol de sac. S'y abonner sans condition
+--- reviendrait a redessiner la fenetre en continu tant qu'elle est ouverte. On ne
+--- redessine que si c'est NOUS qui attendions quelque chose.
+function ItemInfo.ConsumePending()
+    if not ItemInfo.awaiting then return false end
+    ItemInfo.awaiting = nil
+    return true
 end
 
 --- Identifiant numerique porte par une chaine d'objet.

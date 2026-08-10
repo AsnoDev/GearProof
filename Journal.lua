@@ -213,7 +213,10 @@ function Journal.Loot(instanceID, encounterID, difficultyID, classID, specID)
         return list
     end)
 
-    if found then lootCache[key] = found end
+    -- Comme pour `Sim.LootLink` : un resultat VIDE n'est pas un resultat. Le journal
+    -- charge son butin de facon asynchrone, et la premiere lecture apres selection rend
+    -- toujours zero. Le mettre en cache figerait « ce boss ne donne rien ».
+    if found and next(found) then lootCache[key] = found end
     return found or {}
 end
 

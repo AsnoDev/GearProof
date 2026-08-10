@@ -194,6 +194,22 @@ local DIFFICULTY = {
 -- consulter coute cher : on ne le fait qu'une fois par couple.
 local lootCache = {}
 
+-- Le butin arrive APRES la selection de la rencontre, par evenement. Sans cette
+-- invalidation, la premiere lecture — toujours vide — n'aurait jamais de seconde chance,
+-- et les infobulles resteraient sur le niveau du modele.
+--
+-- Le nom de l'evenement porte une faute de frappe cote Blizzard, presente depuis dix
+-- ans. On enregistre les deux orthographes : `ns.On` ignore proprement celle qui
+-- n'existe pas.
+for _, event in ipairs({ "EJ_LOOT_DATA_RECIEVED", "EJ_LOOT_DATA_RECEIVED" }) do
+    ns.On(event, function()
+        -- Seuls les resultats non vides sont en cache : un rafraichissement relit donc
+        -- uniquement ce qui manquait encore. Il est debounce, une salve d'evenements ne
+        -- coute qu'un rendu.
+        if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+    end)
+end
+
 --- Lien COMPLET d'un objet de butin, bonus IDs compris, tel que le journal des aventures le
 --- connait.
 ---
@@ -244,10 +260,15 @@ function Sim.LootLink(encounterID, itemID, difficulty, instanceID)
             return found
         end)
 
-        -- Le journal peut etre indisponible — ouvert par le joueur, notamment. Un echec
-        -- ne se met PAS en cache : la prochaine ouverture reussira, et mettre une table
-        -- vide en cache figerait « pas de butin » pour toute la session.
-        if not table_ then return nil end
+        -- Un resultat VIDE n'est pas un resultat.
+        --
+        -- Le journal des aventures charge son butin de facon ASYNCHRONE : juste apres
+        -- `EJ_SelectEncounter`, `EJ_GetNumLoot` rend zero, et la donnee arrive avec
+        -- l'evenement EJ_LOOT_DATA_RECIEVED. Une table vide est pourtant `true` en Lua,
+        -- donc la mettre en cache figeait « pas de butin » pour toute la session — et
+        -- l'infobulle retombait definitivement sur `SetItemByID`, qui ne connait que le
+        -- MODELE de l'objet et affiche son niveau de base : 44 sur une piece de raid.
+        if not table_ or not next(table_) then return nil end
         lootCache[key] = table_
     end
 

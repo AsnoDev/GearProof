@@ -202,6 +202,15 @@ end)
 
 -- `/sa` reste en alias : c'est ce que les doigts connaissent, et le renommage n'a pas
 -- a couter un reapprentissage.
+-- Un objet demande a `RequestLoadItemDataByID` arrive par cet evenement. Sans lui, une
+-- table de butin de raid resterait en « item:249296 » jusqu'au prochain geste du joueur.
+--
+-- Conditionne a une demande REELLEMENT en attente : l'evenement se declenche pour tout
+-- objet que le client charge, y compris pour un autre addon.
+ns.On("GET_ITEM_INFO_RECEIVED", function()
+    if ns.ItemInfo.ConsumePending() and ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+end)
+
 SLASH_GEARPROOF1 = "/gearproof"
 SLASH_GEARPROOF2 = "/gp"
 SLASH_GEARPROOF3 = "/sa"
