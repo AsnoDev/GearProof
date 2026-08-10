@@ -8,6 +8,9 @@ local L = ns.L
 -- Tableau de la guilde : une ligne par membre equipe de l'addon.
 
 local ROW_HEIGHT = 22
+-- Largeur des colonnes du roster. Les decalages de `layoutRosterRow` sont calibres
+-- dessus : les changer sans changer celle-ci fait chevaucher les colonnes.
+local ROSTER_WIDTH = 560
 local view, rows
 local guildMode = "roster"
 
@@ -177,6 +180,15 @@ function GuildView.Refresh()
 
     view.header:SetText(L["name            spec          ilvl    fixes     last sim"])
 
+    -- La largeur du conteneur est REMISE a celle du roster.
+    --
+    -- La sous-vue Raid l'elargit a toute la fenetre et ne la restaurait jamais : revenir
+    -- au roster laissait un conteneur large avec des lignes ancrees pour 560 px, et les
+    -- colonnes se chevauchaient. Les deux sous-vues partagent les memes FontStrings, donc
+    -- chacune doit poser SA largeur, a chaque fois.
+    local width = ROSTER_WIDTH
+    view.content:SetWidth(width)
+
     local list = ns.Guild.Roster()
     local offset = 0
 
@@ -184,7 +196,7 @@ function GuildView.Refresh()
         local row = acquireRow(index)
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", 0, -offset)
-        layoutRosterRow(row, 560)
+        layoutRosterRow(row, width)
 
         row.name:SetText(card.name)
         row.spec:SetText(card.spec ~= "" and card.spec or "-")

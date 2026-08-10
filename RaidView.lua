@@ -56,7 +56,7 @@ local function bossPortrait(instanceID, encounterID)
     if not encounterID then return nil end
 
     local cached = portraitCache[encounterID]
-    if cached ~= nil then return cached or nil end
+    if cached then return cached end
 
     if type(EJ_GetCreatureInfo) ~= "function" then return nil end
 
@@ -66,9 +66,15 @@ local function bossPortrait(instanceID, encounterID)
         return results[1] and results[1 + 5] or nil
     end)
 
-    -- `false` marque un echec deja constate : on ne relance pas la lecture a chaque
-    -- rendu. `nil` voudrait dire « pas encore essaye ».
-    portraitCache[encounterID] = portrait or false
+    -- SEUL un succes est mis en cache.
+    --
+    -- La version precedente memorisait l'echec sous forme de `false` pour ne pas relire
+    -- a chaque rendu. Mais `Journal.Read` rend nil dans deux cas parfaitement
+    -- temporaires : le journal des aventures pas encore initialise, et le joueur qui l'a
+    -- ouvert — on s'abstient alors de toucher a sa selection. Un seul echec au premier
+    -- affichage condamnait donc le portrait pour toute la session. C'est la cause des
+    -- points d'interrogation a la place des boss.
+    if portrait then portraitCache[encounterID] = portrait end
     return portrait
 end
 
