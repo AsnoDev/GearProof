@@ -22,6 +22,16 @@ local LOOT_HEIGHT = 34
 
 local view, pools, selected
 
+-- Difficultes de raid, dans l'ordre du selecteur. Le butin du journal N'EST PAS le meme
+-- selon la difficulte : sans ce reglage on lirait la table LFR et les niveaux d'objet
+-- annonces seraient faux d'une trentaine de points.
+local DIFFICULTIES = {
+    { id = 14, label = "Normal" },
+    { id = 15, label = "Heroic" },
+    { id = 16, label = "Mythic" },
+}
+local difficultyIndex = 3
+
 local function hex(key)
     return ns.Theme.C(key)
 end
@@ -227,7 +237,124 @@ function RaidView.Create(parent)
     view.emptyHow:SetJustifyH("CENTER")
     view.emptyHow:SetSpacing(4)
 
+    -- Selecteur de difficulte. Il n'apparait que sur la table venue du journal : un
+    -- droptimizer a simule UNE difficulte, la changer n'aurait aucun sens.
+    view.difficulty = CreateFrame("Button", nil, view, "UIPanelButtonTemplate")
+    view.difficulty:SetSize(90, 20)
+    view.difficulty:SetPoint("TOPRIGHT", -28, -2)
+    view.difficulty:SetScript("OnClick", function()
+        difficultyIndex = (difficultyIndex % #DIFFICULTIES) + 1
+        RaidView.Refresh()
+    end)
+    view.difficulty:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine(L["Raid difficulty"])
+        GameTooltip:AddLine(L["The journal lists different item levels per difficulty."],
+            0.8, 0.8, 0.9, true)
+        GameTooltip:Show()
+    end)
+    view.difficulty:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
     return view
+end
+
+--- Liste des raids et de leurs boss, SANS le butin.
+---
+--- Le butin se lit rencontre par rencontre, a la demande — voir `journalLoot`. Le
+--- construire ici pour tous les boss d'un coup demanderait une vingtaine de lectures du
+--- journal a la premiere ouverture de l'onglet, avec autant de changements d'etat sur
+--- une interface partagee avec le joueur. On paie ce qu'on affiche.
+local function journalGroups()
+    local order = {}
+    for _, raid in ipairs(ns.Journal.Raids()) do
+        for _, encounter in ipairs(ns.Journal.Encounters(raid.id)) do
+            table.insert(order, {
+                encounter = encounter.id,
+                instance = raid.id,
+                name = encounter.name,
+                items = nil,
+                best = 0,
+                fromJournal = true,
+            })
+        end
+    end
+    return #order > 0 and order or nil
+end
+
+--- Butin d'une rencontre, chiffre avec ce qu'on sait.
+---
+--- Les chiffres portent leur unite, comme partout ailleurs dans cet addon : un ecart de
+--- niveau d'objet est un ecart de niveau d'objet, un gain estime est une somme de points
+--- ponderes, et aucun des deux n'est un pourcentage de DPS. Quand un droptimizer couvre
+--- l'objet, sa valeur MESUREE remplace l'estimation.
+local function journalLoot(group)
+    if group.items then return group.items end
+
+    local difficulty = DIFFICULTIES[difficultyIndex]
+    local classID = ns.Spec.ClassID()
+    local specID = ns.Spec.Selected()
+
+    local _, summary = ns.Gear.Scan()
+    local bySlot = summary.bySlot or {}
+    local weights = ns.Weights.Current()
+
+    local items = {}
+    for _, loot in ipairs(ns.Journal.Loot(group.instance, group.encounter,
+        difficulty.id, classID, specID)) do
+
+        local level = loot.link and ns.ItemInfo.Level(loot.link) or nil
+        local facts = loot.link and ns.ItemInfo.Get(loot.link) or nil
+        local targets = facts and ns.Bags.SLOTS_FOR(facts.equipLoc)
+
+        -- Compare a la PIRE des pieces portees pour ce type d'emplacement : c'est celle
+        -- que l'objet remplacerait. Un objet dont on ne sait pas ou il se porte garde son
+        -- nom et perd son chiffre — on n'invente pas de comparaison.
+        local best, worn
+        for _, slotName in ipairs(targets or {}) do
+            local entry = bySlot[slotName]
+            local current = entry and entry.itemLevel or nil
+            if current and (not best or current < best) then best, worn = current, entry end
+        end
+
+        local item = {
+            id = loot.id,
+            link = loot.link,
+            slot = loot.slot,
+            ilvl = level,
+            encounter = group.encounter,
+            instance = group.instance,
+            difficulty = difficulty.id,
+        }
+
+        item.percent = ns.Sim.Percent(loot.id, level)
+        if not item.percent then
+            if level and best then item.levelDelta = level - best end
+            if weights and worn and worn.link and loot.link then
+                local gain = ns.Weights.Score(loot.link, weights)
+                    - ns.Weights.Score(worn.link, weights)
+                if gain ~= 0 then item.gain = math.floor(gain + 0.5) end
+            end
+        end
+
+        table.insert(items, item)
+    end
+
+    -- Tri dans l'ordre de ce qu'on SAIT : mesure d'abord, puis estime, puis l'ecart de
+    -- niveau. Deux unites ne se comparent jamais entre elles.
+    local function rank(item)
+        if item.percent then return 1 end
+        if item.gain then return 2 end
+        if item.levelDelta then return 3 end
+        return 4
+    end
+    table.sort(items, function(a, b)
+        if rank(a) ~= rank(b) then return rank(a) < rank(b) end
+        return (a.percent or a.gain or a.levelDelta or 0)
+            > (b.percent or b.gain or b.levelDelta or 0)
+    end)
+
+    group.items = items
+    return items
 end
 
 function RaidView.Refresh()
@@ -236,7 +363,12 @@ function RaidView.Refresh()
 
     view.intro:SetWidth(math.max(200, (view:GetWidth() or 600) - 8))
 
-    local groups = ns.Sim.ByEncounter()
+    -- Le droptimizer d'abord quand il existe : il MESURE. A defaut, le journal, qui dit
+    -- au moins ce qui tombe et a quel niveau.
+    local groups = ns.Sim.ByEncounter() or journalGroups()
+    view.difficulty:SetShown(groups ~= nil and groups[1] ~= nil and groups[1].fromJournal or false)
+    view.difficulty:SetText(ns.L[DIFFICULTIES[difficultyIndex].label])
+
     if not groups then
         -- Etat vide, pas page noire.
         --
@@ -267,8 +399,9 @@ function RaidView.Refresh()
     end
     view.empty:Hide()
 
-    view.intro:SetText(hex("muted")
-        .. L["Each boss shows the items your droptimizer actually simulated, best gain first."] .. "|r")
+    view.intro:SetText(hex("muted") .. (groups[1].fromJournal
+        and L["Loot tables read from the adventure guide, filtered to your spec. Import a droptimizer to replace the estimates with measured gains."]
+        or L["Each boss shows the items your droptimizer actually simulated, best gain first."]) .. "|r")
 
     -- Selection persistante d'un affichage a l'autre, et repli sur la rencontre la plus
     -- payante quand la precedente a disparu du releve.
@@ -312,8 +445,10 @@ function RaidView.Refresh()
             or "Interface\\Icons\\INV_Misc_QuestionMark")
         button.name:SetText((active and hex("link") or hex("text"))
             .. (group.name or string.format(L["encounter %d"], group.encounter)) .. "|r")
-        button.count:SetText(hex("muted") .. string.format(L["%d items simulated"], #group.items) .. "|r")
-        button.best:SetText(string.format("%s%+.2f%%|r", hex(tint(group.best)), group.best))
+        button.count:SetText(hex("muted") .. (group.fromJournal and ""
+            or string.format(L["%d items simulated"], #group.items)) .. "|r")
+        button.best:SetText(group.fromJournal and ""
+            or string.format("%s%+.2f%%|r", hex(tint(group.best)), group.best))
 
         button:SetScript("OnClick", function()
             selected = group.encounter
@@ -328,7 +463,13 @@ function RaidView.Refresh()
     -- ------------------------------------------------------------ table de butin
     view.lootTitle:SetText(hex("text")
         .. (chosen.name or string.format(L["encounter %d"], chosen.encounter)) .. "|r")
-    view.lootNote:SetText(hex("muted") .. string.format(L["%d items simulated by your droptimizer"],
+    -- Le butin de la rencontre choisie, et d'elle seule.
+    if chosen.fromJournal then journalLoot(chosen) end
+    chosen.items = chosen.items or {}
+
+    view.lootNote:SetText(hex("muted") .. string.format(
+        chosen.fromJournal and L["%d items this boss can drop for you"]
+            or L["%d items simulated by your droptimizer"],
         #chosen.items) .. "|r")
 
     local width = math.max(320, (view.scroll:GetWidth() or 480) - 8)
@@ -367,7 +508,20 @@ function RaidView.Refresh()
         if item.ilvl and item.ilvl > 0 then table.insert(detail, "ilvl " .. item.ilvl) end
         row.slot:SetText(hex("muted") .. table.concat(detail, "  ·  ") .. "|r")
 
-        row.value:SetText(string.format("%s%+.2f%%|r", hex(tint(item.percent)), item.percent))
+        -- Une colonne, TROIS unites possibles, jamais melangees et toujours ecrites.
+        -- Un « +1,24 % » mesure par une simulation et un « +14 ilvl » lu sur le journal
+        -- ne se comparent pas ; les afficher sans suffixe laisserait croire que si.
+        if item.percent then
+            row.value:SetText(string.format("%s%+.2f%%|r", hex(tint(item.percent)), item.percent))
+        elseif item.gain then
+            row.value:SetText(string.format("%s%+d|r|cff5A5A5A pts|r",
+                hex(item.gain > 0 and "good" or "muted"), item.gain))
+        elseif item.levelDelta then
+            row.value:SetText(string.format("%s%+d|r|cff5A5A5A ilvl|r",
+                hex(item.levelDelta > 0 and "bis" or "muted"), item.levelDelta))
+        else
+            row.value:SetText("")
+        end
 
         -- Au survol : l'infobulle reelle du jeu, puis ce que l'objet t'apporte. « Le besoin »
         -- est ton gain simule ; aucune donnee d'un autre joueur ne circule.
@@ -385,8 +539,16 @@ function RaidView.Refresh()
             end
 
             GameTooltip:AddLine(" ")
-            GameTooltip:AddDoubleLine(L["simulated (% DPS)"],
-                string.format("%+.2f%%", item.percent), 0.54, 0.54, 0.54, 0, 0.9, 0.46)
+            if item.percent then
+                GameTooltip:AddDoubleLine(L["simulated (% DPS)"],
+                    string.format("%+.2f%%", item.percent), 0.54, 0.54, 0.54, 0, 0.9, 0.46)
+            elseif item.gain then
+                GameTooltip:AddDoubleLine(L["estimated (stat points)"],
+                    string.format("%+d", item.gain), 0.54, 0.54, 0.54, 0, 0.9, 0.46)
+            elseif item.levelDelta then
+                GameTooltip:AddDoubleLine(L["ilvl vs equipped"],
+                    string.format("%+d", item.levelDelta), 0.54, 0.54, 0.54, 1, 0.76, 0.03)
+            end
             if item.ilvl and item.ilvl > 0 then
                 GameTooltip:AddDoubleLine(L["simulated at ilvl"], tostring(item.ilvl),
                     0.54, 0.54, 0.54, 0.91, 0.91, 0.91)

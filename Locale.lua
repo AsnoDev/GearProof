@@ -128,6 +128,15 @@ translations.fr = {
     ["encounter %d"] = "rencontre %d",
     ["%d items simulated"] = "%d objets simules",
     ["%d items simulated by your droptimizer"] = "%d objets simules par ton droptimizer",
+    ["%d items this boss can drop for you"] = "%d objets que ce boss peut te donner",
+    ["Loot tables read from the adventure guide, filtered to your spec. Import a droptimizer to replace the estimates with measured gains."] =
+        "Tables de butin lues dans le journal des aventures, filtrees sur ta specialisation. Importe un droptimizer pour remplacer les estimations par des gains mesures.",
+    ["Raid difficulty"] = "Difficulte de raid",
+    ["The journal lists different item levels per difficulty."] =
+        "Le journal donne des niveaux d'objet differents selon la difficulte.",
+    ["Normal"] = "Normal",
+    ["Heroic"] = "Heroique",
+    ["Mythic"] = "Mythique",
     ["simulated at ilvl"] = "simule en ilvl",
     ["Ctrl+A then Ctrl+C to copy"] = "Ctrl+A puis Ctrl+C pour copier",
     ["settings carried over from SpecAnalyser"] =

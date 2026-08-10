@@ -100,6 +100,14 @@ function Spec.Active()
     return info and info.active or nil
 end
 
+--- Identifiant numerique de la classe jouee.
+--- Sert au filtre de butin du journal des aventures : `EJ_SetLootFilter` prend une
+--- classe et une specialisation, et fait tout le travail de restriction d'armure.
+function Spec.ClassID()
+    local info = Spec.Info()
+    return info and info.classID or nil
+end
+
 -- Jeton de classe du client -> slug Warcraft Logs. Le jeton ne depend pas de la langue,
 -- c'est pour ca qu'on part de lui et non du nom affiche.
 local CLASS_SLUGS = {

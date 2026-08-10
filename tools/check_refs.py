@@ -59,6 +59,39 @@ def strip_noise(line: str) -> str:
     return line.split("--", 1)[0]
 
 
+def file_scope_locals(text: str) -> dict[str, int]:
+    """Ligne de declaration des `local` de PORTEE FICHIER, colonne 0 uniquement.
+
+    Sert a detecter l'usage AVANT declaration. En Lua, un `local` ne couvre que ce qui le
+    suit : du code ecrit plus haut qui porte le meme nom touche une GLOBALE, presque
+    toujours nil. Le piege a mordu trois fois dans ce depot — `toggleSpecMenu` appelant
+    `refresh`, `GuildView.Refresh` appelant `layoutRosterRow`, et un selecteur de
+    difficulte ecrivant son propre index depuis une closure ecrite plus haut.
+
+    La colonne 0 n'est pas un detail : un `local` INDENTE vit dans une fonction ou un
+    bloc, ou l'ordre lexical est celui de l'execution. Prendre aussi ces declarations
+    produisait vingt faux positifs — des parametres et des variables de boucle
+    parfaitement legitimes, portant un nom reutilise ailleurs dans le fichier.
+    """
+    lines: dict[str, int] = {}
+
+    def note(name: str, number: int) -> None:
+        name = name.strip()
+        if name and name not in lines:
+            lines[name] = number
+
+    for number, line in enumerate(text.splitlines(), start=1):
+        match = re.match(r"^local\s+function\s+(\w+)", line)
+        if match:
+            note(match.group(1), number)
+            continue
+        match = re.match(r"^local\s+(?!function\b)([\w\s,]+?)\s*(?:=|$)", line)
+        if match:
+            for part in match.group(1).split(","):
+                note(part, number)
+    return lines
+
+
 def declared_locals(text: str) -> set[str]:
     """Tous les noms lies localement dans le fichier.
 
@@ -111,6 +144,7 @@ def main() -> int:
                 defined.add(f"{module}.{member}")
 
         locals_here = declared_locals(text)
+        declared_at = file_scope_locals(text)
         # Table locale de CE fichier : `Gear.Scan()` a l'interieur de Gear.lua est un
         # appel legitime, invisible au motif `ns.X.Y`.
         own_tables = {table for table, module in local_to_module.items()
@@ -148,9 +182,18 @@ def main() -> int:
             if not match:
                 continue
             name = match.group(1)
-            if name in locals_here or name in ALLOWED_GLOBALS:
+            if name in ALLOWED_GLOBALS:
                 continue
-            report.error(f"{where}:{line_number}", f"globale accidentelle : {name}")
+            if name not in locals_here:
+                report.error(f"{where}:{line_number}", f"globale accidentelle : {name}")
+                continue
+            declared = declared_at.get(name)
+            if declared is not None and declared > line_number:
+                report.error(
+                    f"{where}:{line_number}",
+                    f"{name} est ecrit ici mais declare `local` ligne {declared} — "
+                    "cette affectation touche une GLOBALE",
+                )
 
     # Champs de donnees et helpers poses directement sur `ns`, sans table de module.
     NS_DIRECT = {"db", "L", "version", "events", "handlers", "translations",
