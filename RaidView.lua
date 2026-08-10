@@ -218,24 +218,14 @@ function RaidView.Create(parent)
     view.emptyBody:SetJustifyH("CENTER")
     view.emptyBody:SetSpacing(3)
 
-    view.emptyAction = CreateFrame("Button", nil, view.empty, "UIPanelButtonTemplate")
-    view.emptyAction:SetSize(200, 24)
-    view.emptyAction:SetPoint("TOP", view.emptyBody, "BOTTOM", 0, -16)
-    ns.Localize(view.emptyAction, "Paste droptimizer link")
-    view.emptyAction:SetScript("OnClick", function()
-        ns.Copy.Prompt(L["Droptimizer report"],
-            L["Paste the Raidbots report link, or a Pawn string"],
-            function(input)
-                if ns.SimC.SetDroptimizer(input) then
-                    ns.Print(L["droptimizer report stored"])
-                elseif ns.Weights.SetFromPawn(input) then
-                    ns.Print(L["stat weights saved (%s)"], "Pawn")
-                else
-                    ns.Print(L["nothing readable in that paste"])
-                end
-                ns.UI.RefreshNow()
-            end)
-    end)
+    -- La marche a suivre, en clair, avec la commande copiable. Pas de bouton « coller
+    -- un lien » ici : il ne remplirait pas cet onglet, et un bouton qui ne fait pas ce
+    -- qu'il annonce est pire que pas de bouton.
+    view.emptyHow = view.empty:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    view.emptyHow:SetPoint("TOP", view.emptyBody, "BOTTOM", 0, -18)
+    view.emptyHow:SetWidth(460)
+    view.emptyHow:SetJustifyH("CENTER")
+    view.emptyHow:SetSpacing(4)
 
     return view
 end
@@ -262,7 +252,17 @@ function RaidView.Refresh()
         view.empty:Show()
         view.emptyTitle:SetText(hex("text")
             .. L["No droptimizer imported yet."] .. "|r")
-        view.emptyBody:SetText(hex("muted") .. L["This tab lists the loot each boss can drop for you, ranked by the gain your own simulation measured. It fills up as soon as you import one report."] .. "|r")
+        -- On dit la VERITE : coller un lien dans l'addon n'importe rien. WoW interdit
+        -- toute requete reseau a un addon, donc les gains par objet ne peuvent venir que
+        -- d'un fichier ecrit hors du jeu. L'ancien texte promettait un remplissage
+        -- automatique — c'etait faux, et c'est ce qui a fait chercher un bug inexistant.
+        view.emptyBody:SetText(hex("muted") .. L["This tab lists the loot each boss can drop for you, ranked by the gain your own simulation measured."] .. "|r")
+        view.emptyHow:SetText(string.format("%s%s|r
+|cff8b6bff%s|r
+%s%s|r",
+            hex("text"), L["An addon cannot download anything. Import the report on your PC:"],
+            "specanalyser raidbots <lien du rapport> --to-addon",
+            hex("muted"), L["then /reload in game."]))
         return
     end
     view.empty:Hide()

@@ -208,16 +208,18 @@ local function selectTab(key)
     refresh()
 end
 
-local function createTabButton(parent, index, definition)
-    -- La rangee d'onglets doit s'arreter avant la case "Log automatique" en haut a droite.
-    local width, gap = 108, 6
-    local total = #TABS * width + (#TABS - 1) * gap
-    local available = WIDTH - CONTENT_LEFT - 210
-    local startX = CONTENT_LEFT + math.max(0, (available - total) / 2)
+local TAB_WIDTH, TAB_GAP, TAB_HEIGHT = 112, 4, 24
 
+local function createTabButton(parent, index, definition)
+    -- Rangee d'onglets ALIGNEE A GAUCHE, sur la marge de contenu.
+    --
+    -- Elle etait centree dans un espace calcule sur `WIDTH - 210`, une reserve pour une
+    -- case a cocher qui n'existe plus depuis longtemps. Resultat : des onglets flottant
+    -- au milieu, alignes sur rien, et un decalage qui bougeait avec le nombre d'onglets.
+    -- La marge gauche est la meme que celle du contenu en dessous : les deux s'alignent.
     local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    button:SetSize(width, 28)
-    button:SetPoint("TOPLEFT", startX + (index - 1) * (width + gap), -52)
+    button:SetSize(TAB_WIDTH, TAB_HEIGHT)
+    button:SetPoint("TOPLEFT", CONTENT_LEFT + (index - 1) * (TAB_WIDTH + TAB_GAP), -58)
     button.key = definition.key
 
     button.background = button:CreateTexture(nil, "BACKGROUND")
@@ -247,6 +249,7 @@ end
 
 local function createHost(name)
     local host = CreateFrame("Frame", nil, frame)
+    -- Sous la rangee d'onglets (-58, hauteur 24) plus une respiration.
     host:SetPoint("TOPLEFT", CONTENT_LEFT, -92)
     host:SetPoint("BOTTOMRIGHT", -16, 40)
     host:Hide()
@@ -326,38 +329,41 @@ local function createFrame()
     local title = frame.TitleText or (frame.TitleContainer and frame.TitleContainer.TitleText)
     if title then title:SetText("GearProof") end
 
-    local heading = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    heading:SetPoint("TOPLEFT", 18, -30)
-    heading:SetText(COLORS.title .. "GearProof" .. COLORS.reset)
+    -- Entete : DEUX rangees, chacune avec un role.
+    --
+    -- Il y en avait quatre qui se disputaient la meme bande : un titre « GearProof » qui
+    -- repetait celui de la barre de titre juste au-dessus, la ligne de personnage, deux
+    -- lignes de provenance a droite, un bouton Refresh, et un gros bouton de spe rouge
+    -- pose au milieu a x=300 — juste au-dessus des onglets, sans rapport visuel avec
+    -- quoi que ce soit. Le resultat se lisait comme un bandeau, pas comme un entete.
+    --
+    --   rangee 1 : qui tu es          |  d'ou vient la reference
+    --   rangee 2 : les onglets        |  quelle spe tu regardes
+    --
+    -- Refresh part en pied de fenetre avec les autres actions permanentes : ce n'est pas
+    -- une information, c'est un bouton, et il n'a rien a faire dans la zone de lecture.
 
-    characterLine = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    characterLine:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -3)
+    characterLine = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    characterLine:SetPoint("TOPLEFT", CONTENT_LEFT + 2, -30)
     characterLine:SetJustifyH("LEFT")
 
-    -- L'audit repose sur deux jeux de donnees externes : leur fraicheur se lit d'un coup
-    -- d'oeil plutot que de se deviner.
+    -- Provenance : une seule ligne, a droite, en gris. La fraicheur des poids passait sur
+    -- une deuxieme ligne qui doublait la hauteur de l'entete pour une information qui se
+    -- lit deja dans l'onglet Equipement.
     metaStatus = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    metaStatus:SetPoint("TOPRIGHT", -26, -32)
+    metaStatus:SetPoint("TOPRIGHT", -CONTENT_LEFT - 2, -32)
     metaStatus:SetJustifyH("RIGHT")
 
     weightStatus = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    weightStatus:SetPoint("TOPRIGHT", metaStatus, "BOTTOMRIGHT", 0, -3)
+    weightStatus:SetPoint("TOPRIGHT", metaStatus, "BOTTOMRIGHT", 0, -2)
     weightStatus:SetJustifyH("RIGHT")
 
-    -- Actions permanentes de l'entete : elles ne dependent pas de l'onglet ouvert.
-    local refreshButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    refreshButton:SetSize(90, 20)
-    refreshButton:SetPoint("TOPRIGHT", -26, -68)
-    ns.Localize(refreshButton, "Refresh")
-    refreshButton:SetScript("OnClick", refresh)
-
-    -- Ancre sur la bande vide de l'entete, a droite du titre. Sous le bouton Refresh, il
-    -- occupait y -92..-112 alors que TOUS les hotes d'onglet commencent a -92 : il recouvrait
-    -- l'origine de la jauge dans Equipement et le titre de la carte FAQ dans Aide — l'onglet
-    -- qui s'ouvre au premier lancement. Geometrie deterministe, pas un cas limite.
+    -- Selecteur de spe : au bout de la rangee d'onglets, aligne a droite. Il est de la
+    -- meme hauteur que les onglets et se lit comme ce qu'il est — un choix de contexte,
+    -- pas une action.
     specButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    specButton:SetSize(190, 20)
-    specButton:SetPoint("TOPLEFT", frame, "TOPLEFT", 300, -34)
+    specButton:SetSize(176, 24)
+    specButton:SetPoint("TOPRIGHT", -CONTENT_LEFT, -58)
     specButton:SetScript("OnClick", toggleSpecMenu)
 
     specMenu = CreateFrame("Frame", nil, frame, "BackdropTemplate")
@@ -431,6 +437,14 @@ local function createFrame()
     optionsButton:SetPoint("RIGHT", reloadButton, "LEFT", -6, 0)
     ns.Localize(optionsButton, "Settings")
     optionsButton:SetScript("OnClick", function() ns.Options.Open() end)
+
+    -- Refresh descend en pied de fenetre : ce n'est pas une information, c'est un bouton,
+    -- et il occupait une ligne entiere de l'entete au-dessus de la zone de lecture.
+    local refreshButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    refreshButton:SetSize(90, 20)
+    refreshButton:SetPoint("RIGHT", optionsButton, "LEFT", -6, 0)
+    ns.Localize(refreshButton, "Refresh")
+    refreshButton:SetScript("OnClick", function() refresh() end)
 
     ns.Theme.Apply(frame)
     tinsert(UISpecialFrames, "GearProofFrame")

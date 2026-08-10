@@ -493,7 +493,20 @@ function SimC.ShowDroptimizer()
     ns.Copy.Show("Droptimizer", DROPTIMIZER_URL)
 end
 
---- Enregistre l'URL ou l'identifiant d'un rapport Raidbots.
+--- Enregistre l'identifiant d'un rapport Raidbots.
+---
+--- CE QUE CETTE FONCTION NE FAIT PAS : importer les gains simules. Un addon ne peut
+--- emettre aucune requete reseau — WoW l'interdit, il n'y a pas d'API pour ca et il n'y
+--- en aura pas. Coller un lien ne peut donc rien telecharger.
+---
+--- Ce qui est enregistre, c'est l'IDENTIFIANT et sa date. Il sert a deux choses reelles :
+--- la tournee de guilde le diffuse pour qu'un officier voie qui a une simulation
+--- recente, et l'interface affiche sa fraicheur. C'est utile, mais ce n'est PAS ce que
+--- « coller un droptimizer » laisse croire.
+---
+--- Les gains par objet arrivent par `Data/Sim.lua`, ecrit hors du jeu :
+---   specanalyser raidbots <lien> --to-addon
+--- puis /reload. L'onglet Raid depend de ce fichier, pas de cet identifiant.
 function SimC.SetDroptimizer(text)
     if not text then return false end
     local id = text:match("reports?/([%w%-]+)") or text:match("^%s*([%w%-]+)%s*$")

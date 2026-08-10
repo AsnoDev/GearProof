@@ -315,7 +315,14 @@ translations.fr = {
     ["%d stat points"] = "%d points de statistique",
     ["click to copy the name"] = "clic pour copier le nom",
     ["Droptimizer report"] = "Rapport droptimizer",
-    ["Paste droptimizer link"] = "Coller le lien droptimizer",
+    ["Paste droptimizer link"] = "Enregistrer mon droptimizer",
+    ["This tab lists the loot each boss can drop for you, ranked by the gain your own simulation measured."] =
+        "Cet onglet liste le butin que chaque boss peut te donner, classe par le gain que ta propre simulation a mesure.",
+    ["An addon cannot download anything. Import the report on your PC:"] =
+        "Un addon ne peut rien telecharger. Importe le rapport sur ton PC :",
+    ["then /reload in game."] = "puis /reload en jeu.",
+    ["Records the report id so the guild roll call can show your simulation is fresh. The loot table itself is imported on your PC."] =
+        "Enregistre l'identifiant du rapport pour que la tournee de guilde montre que ta simulation est recente. La table de butin, elle, s'importe sur ton PC.",
     ["Paste the Raidbots report link, or a Pawn string"] =
         "Colle le lien du rapport Raidbots, ou une chaine Pawn",
     ["droptimizer report stored"] = "rapport droptimizer enregistre",

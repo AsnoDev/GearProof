@@ -606,6 +606,17 @@ function GearView.Create(parent)
     view.paste = CreateFrame("Button", nil, view.side, "UIPanelButtonTemplate")
     view.paste:SetSize(SIDE_WIDTH - 8, 22)
     ns.Localize(view.paste, "Paste droptimizer link")
+    -- Ce bouton n'importe RIEN. Il enregistre un identifiant et sa date, ce qui sert a la
+    -- tournee de guilde. L'infobulle le dit, parce que le libelle seul laissait croire
+    -- que l'onglet Raid allait se remplir.
+    view.paste:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine(L["Paste droptimizer link"])
+        GameTooltip:AddLine(L["Records the report id so the guild roll call can show your simulation is fresh. The loot table itself is imported on your PC."],
+            0.8, 0.8, 0.9, true)
+        GameTooltip:Show()
+    end)
+    view.paste:SetScript("OnLeave", function() GameTooltip:Hide() end)
     view.paste:SetScript("OnClick", function()
         ns.Copy.Prompt(L["Droptimizer report"],
             L["Paste the Raidbots report link, or a Pawn string"],
