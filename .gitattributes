@@ -1,8 +1,1 @@
-# Un addon WoW se copie tel quel dans le dossier de jeu : les fichiers doivent rester
-# octet pour octet ce qu'ils sont. Fins de ligne LF partout, aucune conversion selon
-# la plateforme — deux chaines ont deja ete corrompues par un double encodage UTF-8,
-# on ne laisse plus l'outillage toucher aux octets.
 * text=auto eol=lf
-*.png binary
-*.tga binary
-*.blp binary
