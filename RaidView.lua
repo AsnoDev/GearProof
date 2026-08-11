@@ -55,6 +55,61 @@ local function tint(percent)
     return "muted"
 end
 
+-- Gestionnaires de lignes, poses UNE fois.
+--
+-- Ils vivaient dans `RaidView.Refresh`, donc reconstruits a chaque rendu : un boutton de
+-- boss et deux fermetures par objet de butin. Une rencontre a vingt objets en produisait
+-- une quarantaine par affichage, et changer de boss redessine tout. L'etat voyage
+-- desormais sur le widget — `button.encounter`, `row.item`.
+
+local function hideTooltip()
+    GameTooltip:Hide()
+end
+
+local function bossOnClick(self)
+    selected = self.encounter
+    RaidView.Refresh()
+end
+
+local function lootOnEnter(self)
+    local item = self.item
+    if not item then return end
+
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:ClearLines()
+
+    -- Le lien du journal d'abord : il porte les identifiants de bonus, donc le VRAI niveau.
+    -- `SetItemByID` ne connait que le modele et affichait 44 sur une piece de raid — c'est
+    -- pour ca que l'Adventure Guide, lui, avait juste.
+    local link = ns.Sim.LootLink(item.encounter, item.id, item.difficulty, item.instance)
+    local shown = link and pcall(GameTooltip.SetHyperlink, GameTooltip, link)
+    if not shown and not pcall(GameTooltip.SetItemByID, GameTooltip, item.id) then
+        GameTooltip:AddLine("item:" .. item.id)
+    end
+
+    GameTooltip:AddLine(" ")
+    if item.percent then
+        GameTooltip:AddDoubleLine(L["simulated (% DPS)"],
+            string.format("%+.2f%%", item.percent), 0.54, 0.54, 0.54, 0, 0.9, 0.46)
+    elseif item.gain then
+        GameTooltip:AddDoubleLine(L["estimated (stat points)"],
+            string.format("%+d", item.gain), 0.54, 0.54, 0.54, 0, 0.9, 0.46)
+    elseif item.levelDelta then
+        GameTooltip:AddDoubleLine(L["ilvl vs equipped"],
+            string.format("%+d", item.levelDelta), 0.54, 0.54, 0.54, 1, 0.76, 0.03)
+    end
+    if item.ilvl and item.ilvl > 0 then
+        GameTooltip:AddDoubleLine(L["simulated at ilvl"], tostring(item.ilvl),
+            0.54, 0.54, 0.54, 0.91, 0.91, 0.91)
+        -- L'avertissement ne sert que si l'on a du retomber sur le modele.
+        if not shown then
+            GameTooltip:AddLine(L["the item level above is the base template, not the drop"],
+                0.54, 0.54, 0.54, true)
+        end
+    end
+    GameTooltip:Show()
+end
+
 --- Portrait d'un boss, comme le journal l'affiche.
 ---
 --- Mis en cache par rencontre. La version precedente reglait le journal a CHAQUE boss et
@@ -466,10 +521,8 @@ function RaidView.Refresh()
         button.best:SetText(group.fromJournal and ""
             or string.format("%s%+.2f%%|r", hex(tint(group.best)), group.best))
 
-        button:SetScript("OnClick", function()
-            selected = group.encounter
-            RaidView.Refresh()
-        end)
+        button.encounter = group.encounter
+        button:SetScript("OnClick", bossOnClick)
 
         top = top - BOSS_HEIGHT - 4
     end
@@ -557,42 +610,9 @@ function RaidView.Refresh()
 
         -- Au survol : l'infobulle reelle du jeu, puis ce que l'objet t'apporte. « Le besoin »
         -- est ton gain simule ; aucune donnee d'un autre joueur ne circule.
-        row:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-            GameTooltip:ClearLines()
-
-            -- Le lien du journal d'abord : il porte les identifiants de bonus, donc le VRAI
-            -- niveau. `SetItemByID` ne connait que le modele et affichait 44 sur une piece de
-            -- raid — c'est pour ca que l'Adventure Guide, lui, avait juste.
-            local link = ns.Sim.LootLink(item.encounter, item.id, item.difficulty, item.instance)
-            local shown = link and pcall(GameTooltip.SetHyperlink, GameTooltip, link)
-            if not shown and not pcall(GameTooltip.SetItemByID, GameTooltip, item.id) then
-                GameTooltip:AddLine("item:" .. item.id)
-            end
-
-            GameTooltip:AddLine(" ")
-            if item.percent then
-                GameTooltip:AddDoubleLine(L["simulated (% DPS)"],
-                    string.format("%+.2f%%", item.percent), 0.54, 0.54, 0.54, 0, 0.9, 0.46)
-            elseif item.gain then
-                GameTooltip:AddDoubleLine(L["estimated (stat points)"],
-                    string.format("%+d", item.gain), 0.54, 0.54, 0.54, 0, 0.9, 0.46)
-            elseif item.levelDelta then
-                GameTooltip:AddDoubleLine(L["ilvl vs equipped"],
-                    string.format("%+d", item.levelDelta), 0.54, 0.54, 0.54, 1, 0.76, 0.03)
-            end
-            if item.ilvl and item.ilvl > 0 then
-                GameTooltip:AddDoubleLine(L["simulated at ilvl"], tostring(item.ilvl),
-                    0.54, 0.54, 0.54, 0.91, 0.91, 0.91)
-                -- L'avertissement ne sert que si l'on a du retomber sur le modele.
-                if not shown then
-                    GameTooltip:AddLine(L["the item level above is the base template, not the drop"],
-                        0.54, 0.54, 0.54, true)
-                end
-            end
-            GameTooltip:Show()
-        end)
-        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        row.item = item
+        row:SetScript("OnEnter", lootOnEnter)
+        row:SetScript("OnLeave", hideTooltip)
 
         lootTop = lootTop - LOOT_HEIGHT - 2
     end

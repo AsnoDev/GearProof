@@ -26,8 +26,80 @@ local function hex(key)
     return ns.Theme.C(key)
 end
 
+-- Gestionnaires de lignes, poses UNE fois.
+--
+-- Les lignes sont reutilisees d'un rafraichissement a l'autre, mais leurs gestionnaires
+-- etaient reconstruits a chaque fois : une tournee de guilde a trente membres en
+-- fabriquait trente, et la sous-vue Raid deux par objet convoite. L'etat voyage sur la
+-- ligne (`row.card`, `row.item`, `row.encounter`).
+
+local function hideTooltip()
+    GameTooltip:Hide()
+end
+
+local function memberOnClick(self)
+    local card = self.card
+    if card and card.sim ~= "" then
+        ns.Copy.Show(card.name, "https://www.raidbots.com/simbot/report/" .. card.sim)
+    end
+end
+
+local function needOnEnter(self)
+    local item = self.item
+    if not item then return end
+
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:ClearLines()
+    -- Le lien du journal des aventures porte les identifiants de bonus, donc le vrai
+    -- niveau. `SetItemByID` ne connait que le modele.
+    local link = ns.Sim.LootLink(self.encounter, item.id, item.difficulty)
+    local shown = link and pcall(GameTooltip.SetHyperlink, GameTooltip, link)
+    if not shown and not pcall(GameTooltip.SetItemByID, GameTooltip, item.id) then
+        GameTooltip:AddLine("item:" .. item.id)
+    end
+
+    if item.ilvl and item.ilvl > 0 then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddDoubleLine(L["simulated at ilvl"], tostring(item.ilvl),
+            0, 0.69, 1, 0.91, 0.91, 0.91)
+        if not shown then
+            GameTooltip:AddLine(L["the item level above is the base template, not the drop"],
+                0.54, 0.54, 0.54, true)
+        end
+    end
+
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine(L["Guild ranking"], 0, 0.69, 1)
+    for rank, member in ipairs(item.members) do
+        if rank > 12 then
+            GameTooltip:AddLine(string.format("+%d…", #item.members - 12), 0.54, 0.54, 0.54)
+            break
+        end
+        GameTooltip:AddDoubleLine(
+            string.format("%d. %s", rank, member.name),
+            string.format("%+.2f%%", member.percent),
+            0.91, 0.91, 0.91, 0, 0.9, 0.46)
+    end
+    GameTooltip:Show()
+end
+
+--- Remet une ligne a neuf : etat ET gestionnaires.
+---
+--- Les memes lignes servent la liste des membres et la sous-vue Raid. Chaque vue ne
+--- posait que les gestionnaires dont ELLE avait besoin, sans retirer ceux de l'autre :
+--- une ligne qui avait affiche un objet convoite gardait son OnEnter, et survoler la
+--- liste des membres apres avoir consulte la sous-vue Raid sortait l'infobulle d'un objet
+--- appartenant a l'affichage precedent. La remise a neuf est ici, une fois, pour les deux.
+local function resetRow(row)
+    row.card, row.item, row.encounter = nil, nil, nil
+    row:SetScript("OnEnter", nil)
+    row:SetScript("OnLeave", nil)
+    row:SetScript("OnClick", nil)
+    return row
+end
+
 local function acquireRow(index)
-    if rows[index] then return rows[index] end
+    if rows[index] then return resetRow(rows[index]) end
 
     local row = CreateFrame("Button", nil, view.content)
     row:SetHeight(ROW_HEIGHT)
@@ -285,11 +357,8 @@ function GuildView.Refresh()
             row.sim:SetText(hex("bis") .. L["no sim"] .. "|r")
         end
 
-        row:SetScript("OnClick", function()
-            if card.sim ~= "" then
-                ns.Copy.Show(card.name, "https://www.raidbots.com/simbot/report/" .. card.sim)
-            end
-        end)
+        row.card = card
+        row:SetScript("OnClick", memberOnClick)
 
         row:Show()
         offset = offset + ROW_HEIGHT
@@ -443,43 +512,10 @@ function GuildView.RefreshRaid()
             row.sim:SetText(string.format("%s%+.2f%%|r", hex("good"), item.best))
 
             -- Au survol : l'infobulle de l'objet, puis le classement complet de la guilde.
-            row:SetScript("OnEnter", function(self)
-                GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-                GameTooltip:ClearLines()
-                -- Le lien du journal des aventures porte les identifiants de bonus, donc le
-                -- vrai niveau. `SetItemByID` ne connait que le modele.
-                local link = ns.Sim.LootLink(group.encounter, item.id, item.difficulty)
-                local shown = link and pcall(GameTooltip.SetHyperlink, GameTooltip, link)
-                if not shown and not pcall(GameTooltip.SetItemByID, GameTooltip, item.id) then
-                    GameTooltip:AddLine("item:" .. item.id)
-                end
-
-                if item.ilvl and item.ilvl > 0 then
-                    GameTooltip:AddLine(" ")
-                    GameTooltip:AddDoubleLine(L["simulated at ilvl"], tostring(item.ilvl),
-                        0, 0.69, 1, 0.91, 0.91, 0.91)
-                    if not shown then
-                        GameTooltip:AddLine(L["the item level above is the base template, not the drop"],
-                            0.54, 0.54, 0.54, true)
-                    end
-                end
-
-                GameTooltip:AddLine(" ")
-                GameTooltip:AddLine(L["Guild ranking"], 0, 0.69, 1)
-                for rank, member in ipairs(item.members) do
-                    if rank > 12 then
-                        GameTooltip:AddLine(string.format("+%d…", #item.members - 12),
-                            0.54, 0.54, 0.54)
-                        break
-                    end
-                    GameTooltip:AddDoubleLine(
-                        string.format("%d. %s", rank, member.name),
-                        string.format("%+.2f%%", member.percent),
-                        0.91, 0.91, 0.91, 0, 0.9, 0.46)
-                end
-                GameTooltip:Show()
-            end)
-            row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            row.item = item
+            row.encounter = group.encounter
+            row:SetScript("OnEnter", needOnEnter)
+            row:SetScript("OnLeave", hideTooltip)
             row:SetScript("OnClick", nil)
             row:Show()
             offset = offset + ROW_HEIGHT

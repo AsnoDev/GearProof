@@ -108,9 +108,48 @@ local function newText()
 end
 
 local function resetRow(row)
+    row.detail, row.gemID = nil, nil
     row:SetScript("OnEnter", nil)
     row:SetScript("OnLeave", nil)
     row:SetScript("OnClick", nil)
+end
+
+-- Gestionnaires poses UNE fois.
+--
+-- Chaque ligne d'enchantement recevait deux fermetures neuves par rendu, plus une
+-- troisieme construite par l'appelant et passee en parametre pour peindre l'infobulle.
+-- L'appelant passe maintenant les DONNEES (`detail`) et non plus une fonction.
+
+local function hideTooltip()
+    GameTooltip:Hide()
+end
+
+local function enchantOnEnter(self)
+    local detail = self.detail
+    if not detail then return end
+
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:ClearLines()
+    GameTooltip:AddLine(detail.name or ("enchant #" .. detail.enchantID), 0, 0.9, 0.46)
+
+    local points, lines = ns.Gear.EnchantPoints(detail.link, detail.slot, detail.enchantID)
+    for _, item in ipairs(lines or {}) do
+        GameTooltip:AddLine(item.text, item.r, item.g, item.b, true)
+    end
+    if points > 0 then
+        GameTooltip:AddLine(string.format(ns.L["%d stat points"], points), 0.54, 0.54, 0.54)
+    end
+    GameTooltip:Show()
+end
+
+local function gemOnEnter(self)
+    if not self.gemID then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:ClearLines()
+    if not pcall(GameTooltip.SetItemByID, GameTooltip, self.gemID) then
+        GameTooltip:AddLine("item:" .. self.gemID)
+    end
+    GameTooltip:Show()
 end
 
 -- --------------------------------------------------------------------- rendu
@@ -145,7 +184,8 @@ end
 --- majorité du haut de tableau porte deux enchantements différents.
 local WEAPON_SLOTS = { MainHandSlot = true, SecondaryHandSlot = true }
 
-local function enchantRow(top, width, slotLabel, name, share, worn, tooltip)
+--- @param detail table|nil  { link, slot, enchantID, name } — de quoi rendre l'infobulle
+local function enchantRow(top, width, slotLabel, name, share, worn, detail)
     local row = pools.enchant:Acquire()
     row:SetParent(view.content)
     row:ClearAllPoints()
@@ -183,14 +223,10 @@ local function enchantRow(top, width, slotLabel, name, share, worn, tooltip)
     row.fill:SetColorTexture(unpack(ns.Theme.RGB.link))
     row.share:SetText(string.format("%d%%", (share or 0) * 100 + 0.5))
 
-    if tooltip then
-        row:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:ClearLines()
-            tooltip(GameTooltip)
-            GameTooltip:Show()
-        end)
-        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    row.detail = detail
+    if detail then
+        row:SetScript("OnEnter", enchantOnEnter)
+        row:SetScript("OnLeave", hideTooltip)
     end
 
     return top - ROW_HEIGHT
@@ -216,17 +252,12 @@ local function layoutEnchants(top, width)
                 top = enchantRow(top, width, ns.L[definition.label],
                     name or (enchantID and ("enchant #" .. enchantID)) or ns.L["no measure"],
                     share, worn,
-                    (enchantID and entry) and function(tooltip)
-                        tooltip:AddLine(name or ("enchant #" .. enchantID), 0, 0.9, 0.46)
-                        local points, lines = ns.Gear.EnchantPoints(entry.link, definition.slot, enchantID)
-                        for _, item in ipairs(lines or {}) do
-                            tooltip:AddLine(item.text, item.r, item.g, item.b, true)
-                        end
-                        if points > 0 then
-                            tooltip:AddLine(string.format(ns.L["%d stat points"], points),
-                                0.54, 0.54, 0.54)
-                        end
-                    end or nil)
+                    (enchantID and entry) and {
+                        link = entry.link,
+                        slot = definition.slot,
+                        enchantID = enchantID,
+                        name = name,
+                    } or nil)
                 shown = shown + 1
             end
         end
@@ -297,15 +328,9 @@ local function layoutGems(top, width)
         row.share:SetText(string.format("%s%s|r", hex(index == 1 and "link" or "muted"),
             adoption(gem.share)))
 
-        row:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:ClearLines()
-            if not pcall(GameTooltip.SetItemByID, GameTooltip, gem.id) then
-                GameTooltip:AddLine("item:" .. gem.id)
-            end
-            GameTooltip:Show()
-        end)
-        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        row.gemID = gem.id
+        row:SetScript("OnEnter", gemOnEnter)
+        row:SetScript("OnLeave", hideTooltip)
 
         top = top - GEM_ROW_HEIGHT - 4
     end

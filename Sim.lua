@@ -27,11 +27,62 @@ local function fileReports()
     return nil
 end
 
+-- Nombre de rapports colles conserves, par personnage.
+--
+-- Chaque import pese quelques dizaines de kilo-octets : jusqu'a 400 objets portant six
+-- champs chacun. Rien ne les supprimait, et les SavedVariables sont relues INTEGRALEMENT
+-- a chaque demarrage du client. Un joueur qui refait son droptimizer chaque semaine
+-- accumulait donc, saison apres saison, un fichier que WoW paie au chargement pour des
+-- rapports qui decrivent un equipement qu'il n'a plus.
+--
+-- Quatre, parce qu'un droptimizer decrit TON equipement du moment : le troisieme d'avant
+-- ne dit deja plus la verite sur toi. Ce n'est pas un historique, c'est un cache.
+local KEEP_REPORTS = 4
+
 --- Rapports colles par le joueur, conserves dans les SavedVariables.
+---
+--- Filtres sur le personnage connecte. Un droptimizer decrit UN personnage : un gain de
+--- +2 % mesure sur ton voleur ne dit rien de ce que le meme anneau vaut sur ton paladin,
+--- et les anneaux, colliers et bijoux sont precisement ce que deux classes se partagent.
+--- La table portait deja `player` — elle n'etait simplement jamais lue, donc les rapports
+--- de tous les personnages fusionnaient en silence.
+---
+--- Un rapport SANS `player` est conserve : c'est un import de l'outil Python, dont le
+--- flux ne connait qu'un personnage a la fois.
 local function pastedReports()
     local stored = ns.db and ns.db.sim
-    if type(stored) == "table" and next(stored) ~= nil then return stored end
-    return nil
+    if type(stored) ~= "table" then return nil end
+
+    local me = UnitName("player")
+    local mine, found = {}, false
+    for id, report in pairs(stored) do
+        if type(report) == "table" and (not report.player or report.player == me) then
+            mine[id] = report
+            found = true
+        end
+    end
+    return found and mine or nil
+end
+
+--- Ne garde que les `KEEP_REPORTS` rapports les plus recents de CE personnage.
+local function pruneReports()
+    local stored = ns.db and ns.db.sim
+    if type(stored) ~= "table" then return end
+
+    local me = UnitName("player")
+    local ordered = {}
+    for id, report in pairs(stored) do
+        if type(report) == "table" and report.player == me then
+            table.insert(ordered, { id = id, stamp = report.stamp or 0 })
+        end
+    end
+    if #ordered <= KEEP_REPORTS then return end
+
+    table.sort(ordered, function(a, b) return a.stamp > b.stamp end)
+    for index = KEEP_REPORTS + 1, #ordered do
+        stored[ordered[index].id] = nil
+        ns.Debug("rapport %s oublie (au-dela des %d gardes)", ordered[index].id, KEEP_REPORTS)
+    end
 end
 
 --- Tous les rapports, quelle que soit leur provenance.
@@ -177,6 +228,7 @@ function Sim.ImportCSV(text, reference)
         stamp = time(),
         items = items,
     }
+    pruneReports()
 
     return true, count
 end

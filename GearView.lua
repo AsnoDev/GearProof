@@ -235,6 +235,117 @@ local function layoutDetail(top, width, entry)
     return top - card:GetHeight() - 10
 end
 
+-- Un seul OnLeave pour toutes les lignes qui n'ouvrent qu'une infobulle.
+local function hideTooltip()
+    GameTooltip:Hide()
+end
+
+--- Detail chiffre d'une ligne de statistique. Lit `row.stat`, pose au rendu.
+local function statRowOnEnter(self)
+    local stat = self.stat
+    if not stat then return end
+
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:ClearLines()
+    GameTooltip:AddLine(L[stat.label], 0.91, 0.91, 0.91)
+    GameTooltip:AddDoubleLine(L["yours"],
+        string.format("%d pts · %.0f%% " .. L["of yours"], stat.rating, stat.share * 100),
+        0.54, 0.54, 0.54, 0.91, 0.91, 0.91)
+    if stat.target then
+        -- On n'affiche que la PART relevee. Ecrire « top 20 : N pts » en multipliant leur
+        -- composition par TON budget donnait un nombre qui ne decrit ni eux ni toi. Leur
+        -- moyenne absolue existe dans le fichier de donnees, mais elle n'est comparable
+        -- qu'a niveau d'objet egal — donc on ne la melange pas ici.
+        GameTooltip:AddDoubleLine(string.format(L["top %d"], ns.Meta.Sample()),
+            string.format("%.0f%% " .. L["of their budget"], stat.target * 100),
+            0.54, 0.54, 0.54, 0.91, 0.91, 0.91)
+    end
+    if stat.tier > 0 then
+        GameTooltip:AddLine(string.format(L["diminishing tier %d"], stat.tier), 1, 0.76, 0.03)
+    end
+    GameTooltip:Show()
+end
+
+-- Gestionnaires des cartes de correctif, poses UNE fois.
+--
+-- Ils etaient trois closures construites a l'interieur de `layoutIssue`, donc trois
+-- fermetures neuves par carte et par rendu. Sur un audit charge, ouvrir l'onglet en
+-- produisait une trentaine, toutes identiques sauf la piece capturee — du ramassage de
+-- miettes gratuit a chaque rafraichissement, y compris pendant une rencontre.
+--
+-- L'etat voyage sur le widget (`card.entry`), pose juste avant. C'est deja la convention
+-- de `RecoView.resetRow`, qui les remet a nil au retour au pool.
+local function issueOnEnter(self)
+    local entry = self.entry
+    if not entry then return end
+    ns.Armory.Highlight(entry.slot, true)
+
+    -- Infobulle de L'ENCHANTEMENT, pas de la piece.
+    --
+    -- WoW n'a pas de type de lien pour un enchantement : impossible de lui demander une
+    -- infobulle. Le seul endroit ou le client decrit un enchantement, c'est l'infobulle
+    -- de l'objet qui le porte. On affiche donc ce que l'enchantement y ajoute, mot pour
+    -- mot — texte du client, deja formate et deja traduit.
+    if not entry.missingEnchant then return end
+
+    local enchantID, share = ns.Meta.Enchant(entry.slot)
+    if not enchantID then return end
+
+    local name = ns.Meta.EnchantName(entry.link, enchantID)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:ClearLines()
+    GameTooltip:AddLine(name or ("Enchant #" .. enchantID), 0, 0.9, 0.46)
+
+    local points, lines = ns.Gear.EnchantPoints(entry.link, entry.slot, enchantID)
+    for _, line in ipairs(lines or {}) do
+        -- Une ligne qui ne fait que repeter le nom sans porter de chiffre n'ajoute rien
+        -- au titre deja affiche.
+        local repeatsName = name and line.text:find(name, 1, true) and not line.text:find("%d")
+        if not repeatsName then
+            GameTooltip:AddLine(line.text, line.r, line.g, line.b, true)
+        end
+    end
+
+    if points > 0 then
+        GameTooltip:AddLine(string.format(L["%d stat points"], points), 0.54, 0.54, 0.54)
+    end
+
+    GameTooltip:AddLine(" ")
+    -- Le chiffre d'adoption sans le rappel de la source : elle est nommee dans l'entete de
+    -- la fenetre et en pied du bloc gemmes, une fois chacune.
+    GameTooltip:AddLine(string.format(L["%d%% adoption"],
+        (share or 0) * 100 + 0.5), 0.54, 0.54, 0.54)
+    GameTooltip:AddLine(L["click to copy the name"], 0, 0.69, 1)
+    GameTooltip:Show()
+end
+
+local function issueOnLeave(self)
+    if self.entry then ns.Armory.Highlight(self.entry.slot, false) end
+    GameTooltip:Hide()
+end
+
+local function issueOnClick(self, button)
+    local entry = self.entry
+    if not entry then return end
+
+    if button == "RightButton" then
+        ns.Gear.SetIgnored(entry.slot, not entry.ignored)
+        ns.UI.RefreshNow()
+        return
+    end
+
+    -- Clic gauche : le nom seul dans un champ copiable, pour l'hotel des ventes. Quand il
+    -- n'y a pas de nom a copier, la piece s'ouvre dans le panneau de detail — la meme
+    -- surface que le clic sur une tuile, au lieu d'une seconde fenetre flottante.
+    local name = entry.missingEnchant
+        and ns.Meta.EnchantName(entry.link, ns.Meta.Enchant(entry.slot))
+    if name then
+        ns.Copy.Show(L["Search this in the auction house"], name)
+    else
+        GearView.Select(entry.slot)
+    end
+end
+
 local function layoutIssue(entry, width, top, color)
     local card = acquire("issue")
     card:SetParent(view.content)
@@ -259,69 +370,10 @@ local function layoutIssue(entry, width, top, color)
     card.body:SetWidth(width - 46)
     card.body:SetText(table.concat(details, "\n"))
 
-    card:SetScript("OnEnter", function(self)
-        ns.Armory.Highlight(entry.slot, true)
-
-        -- Infobulle de L'ENCHANTEMENT, pas de la piece.
-        --
-        -- WoW n'a pas de type de lien pour un enchantement : impossible de lui demander
-        -- une infobulle. Le seul endroit ou le client decrit un enchantement, c'est
-        -- l'infobulle de l'objet qui le porte. On affiche donc ce que l'enchantement y
-        -- ajoute, mot pour mot — texte du client, deja formate et deja traduit.
-        if not entry.missingEnchant then return end
-
-        local enchantID, share = ns.Meta.Enchant(entry.slot)
-        if not enchantID then return end
-
-        local name = ns.Meta.EnchantName(entry.link, enchantID)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:ClearLines()
-        GameTooltip:AddLine(name or ("Enchant #" .. enchantID), 0, 0.9, 0.46)
-
-        local points, lines = ns.Gear.EnchantPoints(entry.link, entry.slot, enchantID)
-        for _, line in ipairs(lines or {}) do
-            -- Une ligne qui ne fait que repeter le nom sans porter de chiffre n'ajoute
-            -- rien au titre deja affiche.
-            local repeatsName = name and line.text:find(name, 1, true) and not line.text:find("%d")
-            if not repeatsName then
-                GameTooltip:AddLine(line.text, line.r, line.g, line.b, true)
-            end
-        end
-
-        if points > 0 then
-            GameTooltip:AddLine(string.format(L["%d stat points"], points), 0.54, 0.54, 0.54)
-        end
-
-        GameTooltip:AddLine(" ")
-        -- Le chiffre d'adoption sans le rappel de la source : elle est nommee dans l'entete
-        -- de la fenetre et en pied du bloc gemmes, une fois chacune.
-        GameTooltip:AddLine(string.format(L["%d%% adoption"],
-            (share or 0) * 100 + 0.5), 0.54, 0.54, 0.54)
-        GameTooltip:AddLine(L["click to copy the name"], 0, 0.69, 1)
-        GameTooltip:Show()
-    end)
-    card:SetScript("OnLeave", function()
-        ns.Armory.Highlight(entry.slot, false)
-        GameTooltip:Hide()
-    end)
-    card:SetScript("OnClick", function(self, button)
-        if button == "RightButton" then
-            ns.Gear.SetIgnored(entry.slot, not entry.ignored)
-            ns.UI.RefreshNow()
-            return
-        end
-
-        -- Clic gauche : le nom seul dans un champ copiable, pour l'hotel des ventes. Quand il
-        -- n'y a pas de nom a copier, la piece s'ouvre dans le panneau de detail — la meme
-        -- surface que le clic sur une tuile, au lieu d'une seconde fenetre flottante.
-        local name = entry.missingEnchant
-            and ns.Meta.EnchantName(entry.link, ns.Meta.Enchant(entry.slot))
-        if name then
-            ns.Copy.Show(L["Search this in the auction house"], name)
-        else
-            GearView.Select(entry.slot)
-        end
-    end)
+    card.entry = entry
+    card:SetScript("OnEnter", issueOnEnter)
+    card:SetScript("OnLeave", issueOnLeave)
+    card:SetScript("OnClick", issueOnClick)
 
     -- Les gestes disponibles, ecrits sur la carte. Ils etaient invisibles : l'indication de
     -- copie ne s'affichait que dans une infobulle elle-meme conditionnee a la presence d'un
@@ -395,30 +447,15 @@ local function layoutSide(summary)
         row.fill:SetWidth(math.max(1, share * TRACK_WIDTH))
 
         -- Le detail chiffre reste accessible, sans encombrer la ligne.
-        local rating, tier = data.rating or 0, data.tier or 0
-        local target = ns.Recommendations.StatTarget(definition.key)
-        row:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-            GameTooltip:ClearLines()
-            GameTooltip:AddLine(L[definition.label], 0.91, 0.91, 0.91)
-            GameTooltip:AddDoubleLine(L["yours"],
-                string.format("%d pts · %.0f%% " .. L["of yours"], rating, share * 100),
-                0.54, 0.54, 0.54, 0.91, 0.91, 0.91)
-            if target then
-                -- On n'affiche que la PART relevee. Ecrire « top 20 : N pts » en multipliant
-                -- leur composition par TON budget donnait un nombre qui ne decrit ni eux ni
-                -- toi. Leur moyenne absolue existe dans le fichier de donnees, mais elle
-                -- n'est comparable qu'a niveau d'objet egal — donc on ne la melange pas ici.
-                GameTooltip:AddDoubleLine(string.format(L["top %d"], ns.Meta.Sample()),
-                    string.format("%.0f%% " .. L["of their budget"], target * 100),
-                    0.54, 0.54, 0.54, 0.91, 0.91, 0.91)
-            end
-            if tier > 0 then
-                GameTooltip:AddLine(string.format(L["diminishing tier %d"], tier), 1, 0.76, 0.03)
-            end
-            GameTooltip:Show()
-        end)
-        row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        row.stat = {
+            label = definition.label,
+            rating = data.rating or 0,
+            tier = data.tier or 0,
+            share = share,
+            target = ns.Recommendations.StatTarget(definition.key),
+        }
+        row:SetScript("OnEnter", statRowOnEnter)
+        row:SetScript("OnLeave", hideTooltip)
 
         top = top - ROW_HEIGHT
     end

@@ -104,6 +104,68 @@ local function applyDefaults(db, source)
     end
 end
 
+-- Version du SCHEMA des SavedVariables. Rien a voir avec `## Version` du .toc : elle ne
+-- bouge que lorsque la FORME des donnees sauvegardees change.
+--
+-- Sans elle, la seule facon de faire evoluer la base etait `applyDefaults`, qui ne sait
+-- qu'ajouter une cle absente. Renommer un reglage, changer le type d'une valeur ou
+-- reparer une donnee ecrite de travers n'avait aucun endroit ou vivre — et une base
+-- ecrite par une version future, retrogradee ensuite, etait lue comme si de rien n'etait.
+--
+-- Chaque migration mene de `version - 1` a `version`. Elles s'appliquent dans l'ordre, une
+-- seule fois, et le numero est ecrit apres. Une migration ne doit JAMAIS supposer que la
+-- precedente a laisse la base propre : elle valide ce qu'elle lit.
+local SCHEMA = 1
+
+-- Volontairement VIDE : aucune forme sauvegardee n'a change a ce jour. `sim` est indexe
+-- par identifiant de rapport depuis son premier commit, et tout le reste n'a fait que
+-- gagner des cles — ce dont `applyDefaults` s'acquitte deja.
+--
+-- Ce qui manquait n'est donc pas une migration, c'est l'endroit ou la prochaine se posera,
+-- et le numero qui dit si elle a deja tourne. Ecrire une migration pour un changement qui
+-- n'a pas eu lieu aurait ajoute du code non teste qui s'execute chez tout le monde.
+--
+-- Contrat : `migrations[N]` mene de `N - 1` a `N`, ne tourne qu'une fois, et ne suppose
+-- JAMAIS que la precedente a laisse la base propre — elle valide ce qu'elle lit. Exemple :
+--
+--     [2] = function(db)
+--         if type(db.ignoredSlots) ~= "table" then db.ignoredSlots = {} end
+--     end,
+local migrations = {}
+
+--- Amene la base au schema courant. Retourne le nombre de migrations appliquees.
+local function migrateSchema(db)
+    -- Une base neuve est deja au schema courant : rien a migrer, et faire tourner les
+    -- migrations dessus les obligerait toutes a gerer le cas « base vide ».
+    local from = tonumber(db.schema)
+    if not from then
+        db.schema = next(db) and 1 or SCHEMA
+        from = db.schema
+    end
+
+    -- Base ecrite par une version PLUS RECENTE. On ne touche a rien : les migrations ne
+    -- savent qu'avancer, et deviner une transformation inverse detruirait des reglages.
+    if from > SCHEMA then
+        ns.Debug("base au schema %d, addon au schema %d — aucune migration", from, SCHEMA)
+        return 0
+    end
+
+    local applied = 0
+    for version = from + 1, SCHEMA do
+        local migration = migrations[version]
+        if migration then
+            local ok, err = pcall(migration, db)
+            if not ok then
+                ns.Debug("migration %d en echec : %s", version, tostring(err))
+            else
+                applied = applied + 1
+            end
+        end
+        db.schema = version
+    end
+    return applied
+end
+
 --- Reprend la base de l'ancien nom, une seule fois.
 ---
 --- L'addon s'appelait SpecAnalyser. Renommer sans migrer aurait rendu a chaque testeur
@@ -128,9 +190,19 @@ ns.On("ADDON_LOADED", function(loaded)
 
     local migrated = migrateFromSpecAnalyser()
     GearProofDB = GearProofDB or {}
+
+    -- Les migrations d'abord, les valeurs par defaut ensuite : une migration doit voir la
+    -- base TELLE QU'ELLE A ETE ECRITE. Si `applyDefaults` passait avant, il remplirait les
+    -- cles absentes et une migration ne saurait plus distinguer « ce reglage n'existait pas
+    -- a l'epoque » de « le joueur l'a laisse a sa valeur par defaut ».
+    local schemaSteps = migrateSchema(GearProofDB)
     applyDefaults(GearProofDB, defaults)
     ns.db = GearProofDB
     ns.ApplyLanguage()
+
+    if schemaSteps > 0 then
+        ns.Debug("schema migre en %d etape(s), maintenant %d", schemaSteps, GearProofDB.schema)
+    end
 
     if migrated then
         ns.Print(ns.L["settings carried over from SpecAnalyser"])

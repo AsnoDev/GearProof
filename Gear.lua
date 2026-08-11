@@ -124,6 +124,38 @@ local function auditWeaponPair(bySlot, summary)
         ns.Meta.Sample()))
 end
 
+--- Un hors-main vide n'est legitime que si la main droite le justifie.
+---
+--- La boucle de scan sautait `SecondaryHandSlot` des qu'il etait vide, sans regarder ce
+--- qui est porte en face. Un joueur qui dual-wield avec une seule arme equipee perdait
+--- donc l'emplacement le plus cher de sa fiche en silence — l'audit affichait « 15 / 15
+--- propres » a quelqu'un a qui il manquait une arme.
+---
+--- Ce qui rend le vide legitime, lu sur l'emplacement d'equipement de la main droite :
+--- une deux mains, ou une arme a distance (arc, fusil : elles occupent la main droite et
+--- laissent la main gauche vide par construction).
+---
+--- Volontairement HORS de cette regle : la Poigne du titan, qui porte deux armes a deux
+--- mains. La detecter demanderait un test de sort, donc une donnee de patch, pour une
+--- seule specialisation — et se tromper signalerait un faux manque a tous les autres
+--- porteurs de deux mains du jeu. Mieux vaut ne rien dire que dire faux.
+local ONE_HANDED_MAIN = {
+    INVTYPE_WEAPON = true,
+    INVTYPE_WEAPONMAINHAND = true,
+}
+
+local function auditOffHand(bySlot, summary)
+    local main, off = bySlot.MainHandSlot, bySlot.SecondaryHandSlot
+    if not main or not off then return end
+    if off.link or off.ignored then return end
+    if not main.link or not ONE_HANDED_MAIN[main.equipLoc or ""] then return end
+
+    off.skipped = nil
+    off.empty = true
+    table.insert(off.problems, L["empty slot"])
+    summary.emptySlots = summary.emptySlots + 1
+end
+
 --- Analyse l'equipement porte. Lecture brute, sans cache : passer par `Gear.Scan`.
 --- @return table entries, table summary
 local function rawScan()
@@ -240,6 +272,9 @@ local function rawScan()
     end
     summary.bySlot = bySlot
 
+    -- Apres la boucle : la legitimite d'un hors-main vide se lit sur la main droite, qui
+    -- n'est connue qu'une fois toutes les pieces parcourues.
+    auditOffHand(bySlot, summary)
     auditWeaponPair(bySlot, summary)
 
     summary.problems = summary.missingEnchants + summary.emptySockets + summary.emptySlots
@@ -281,9 +316,17 @@ function Gear.Scan()
 end
 
 -- Tout ce qui rend l'audit faux fait tomber le cache, et rien d'autre.
+--
+-- PAS `UPDATE_INVENTORY_DURABILITY` : il se declenche a chaque tick de degats subis. En
+-- raid, le cache tombait plusieurs fois par seconde, et le premier appelant venu — une
+-- infobulle survolee, l'alerte d'instance — repayait un scan complet a chaque fois. Ce
+-- n'est pas un cache annule de temps en temps, c'est un cache qui n'existe plus pendant
+-- toute la rencontre, precisement quand le budget d'images est le plus serre.
+--
+-- La fraicheur de la durabilite est deja assuree : c'est la raison d'etre du TTL de deux
+-- secondes ci-dessus. L'abonnement faisait double emploi avec lui.
 for _, event in ipairs({
     "PLAYER_EQUIPMENT_CHANGED",
-    "UPDATE_INVENTORY_DURABILITY",
     "SOCKET_INFO_CLOSE",
     "ACTIVE_TALENT_GROUP_CHANGED",
 }) do
