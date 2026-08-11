@@ -164,4 +164,7 @@ def main() -> int:
     return 0
 
 
-sys.exit(main())
+# Garde d'import : `package.py` a besoin de `shipped_files()` et rien d'autre. Sans elle,
+# l'importer declencherait un deploiement complet vers le dossier de jeu.
+if __name__ == "__main__":
+    sys.exit(main())

@@ -81,30 +81,43 @@ function HelpView.Create(parent)
 
     local support = cards.support
 
+    -- Le rapport porte SA DESTINATION en tete.
+    --
+    -- Ces deux boutons fabriquaient un texte parfaitement formate — version, build
+    -- client, classe, ilvl, locale — que le joueur n'avait nulle part ou poser. Un canal
+    -- de support promis et inexistant est pire que pas de bouton : le premier retour
+    -- part dans les commentaires CurseForge, ou il se perd.
+    local function report(title, heading, questions)
+        local lines = { heading, "" }
+        for _, question in ipairs(questions) do table.insert(lines, question) end
+        table.insert(lines, "")
+        table.insert(lines, "## Environment")
+        table.insert(lines, HelpView.Environment())
+        if ns.issues then
+            table.insert(lines, 1, "<!-- " .. ns.issues .. " -->")
+        end
+        ns.Copy.Show(title, table.concat(lines, "\n"))
+    end
+
     support.bug = CreateFrame("Button", nil, support, "UIPanelButtonTemplate")
     support.bug:SetHeight(22)
     ns.Localize(support.bug, "Report a bug")
     support.bug:SetScript("OnClick", function()
-        ns.Copy.Show(L["Bug report"], table.concat({
-            "## Bug", "",
-            "What I was doing:",
-            "What happened:",
-            "What I expected:",
-            "", "## Environment", HelpView.Environment(),
-        }, "\n"))
+        report(L["Bug report"], "## Bug",
+            { "What I was doing:", "What happened:", "What I expected:" })
     end)
 
     support.idea = CreateFrame("Button", nil, support, "UIPanelButtonTemplate")
     support.idea:SetHeight(22)
     ns.Localize(support.idea, "Suggest an idea")
     support.idea:SetScript("OnClick", function()
-        ns.Copy.Show(L["Suggestion"], table.concat({
-            "## Idea", "",
-            "What I would like:",
-            "Why it would help:",
-            "", "## Environment", HelpView.Environment(),
-        }, "\n"))
+        report(L["Suggestion"], "## Idea",
+            { "What I would like:", "Why it would help:" })
     end)
+
+    -- L'adresse, affichee et selectionnable. Une URL ne se traduit pas.
+    support.link = support:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    support.link:SetJustifyH("LEFT")
 
     view.credits = view:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     view.credits:SetPoint("BOTTOMLEFT", 2, 2)
@@ -215,15 +228,22 @@ function HelpView.Refresh()
     local support = cards.support
     support:ClearAllPoints()
     support:SetPoint("TOPLEFT", cards.faq, "BOTTOMLEFT", 0, -CARD_GAP)
+    -- 56 px pour les deux boutons, 18 de plus quand l'adresse du projet est connue.
     fill(support, columnWidth,
         L["Both buttons prepare a ready to paste text, with the technical details already filled in."],
-        56)
+        56 + (ns.issues and 18 or 0))
 
     support.bug:ClearAllPoints()
     support.bug:SetWidth(columnWidth - PADDING * 2)
-    support.bug:SetPoint("BOTTOMLEFT", support, "BOTTOMLEFT", PADDING, 32)
+    support.bug:SetPoint("BOTTOMLEFT", support, "BOTTOMLEFT", PADDING,
+        32 + (ns.issues and 18 or 0))
 
     support.idea:ClearAllPoints()
     support.idea:SetWidth(columnWidth - PADDING * 2)
     support.idea:SetPoint("TOPLEFT", support.bug, "BOTTOMLEFT", 0, -4)
+
+    support.link:ClearAllPoints()
+    support.link:SetWidth(columnWidth - PADDING * 2)
+    support.link:SetPoint("TOPLEFT", support.idea, "BOTTOMLEFT", 0, -6)
+    support.link:SetText(ns.issues and ("|cff00B0FF" .. ns.issues .. "|r") or "")
 end

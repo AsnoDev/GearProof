@@ -3,7 +3,8 @@
 **Ton équipement, confronté à ce que portent réellement les meilleurs joueurs de ta
 spécialisation.** Pas un guide recopié : une mesure.
 
-WoW Retail — Midnight, Interface `120007`. Aucune dépendance externe.
+WoW Retail — Midnight, Interface `120007`. Aucune dépendance externe, rien à installer
+à côté, rien à configurer.
 
 ---
 
@@ -15,6 +16,10 @@ pièces abîmées, combinaison d'enchantements d'armes. Lu en direct sur tes obj
 **Comparaison à une référence mesurée.** Pour chaque emplacement, l'enchantement que
 portent les 20 joueurs les mieux classés de ta spé, **avec leur taux d'adoption**. Un
 conseil sans taux d'adoption serait un avis ; avec, c'est une mesure.
+
+**Deux écoles quand il y en a deux.** Quand le haut de tableau se sépare en deux groupes
+sur une statistique — la maîtrise à 21 % pour treize joueurs, à 38 % pour sept — la ligne
+de priorité le dit au lieu d'afficher une moyenne à 27 % que personne ne joue.
 
 **Ce qui dort dans tes sacs.** Les pièces que tu transportes et qui valent mieux que
 celles que tu portes — en trois listes qui ne se mélangent jamais :
@@ -28,12 +33,13 @@ celles que tu portes — en trois listes qui ne se mélangent jamais :
 Un bijou vaut par son proc, pas par ses points de statistique. Il reste **non chiffré**
 tant qu'une simulation ne le couvre pas, plutôt que chiffré à tort.
 
+**Table de butin par boss.** Les objets de chaque rencontre, lus dans le journal des
+aventures du client et **filtrés sur ta spé**, avec l'écart de niveau d'objet contre ce
+que tu portes. Importe un droptimizer et les estimations sont remplacées par du gain
+mesuré, sur les objets qu'il couvre.
+
 **Export SimulationCraft.** Chaîne prête à coller sur Raidbots. Quand l'addon officiel
 SimulationCraft est installé, c'est **sa** chaîne qui est utilisée — elle fait autorité.
-
-**Table de butin par boss.** Les objets que ton droptimizer a réellement simulés,
-regroupés par rencontre, meilleur gain d'abord. Rien n'est fabriqué : la table de butin
-affichée est celle que Raidbots a vue.
 
 **Tournée de guilde.** Qui a un droptimizer à jour, qui a des correctifs en attente, et
 quel boss couvre le plus de besoins. Passe par le canal de **données** de la guilde :
@@ -49,11 +55,11 @@ message dans le chat et avertissement central. Mieux vaut l'apprendre avant le p
 Aucune API du jeu n'expose « le meilleur enchantement du patch ». Le classement, lui,
 est mesurable : on regarde ce qui est posé sur les personnages du haut de tableau.
 
-Le relevé est produit **hors du jeu** par l'outil Python `specanalyser`, depuis l'API
-Warcraft Logs, et livré avec l'addon dans `Data/Meta.lua` — 40 spécialisations. Pour
-chacune : les enchantements par emplacement avec leur part, les gemmes par rang de
-châsse, les combinaisons d'enchantements d'armes, la répartition des statistiques
-secondaires.
+Le relevé est produit **hors du jeu**, depuis l'API Warcraft Logs, et **livré avec
+l'addon** — 40 spécialisations. Pour chacune : les enchantements par emplacement avec
+leur part, les gemmes par rang de châsse, les combinaisons d'enchantements d'armes, la
+répartition des statistiques secondaires. Chaque version apporte un relevé neuf ;
+l'onglet Aide affiche l'âge de celui qui est installé.
 
 **Trois règles tenues partout dans l'interface :**
 
@@ -69,17 +75,16 @@ score sur 100 — ce seraient quatre pénalités arbitraires déguisées en mesu
 
 ## Installation
 
-Copier le dossier `GearProof` dans :
+Par ton gestionnaire d'addons, ou à la main : décompresser dans
 
 ```
 World of Warcraft\_retail_\Interface\AddOns\
 ```
 
 Puis **redémarrer complètement le client** — WoW ne détecte un nouvel addon qu'au
-démarrage, jamais sur `/reload` — et cocher `GearProof` dans la liste des addons.
+démarrage, jamais sur `/reload`.
 
-Rien à configurer : la référence mesurée est livrée avec l'addon. À la première
-connexion, la fenêtre s'ouvre seule sur l'onglet Aide.
+Rien à configurer. À la première connexion, la fenêtre s'ouvre seule sur l'onglet Aide.
 
 ### Tu viens de SpecAnalyser
 
@@ -96,15 +101,6 @@ SavedVariables.
 
 Sauter l'étape 2 ne casse rien — GearProof repart simplement d'une configuration neuve.
 
-### Développement
-
-```bash
-tools\deploy.cmd
-```
-
-Valide puis copie dans le dossier AddOns détecté. Un échec de validation interdit la
-copie : remplacer un addon qui marche par un addon cassé ne rend service à personne.
-
 ---
 
 ## L'interface
@@ -113,10 +109,10 @@ Fenêtre unique de 1040×660, redimensionnable, cinq onglets.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ GearProof              [ Havoc · ta spécialisation ▾ ]   référence : …  │
+│ GearProof              [ Havoc · ta spécialisation ▾ ]   référence : …     │
 │ Asnodh · Havoc · ilvl 662                                   poids : 3 j    │
 │                                                                [Rafraîchir]│
-│      [ Équipement ] [ Raid ] [ Guilde ] [ Aide ]                           │
+│  [ Équipement ] [ Recommandations ] [ Raid ] [ Guilde ] [ Aide ]           │
 ├──────────────┬──────────────────────────────────┬──────────────────────────┤
 │              │ 2 enchantements manquants · …    │          ╭───╮           │
 │   mannequin  │                                  │         │  3  │  ← jauge │
@@ -126,7 +122,7 @@ Fenêtre unique de 1040×660, redimensionnable, cinq onglets.
 │  │  │  │ !│  ││                                  │                          │
 │  ├──┼──┼──┼─┤│ [!] Anneau 2 : 1 châssis vide    │  STATISTIQUES SECONDAIRES│
 │  │  │ *│  │  ││                                  │  Hâte    ████████  18.7 %│
-│  └──┴──┴──┴─┘│ GEMS                             │  Critique ██████    12.4 %│
+│  └──┴──┴──┴─┘│ GEMMES                           │  Critique ██████   12.4 %│
 │              │   Tête  + Éclat de Vide          │  …                       │
 │  3 correctifs│   Cou   ! vide → Éclat de Vide   │  PRIORITÉ                │
 │  ≥ 4 812 stat│                                  │  Hâte (40%) → Crit (29%) │
@@ -148,15 +144,15 @@ affiché**. **Clic droit** → ignorer l'alerte de cette pièce.
 **Le total récupérable**, sous la grille : combien de points de statistique tu laisses
 sur la table. C'est le chiffre qui décide si tu passes chez l'enchanteur maintenant.
 
-### Les quatre onglets
+### Les cinq onglets
 
 | Onglet | Contenu |
 |---|---|
 | **Équipement** | Grille, cartes de correctifs, gemmage par châsse, contenu des sacs, jauge, statistiques secondaires, priorité mesurée |
-| **Recommandations** | Ce qu'il faut **poser**, par catégorie : enchantements, gemmes par rang de châsse, bijoux, correctifs, buffs au pull, provenance complète |
-| **Raid** | Rencontres et table de butin, façon journal des aventures. Alimenté par tes droptimizers |
-| **Guilde** | Roster et couverture droptimizer, plus une sous-vue Raid : qui a besoin de quoi |
-| **Aide** | Six cartes : d'où vient la référence, comment la garder à jour, comment lire l'onglet Équipement, questions fréquentes, signalement |
+| **Recommandations** | Ce qu'il faut **poser** : l'enchantement de chaque emplacement avec son taux d'adoption, puis les gemmes les plus posées de ta spé — classées globalement, parce que le choix du châssis t'appartient |
+| **Raid** | Rencontres et table de butin, filtrées sur ta spé. Un droptimizer remplace l'estimation par du gain mesuré |
+| **Guilde** | Combien de membres sont prêts, quel gain la guilde a devant elle, et qui a besoin de quoi sur chaque boss |
+| **Aide** | D'où vient la référence, comment lire l'onglet Équipement, questions fréquentes, signalement |
 
 ### Intégration aux infobulles
 
@@ -176,15 +172,22 @@ passe verte, orange ou rouge selon l'état, sans avoir à ouvrir la fenêtre.
 ## La boucle d'utilisation
 
 ```
-1.  /sa                      → ce qui manque, tout de suite
+1.  /gp                      → ce qui manque, tout de suite
 2.  Corriger enchants et gemmes
-3.  "Copier pour droptimizer" → coller sur raidbots.com/simbot/droptimizer
-4.  "Coller le lien droptimizer" → le lien du rapport revient dans l'addon
-5.  Onglet Raid              → quel boss vaut le coup, objet par objet
+3.  Onglet Raid              → quel boss vaut le coup, objet par objet
 ```
 
-Les étapes 3 à 5 sont facultatives. Sans droptimizer, l'addon fait déjà tout l'audit
-d'équipement — il se contente de ne pas chiffrer ce qu'il ne peut pas mesurer.
+Et si tu veux du gain **mesuré** plutôt qu'un écart de niveau d'objet :
+
+```
+4.  "Copier pour droptimizer" → coller sur raidbots.com/simbot/droptimizer
+5.  "Coller le lien droptimizer" → coller le lien du rapport
+6.  GearProof te rend l'adresse de ses données : l'ouvrir, tout copier, recoller
+```
+
+Neuf kilo-octets de texte, aucun outil à installer, pas de `/reload`. Les étapes 4 à 6
+sont facultatives : sans elles l'audit fonctionne entièrement — il se contente de ne pas
+chiffrer ce qu'il ne peut pas mesurer.
 
 ---
 
@@ -192,32 +195,31 @@ d'équipement — il se contente de ne pas chiffrer ce qu'il ne peut pas mesurer
 
 | Commande | Effet |
 |---|---|
-| `/sa` | Ouvre ou ferme la fenêtre |
-| `/sa gear` | Onglet Équipement, et le résumé dans le chat |
-| `/sa bags` | Alias de `/sa gear` |
-| `/sa guild` | Onglet Guilde et tournée de guilde |
-| `/sa simc` | Copie la chaîne SimulationCraft |
-| `/sa droptimizer` | Lien du droptimizer, prêt à copier |
-| `/sa weights <chaîne Pawn>` | Enregistre tes poids de statistiques |
-| `/sa lang <auto\|en\|fr>` | Langue de l'interface |
-| `/sa theme` | Bascule l'habillage : sombre → minimal → Blizzard |
-| `/sa alerts` | Active ou coupe le rappel à l'entrée en instance |
-| `/sa minimap` | Affiche ou masque l'icône de minicarte |
-| `/sa help` | Onglet Aide et liste des commandes |
-| `/sa simcdiag` | Diagnostic de l'export SimulationCraft |
-| `/sa debug` | Messages de debug |
+| `/gp` | Ouvre ou ferme la fenêtre |
+| `/gp gear` | Onglet Équipement, et le résumé dans le chat |
+| `/gp reco` | Onglet Recommandations |
+| `/gp simc` | Copie la chaîne SimulationCraft |
+| `/gp droptimizer` | Lien du droptimizer, et collage du rapport |
+| `/gp weights <chaîne Pawn>` | Enregistre tes poids de statistiques |
+| `/gp guild` | Onglet Guilde et tournée de guilde |
+| `/gp options` | Panneau de réglages |
+| `/gp theme` | Bascule l'habillage : sombre → minimal → Blizzard |
+| `/gp lang <auto\|en\|fr>` | Langue de l'interface |
+| `/gp alerts` | Active ou coupe le rappel à l'entrée en instance |
+| `/gp minimap` | Affiche ou masque l'icône de minicarte |
+| `/gp help` | Onglet Aide et liste des commandes |
 
-`/specanalyser` fonctionne partout à la place de `/sa`.
+`/gearproof` et `/sa` font la même chose que `/gp`.
 
 ---
 
 ## Poids de statistiques
 
-Pour classer les objets de tes sacs, l'addon a besoin de tes poids — ceux de **ta**
-simulation, pas d'une moyenne.
+Pour classer les objets de tes sacs en points de statistique, l'addon a besoin de tes
+poids — ceux de **ta** simulation, pas d'une moyenne.
 
 ```
-/sa weights ( Pawn: v1: "Havoc": Agility=1, CriticalStrike=0.81, Haste=0.94, ... )
+/gp weights ( Pawn: v1: "Havoc": Agility=1, CriticalStrike=0.81, Haste=0.94, ... )
 ```
 
 Sans poids, une pièce se classe par niveau d'objet et porte la mention « demande une
@@ -246,42 +248,11 @@ par un champ de saisie déjà sélectionné : `Ctrl+A` puis `Ctrl+C`.
 
 ---
 
-## Garder la référence à jour
+## Signaler un bug, proposer une idée
 
-**Rien à faire.** Le relevé est livré avec l'addon et daté : chaque version apporte un
-relevé neuf. L'onglet Aide affiche l'âge de celui qui est installé, et l'entête passe
-l'information en orange au-delà de deux semaines.
+Onglet **Aide**, carte du bas : les deux boutons préparent un texte prêt à coller, avec
+la version, le build du client, ta classe, ton ilvl et ta langue déjà remplis — c'est
+exactement ce qu'on demanderait sinon.
 
-La seule étape qui te demande quelque chose est le droptimizer, et elle est facultative :
-sans lui, l'audit fonctionne — il refuse simplement de chiffrer ce qu'il ne peut pas
-mesurer.
-
-### Régénérer soi-même (facultatif)
-
-Avec l'outil Python `specanalyser`, qui n'est pas nécessaire pour utiliser l'addon :
-
-```bash
-specanalyser wcl meta --zone <id> --all --to-addon      # le relevé du haut de tableau
-specanalyser raidbots <lien du rapport> --to-addon      # tes propres gains simulés
-```
-
-Puis `/reload` en jeu : un fichier de données généré n'est lu qu'au chargement de
-l'interface.
-
-L'outil Python `specanalyser` vit dans `C:\Claude\python\projets\specanalyser` — il
-garde son nom : c'est un outil d'analyse, pas l'addon.
-
----
-
-## Développement
-
-```bash
-tools\check_addon.cmd
-```
-
-Syntaxe, encodage, cohérence des traductions, références croisées entre modules. À
-lancer après toute modification, avant de copier dans le dossier de jeu — aucun
-interpréteur Lua n'est installé sur la machine de développement.
-
-L'architecture, les décisions techniques et les pièges d'API rencontrés sont dans
-[`CLAUDE.md`](CLAUDE.md).
+Licence MIT — voir [`LICENSE`](LICENSE). Provenance des données livrées :
+[`NOTICE.md`](NOTICE.md). Historique des versions : [`CHANGELOG.md`](CHANGELOG.md).

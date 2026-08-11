@@ -9,6 +9,25 @@ ns.version = C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadat
 -- deploiement.
 ns.build = (type(GearProofBuild) == "string" and GearProofBuild ~= "dev") and GearProofBuild or nil
 
+-- Adresse du projet, LUE DANS LE .toc.
+--
+-- Elle vit a un seul endroit — `## X-Website` — et l'addon la recupere plutot que de la
+-- redeclarer. Le bouton « Signaler un bug » fabriquait un rapport parfaitement formate
+-- qui n'avait aucune destination : le joueur obtenait un texte impeccable et nulle part
+-- ou le poser.
+local function metadata(field)
+    if not C_AddOns or not C_AddOns.GetAddOnMetadata then return nil end
+    local ok, value = pcall(C_AddOns.GetAddOnMetadata, addonName, field)
+    return (ok and type(value) == "string" and value ~= "") and value or nil
+end
+
+-- Meme traitement que `"dev"` plus haut : tant que le depot n'existe pas, le .toc porte
+-- un gabarit. Afficher une adresse qui renvoie sur une 404 est pire que n'en afficher
+-- aucune — le joueur suit le lien, ne trouve rien, et conclut que l'addon est abandonne.
+ns.website = metadata("X-Website")
+if ns.website and ns.website:find("REMPLACER", 1, true) then ns.website = nil end
+ns.issues = ns.website and (ns.website .. "/issues") or nil
+
 -- Depuis Midnight (12.0), COMBAT_LOG_EVENT_UNFILTERED est interdit aux addons et les
 -- valeurs de combat sont des "secret values". Cet addon ne lit donc AUCUNE donnee de
 -- combat : il declenche la journalisation fichier, enregistre des metadonnees de session,
@@ -222,22 +241,26 @@ SLASH_GEARPROOF1 = "/gearproof"
 SLASH_GEARPROOF2 = "/gp"
 SLASH_GEARPROOF3 = "/sa"
 
+-- Une seule commande affichee. La liste melangeait `/sa` et `/gp` selon la ligne, ce qui
+-- se lit comme deux addons : `/gp` est la forme courte de ce produit, `/sa` un alias
+-- garde pour ceux qui viennent de SpecAnalyser, mentionne une fois en bas.
 local function usage()
     local c = "|cff00B0FF"
     ns.Print("commands:")
-    print("  " .. c .. "/sa|r — open the window")
-    print("  " .. c .. "/sa gear|r — gear audit in the chat")
-    print("  " .. c .. "/sa simc|r — copy the SimulationCraft string")
-    print("  " .. c .. "/sa droptimizer|r — droptimizer link and result paste")
-    print("  " .. c .. "/sa weights <Pawn string>|r — store your stat weights")
-    print("  " .. c .. "/sa guild|r — guild roll call")
-    print("  " .. c .. "/sa theme|r — cycle the skin")
+    print("  " .. c .. "/gp|r — open the window")
+    print("  " .. c .. "/gp gear|r — gear audit in the chat")
     print("  " .. c .. "/gp reco|r — what to put on, by category")
+    print("  " .. c .. "/gp simc|r — copy the SimulationCraft string")
+    print("  " .. c .. "/gp droptimizer|r — droptimizer link and result paste")
+    print("  " .. c .. "/gp weights <Pawn string>|r — store your stat weights")
+    print("  " .. c .. "/gp guild|r — guild roll call")
     print("  " .. c .. "/gp options|r — settings panel")
-    print("  " .. c .. "/sa lang <auto|en|fr>|r — interface language")
-    print("  " .. c .. "/sa alerts|r — gear warning when entering an instance")
-    print("  " .. c .. "/sa minimap|r — show or hide the minimap icon")
-    print("  " .. c .. "/sa reload|r — reload the interface")
+    print("  " .. c .. "/gp theme|r — cycle the skin")
+    print("  " .. c .. "/gp lang <auto|en|fr>|r — interface language")
+    print("  " .. c .. "/gp alerts|r — gear warning when entering an instance")
+    print("  " .. c .. "/gp minimap|r — show or hide the minimap icon")
+    print("  " .. c .. "/gp reload|r — reload the interface")
+    print("  |cff808080/gearproof and /sa do the same|r")
 end
 
 -- La cle de SlashCmdList doit reprendre exactement le suffixe des globales SLASH_*.

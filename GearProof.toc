@@ -1,11 +1,14 @@
 ## Interface: 120007
 ## Title: GearProof
 ## Notes: Your gear, checked against what the top 20 of your spec actually wear.
+## Notes-frFR: Ton equipement, confronte a ce que portent reellement les 20 meilleurs de ta spe.
 ## Author: Edouard
 ## Version: 0.5.0
+## X-License: MIT
+## X-Website: https://github.com/REMPLACER-MOI/GearProof
 ## SavedVariables: GearProofDB
 ## OptionalDeps: SimulationCraft
-## Category: Combat
+## Category: Character Advancement
 ## IconTexture: Interface\Icons\INV_Misc_Book_09
 
 Core.lua
