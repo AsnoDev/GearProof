@@ -21,7 +21,11 @@ import re
 
 from common import ADDON_ROOT, Report, lua_files, run
 
-LOCALE_FILE = ADDON_ROOT / "Locale.lua"
+# Le mecanisme vit dans Locale.lua, les tables dans Locale/<code>.lua. Ce verificateur
+# lit les secondes et ignore le premier, dans les deux sens : ni source de traductions,
+# ni consommateur de cles a confronter au code.
+LOCALE_DIR = ADDON_ROOT / "Locale"
+MECHANISM = "Locale.lua"
 
 # Une cle Lua entre crochets, guillemets doubles, echappements geres.
 KEY = r'\["((?:[^"\\]|\\.)*)"\]'
@@ -70,10 +74,24 @@ DYNAMIC_KEYS = {
 }
 
 
-def blocks(source: str) -> dict[str, str]:
-    """Corps de chaque `translations.<code> = { ... }`, par code de langue."""
+def blocks() -> dict[str, tuple[str, str]]:
+    """Corps de chaque table de traduction, par code de langue.
+
+    Retourne `{ code: (fichier, corps) }`. Le code vient de `ns.translations.<code>` et
+    non du nom de fichier : c'est l'affectation qui compte a l'execution, et un
+    `Locale/de.lua` qui ecrirait dans `translations.fr` doit etre vu comme du francais en
+    double, pas comme de l'allemand.
+    """
     found = {}
-    for match in re.finditer(r"translations\.(\w+)\s*=\s*\{", source):
+    for path in sorted(LOCALE_DIR.glob("*.lua")):
+        source = path.read_text(encoding="utf-8")
+        for code, body in _tables(source):
+            found[code] = (f"Locale/{path.name}", body)
+    return found
+
+
+def _tables(source: str):
+    for match in re.finditer(r"(?:ns\.)?translations\.(\w+)\s*=\s*\{", source):
         code = match.group(1)
         start = match.end()
         depth = 1
@@ -85,30 +103,30 @@ def blocks(source: str) -> dict[str, str]:
             elif char == "}":
                 depth -= 1
             index += 1
-        found[code] = source[start:index - 1]
-    return found
+        yield code, source[start:index - 1]
 
 
 def main() -> int:
     report = Report("locale")
-    source = LOCALE_FILE.read_text(encoding="utf-8")
-    bodies = blocks(source)
+    bodies = blocks()
 
     if REFERENCE not in bodies:
-        report.error("Locale.lua", f"bloc translations.{REFERENCE} introuvable")
+        report.error(f"Locale/{REFERENCE}.lua",
+                     f"aucune table `ns.translations.{REFERENCE}` dans Locale/")
         return report.finish()
 
     # 1. doublons, dans chaque langue
-    for code, body in sorted(bodies.items()):
+    for code, (where, body) in sorted(bodies.items()):
         keys = re.findall(KEY + r"\s*=", body)
         for key, count in sorted(collections.Counter(keys).items()):
             if count > 1:
                 report.error(
-                    f"Locale.lua [{code}]",
+                    f"{where} [{code}]",
                     f"cle declaree {count} fois, la derniere gagne en silence : {key!r}",
                 )
 
-    reference_keys = set(re.findall(KEY + r"\s*=", bodies[REFERENCE]))
+    reference_file, reference_body = bodies[REFERENCE]
+    reference_keys = set(re.findall(KEY + r"\s*=", reference_body))
 
     # 2 et 3. confrontation au code
     # Deux formes de consommation :
@@ -116,9 +134,13 @@ def main() -> int:
     #   ns.Localize(widget, "cle", ...) — libelle pose une fois et retraduit a chaud
     LOCALIZE = r'ns\.Localize\s*\([^,]+,\s*"((?:[^"\\]|\\.)*)"'
 
+    translation_files = {where for where, _ in bodies.values()}
+
     used: dict[str, str] = {}
     for where, path in lua_files():
-        if where == "Locale.lua":
+        # Ni le mecanisme ni les tables : les premieres cles y sont declarees, pas
+        # consommees, et les compter comme references rendrait toute orpheline invisible.
+        if where == MECHANISM or where.replace("\\", "/") in translation_files:
             continue
         text = path.read_text(encoding="utf-8")
         for line_number, line in enumerate(text.splitlines(), start=1):
@@ -132,7 +154,7 @@ def main() -> int:
 
     orphans = sorted(reference_keys - set(used) - DYNAMIC_KEYS)
     for key in orphans:
-        report.warn(f"Locale.lua [{REFERENCE}]", f"cle jamais referencee : {key!r}")
+        report.warn(f"{reference_file} [{REFERENCE}]", f"cle jamais referencee : {key!r}")
 
     print(f"       {len(reference_keys)} cles {REFERENCE}, "
           f"{len(used)} referencees dans le code, {len(orphans)} orphelines")

@@ -99,7 +99,7 @@ function Options.Create()
     title:SetText(PANEL_NAME .. "  |cff8A8A8A" .. (ns.version or "?") .. "|r")
 
     local intro = label(panel, "", title, -8, "GameFontHighlightSmall")
-    intro:SetWidth(520)
+    intro:SetPoint("RIGHT", panel, "RIGHT", -16, 0)
     intro:SetJustifyH("LEFT")
     ns.Localize(intro, "Nothing needs configuring: the measured reference ships with the addon.")
 
@@ -145,7 +145,7 @@ function Options.Create()
     anchor = checkbox(panel, anchor, "debug", "Debug messages", nil, false)
 
     local reference = label(panel, "", anchor, -18, "GameFontDisableSmall")
-    reference:SetWidth(520)
+    reference:SetPoint("RIGHT", panel, "RIGHT", -16, 0)
     reference:SetJustifyH("LEFT")
     ns.Localize(reference,
         "Reference measured from Warcraft Logs rankings, outside the game, and shipped with the addon")

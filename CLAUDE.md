@@ -27,7 +27,8 @@ journal fichier reste la source de vérité de l'outil Python, pas de l'addon.
 | Fichier | Rôle |
 |---|---|
 | `Core.lua` | Namespace `ns`, SavedVariables, dispatch d'événements sous `pcall`, `/sa` |
-| `Locale.lua` | Traductions **en/fr uniquement** ; la clé EST le texte anglais. `ns.Localize` retient les libellés posés une fois, pour le changement de langue à chaud |
+| `Locale.lua` | **Mécanisme** de traduction : la table `L`, `ns.Localize` (retient les libellés posés une fois, pour le changement de langue à chaud), `ns.ApplyLanguage` |
+| `Locale/fr.lua` | **Données** de traduction. La clé EST le texte anglais, donc l'anglais n'a pas de fichier. Une langue de plus = un fichier, une ligne dans `CLIENT_MAP`, une dans `ns.LANGUAGES`, une dans le `.toc` |
 | `Theme.lua` | Trois habillages (`dark` par défaut, `minimal`, `blizzard`), registre de cadres + `Theme.Track` pour les cartes hors cadre enregistré |
 | `Copy.lua` | Fenêtre de copie partagée (WoW n'accède pas au presse-papier) |
 | `ItemInfo.lua` | **Lecteur unique** de `GetItemInfo` : les 17 positions nommées, une fois |
@@ -64,7 +65,8 @@ journal fichier reste la source de vérité de l'outil Python, pas de l'addon.
 |---|---|
 | `Armory.lua` | Grille : modèle 3D + 16 cases colorées par état |
 | `Gauge.lua` | Jauge circulaire — **compte** les correctifs, ne note pas |
-| `GearView.lua` | Onglet Équipement : cartes triées par gain, gemmes, détail, barres de stats |
+| `GearView.lua` | Onglet Équipement, colonnes gauche et centre : grille, verdict, cartes de correctif (une ligne de 28 px), gemmes, détail, sacs |
+| `GearSide.lua` | Onglet Équipement, colonne droite : jauge, barres de stats, priorité, ensemble de classe, bloc droptimizer. Interface réduite à `Create(parent)` / `Refresh(summary)`, pool de lignes propre |
 | `RaidView.lua` | Onglet Raid : rencontres et table de butin |
 | `GuildView.lua` | Onglet Guilde : roster et sous-vue Raid |
 | `RecoView.lua` | Onglet Recommandations : ce qu'il faut POSER, par categorie |
@@ -97,7 +99,7 @@ calculer. C'est le différenciant qu'il ne faut pas perdre une seconde fois.
 Reste non lu dans les données : `p25` / `p75` / `spread` — la dispersion. Une piste, pas
 une dette : ils diraient si le top 20 est resserré ou dispersé sur une statistique.
 
-Les ~39 clés de locale encore orphelines sont d'anciens libellés de cet onglet non
+Les ~66 clés de locale encore orphelines sont d'anciens libellés de cet onglet non
 repris par la reconstruction. `tools/check_locale.py` les signale : c'est attendu tant
 que la mise en page n'est pas figée.
 
@@ -107,10 +109,35 @@ que la mise en page n'est pas figée.
 tools\check_addon.cmd
 ```
 
-Syntaxe (luaparser), encodage (UTF-8 strict, mojibake, CRLF), cohérence des traductions
-(doublons, clés manquantes, orphelines), références croisées entre modules et globales
-accidentelles. Aucun interpréteur Lua n'est installé : c'est la seule validation
-automatique avant de copier dans le dossier de jeu.
+Quatre vérificateurs qui **lisent** le code — syntaxe (luaparser), encodage (UTF-8 strict,
+mojibake, CRLF), cohérence des traductions (doublons, clés manquantes, orphelines),
+références croisées et globales accidentelles — puis une suite qui l'**exécute**.
+
+`tools/test_lua.py` charge les fichiers dans **Lua 5.1** via `lupa` : la version exacte du
+client, `unpack` global et `table.unpack` absent. Deux familles de tests :
+
+- **Chargement de tout le `.toc`**, dans l'ordre du client. C'est le test le plus rentable
+  du dépôt : trois des pires pannes étaient des erreurs de chargement, dont un retour à la
+  ligne littéral dans une chaîne que `luaparser` acceptait et que WoW refusait — l'onglet
+  Raid est resté noir deux commits.
+- **Fonctions pures** dont une erreur ne lève rien : `ItemLink.Parse`, `Weights.ParsePawn`,
+  `Meta.WeaponPairAdvice`, `Guild.chunkPayload`, `SimC.itemLine`, `Core.migrateSchema`,
+  `Sim.pruneReports`.
+
+Aucune entrée de test n'existe dans le code livré : `tools/luaenv.py` exploite le fait
+qu'un `local` de portée fichier est encore visible à la fin du chunk, et concatène un
+`return { ... }` avant de compiler.
+
+Toute modification d'un vérificateur se teste **dans les deux sens** : zéro erreur sur
+l'arbre propre, exactement l'erreur attendue quand le bug est réintroduit.
+
+```bash
+tools\package.cmd
+```
+
+Fabrique le zip CurseForge dans `../_dist`, racine `GearProof/`. Il refuse de produire
+quoi que ce soit si la validation échoue, si `LICENSE`/`CHANGELOG.md` manquent, ou si
+`## X-Website` porte encore son gabarit.
 
 ## Interface
 

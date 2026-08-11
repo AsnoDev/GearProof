@@ -18,7 +18,7 @@ from __future__ import annotations
 import sys
 
 from common import Report, run
-from luaenv import new_runtime
+from luaenv import ADDON_ROOT, new_runtime
 
 
 class Suite:
@@ -333,9 +333,50 @@ def test_prune_reports(report: Report) -> None:
     suite.done()
 
 
+# ------------------------------------------------------ chargement de tout le .toc
+
+def test_all_files_load(report: Report) -> None:
+    """Chaque fichier livre se compile ET s'execute, dans l'ordre du .toc.
+
+    C'est le test qui aurait coute le moins cher et rapporte le plus. Trois des pires
+    pannes de ce depot etaient des erreurs de CHARGEMENT, pas de logique :
+
+      - un retour a la ligne litteral dans une chaine — WoW refusait le fichier entier,
+        `luaparser` l'acceptait, et l'onglet Raid est reste noir deux commits durant ;
+      - un champ de table utilise avant d'etre cree ;
+      - un `local` de portee fichier declare apres la fermeture qui l'ecrit.
+
+    Un vrai `loadstring` Lua 5.1 rejette la premiere exactement comme le client. Les deux
+    autres deviennent visibles des que le fichier s'execute.
+
+    L'ordre vient du .toc, pas d'une liste tenue ici : c'est l'ordre du client, et une
+    dependance posee trop tard doit echouer ici avant d'echouer en jeu.
+    """
+    suite = Suite(report, "chargement")
+
+    toc = (ADDON_ROOT / "GearProof.toc").read_text(encoding="utf-8")
+    files = [line.strip().replace("\\", "/") for line in toc.splitlines()
+             if line.strip().lower().endswith(".lua")]
+
+    suite.truthy("le .toc liste des fichiers", files)
+    for name in files:
+        suite.truthy(f"{name} existe", (ADDON_ROOT / name).is_file())
+
+    # `locale=False` : pas de `ns.L` de complaisance. Locale.lua est dans la liste et doit
+    # le fournir lui-meme, a sa place dans l'ordre — sinon on validerait un ordre de
+    # chargement que le client, lui, refuserait.
+    try:
+        new_runtime(files, locale=False)
+    except Exception as error:  # noqa: BLE001
+        report.error("chargement", f"{type(error).__name__}: {error}")
+
+    suite.done()
+
+
 def main() -> int:
     report = Report("tests Lua")
-    for test in (test_item_link, test_weights, test_weapon_pair, test_chunk_payload,
+    for test in (test_all_files_load,
+                 test_item_link, test_weights, test_weapon_pair, test_chunk_payload,
                  test_simc_item_line, test_schema_migration, test_prune_reports):
         try:
             test(report)

@@ -285,7 +285,12 @@ function RaidView.Create(parent)
 
     view.emptyBody = view.empty:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     view.emptyBody:SetPoint("TOP", view.emptyTitle, "BOTTOM", 0, -10)
-    view.emptyBody:SetWidth(420)
+    -- Largeur SUIVIE, pas figee : deux ancres horizontales font que le retour a la
+    -- ligne se recalcule quand la fenetre est redimensionnee. Un `SetWidth` en dur
+    -- laissait le texte a sa largeur d'origine, centre dans un vide de plus en plus
+    -- large — ou tronque si la fenetre retrecissait.
+    view.emptyBody:SetPoint("LEFT", view.empty, "LEFT", 40, 0)
+    view.emptyBody:SetPoint("RIGHT", view.empty, "RIGHT", -40, 0)
     view.emptyBody:SetJustifyH("CENTER")
     view.emptyBody:SetSpacing(3)
 
@@ -294,7 +299,8 @@ function RaidView.Create(parent)
     -- qu'il annonce est pire que pas de bouton.
     view.emptyHow = view.empty:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     view.emptyHow:SetPoint("TOP", view.emptyBody, "BOTTOM", 0, -18)
-    view.emptyHow:SetWidth(460)
+    view.emptyHow:SetPoint("LEFT", view.empty, "LEFT", 30, 0)
+    view.emptyHow:SetPoint("RIGHT", view.empty, "RIGHT", -30, 0)
     view.emptyHow:SetJustifyH("CENTER")
     view.emptyHow:SetSpacing(4)
 

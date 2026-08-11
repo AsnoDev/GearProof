@@ -8,19 +8,66 @@ local L = ns.L
 -- Tableau de la guilde : une ligne par membre equipe de l'addon.
 
 local ROW_HEIGHT = 22
--- Largeur des colonnes du roster. Les decalages de `layoutRosterRow` sont calibres
--- dessus : les changer sans changer celle-ci fait chevaucher les colonnes.
-local ROSTER_WIDTH = 560
 -- Bande de chiffres de tete, a droite du tableau.
 local SUMMARY_WIDTH = 190
+
+-- UN modele de colonnes, pour le tableau ET pour son entete.
+--
+-- Il y en avait trois : les largeurs posees a la creation de la ligne, celles reposees par
+-- `layoutRosterRow`, celles reposees par `layoutRaidRow` — et une quatrieme, implicite,
+-- dans l'entete, qui etait une chaine bourree d'espaces
+-- (« name            spec          ilvl    fixes     last sim ») censee tomber en face.
+-- Le commentaire de `ROSTER_WIDTH` l'assumait : « les changer sans changer celle-ci fait
+-- chevaucher les colonnes ». Quatre sources pour une meme grille, dont une non calculable.
+--
+-- Les colonnes de droite ont une largeur FIXE — elles portent des nombres, dont la place
+-- ne depend pas de la fenetre. Le nom prend ce qui reste : c'est la seule colonne dont
+-- l'allongement sert a quelque chose. Le tableau suit donc la largeur reelle du cadre au
+-- lieu de s'arreter a 560 px avec un vide a droite.
+local COLUMNS = {
+    { key = "spec",  width = 150, justify = "LEFT" },
+    { key = "ilvl",  width = 62,  justify = "LEFT" },
+    { key = "fixes", width = 76,  justify = "LEFT" },
+    { key = "sim",   width = 128, justify = "LEFT" },
+}
+local NAME_MIN = 90
+local ROW_PADDING = 8
+
 local view, rows
 local guildMode = "roster"
+
+--- Pose les cinq colonnes d'une ligne. Sert aussi a l'entete, qui a les memes champs.
+--- @param widths table|nil largeurs de remplacement, par cle (sous-vue Raid)
+local function layoutColumns(row, width, widths)
+    local fixed = 0
+    for _, column in ipairs(COLUMNS) do
+        fixed = fixed + ((widths and widths[column.key]) or column.width)
+    end
+
+    row.name:ClearAllPoints()
+    row.name:SetPoint("LEFT", ROW_PADDING, 0)
+    row.name:SetWidth(math.max(NAME_MIN, width - fixed - ROW_PADDING * 2))
+    row.name:SetJustifyH("LEFT")
+    row.name:SetWordWrap(false)
+
+    local offset = ROW_PADDING + math.max(NAME_MIN, width - fixed - ROW_PADDING * 2)
+    for _, column in ipairs(COLUMNS) do
+        local field = row[column.key]
+        local columnWidth = (widths and widths[column.key]) or column.width
+        field:ClearAllPoints()
+        field:SetPoint("LEFT", offset, 0)
+        field:SetWidth(columnWidth)
+        field:SetJustifyH(column.justify)
+        field:SetWordWrap(false)
+        offset = offset + columnWidth
+    end
+end
 
 -- Declarations en amont. Ces trois fonctions sont definies plus bas, avec la sous-vue Raid,
 -- mais `GuildView.Refresh` les appelle : sans cette declaration, un `local function` place
 -- apres l'appelant n'est pas en portee et l'appel part chercher un global inexistant. C'est
 -- exactement ce qui a casse le bouton de tournee.
-local layoutRaidRow, layoutRosterRow, itemName
+local layoutRaidRow, layoutRosterRow, itemName, setHeader, columnHeadings
 
 local function hex(key)
     return ns.Theme.C(key)
@@ -105,29 +152,14 @@ local function acquireRow(index)
     row:SetHeight(ROW_HEIGHT)
     row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
 
+    -- Aucune position ni largeur ici : `layoutColumns` les pose au rendu, quand la largeur
+    -- du cadre est connue. Les fixer a la creation, c'etait la premiere des quatre sources
+    -- de verite.
     row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    row.name:SetPoint("LEFT", 8, 0)
-    row.name:SetWidth(130)
-    row.name:SetJustifyH("LEFT")
-
     row.spec = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    row.spec:SetPoint("LEFT", 142, 0)
-    row.spec:SetWidth(110)
-    row.spec:SetJustifyH("LEFT")
-
     row.ilvl = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.ilvl:SetPoint("LEFT", 256, 0)
-    row.ilvl:SetWidth(60)
-    row.ilvl:SetJustifyH("LEFT")
-
     row.fixes = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.fixes:SetPoint("LEFT", 320, 0)
-    row.fixes:SetWidth(90)
-    row.fixes:SetJustifyH("LEFT")
-
     row.sim = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.sim:SetPoint("LEFT", 414, 0)
-    row.sim:SetJustifyH("LEFT")
 
     rows[index] = row
     return row
@@ -146,7 +178,7 @@ function GuildView.Create(parent)
 
     view.hint = view:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     view.hint:SetPoint("TOPLEFT", 2, -26)
-    view.hint:SetWidth(600)
+    view.hint:SetPoint("RIGHT", view, "RIGHT", -(SUMMARY_WIDTH + 40), 0)
     view.hint:SetJustifyH("LEFT")
     ns.Localize(view.hint, "Members running GearProof answer the roll call. Nothing is sent unless sharing is on.")
 
@@ -208,8 +240,18 @@ function GuildView.Create(parent)
     view.coverage:SetPoint("TOPLEFT", 210, -78)
     view.coverage:SetJustifyH("LEFT")
 
-    view.header = view:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    view.header:SetPoint("TOPLEFT", 8, -102)
+    -- L'entete est une LIGNE, avec les memes champs qu'une ligne de donnees, posee par le
+    -- meme `layoutColumns`. C'etait une seule chaine bourree d'espaces censee tomber en
+    -- face des colonnes : elle ne pouvait s'aligner avec aucune d'elles — la police n'est
+    -- pas a chasse fixe — et il fallait la retoucher a la main a chaque changement de
+    -- largeur. Elle ne peut plus deriver : elle EST le modele.
+    view.header = CreateFrame("Frame", nil, view)
+    view.header:SetHeight(ROW_HEIGHT)
+    view.header:SetPoint("TOPLEFT", 0, -100)
+
+    for _, key in ipairs({ "name", "spec", "ilvl", "fixes", "sim" }) do
+        view.header[key] = view.header:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    end
 
     -- Bande de chiffres de tete, a droite.
     --
@@ -261,7 +303,12 @@ function GuildView.Create(parent)
 
     view.emptyBody = view.empty:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     view.emptyBody:SetPoint("TOP", view.emptyTitle, "BOTTOM", 0, -10)
-    view.emptyBody:SetWidth(460)
+    -- Largeur SUIVIE, pas figee : deux ancres horizontales font que le retour a la
+    -- ligne se recalcule quand la fenetre est redimensionnee. Un `SetWidth` en dur
+    -- laissait le texte a sa largeur d'origine, centre dans un vide de plus en plus
+    -- large — ou tronque si la fenetre retrecissait.
+    view.emptyBody:SetPoint("LEFT", view.empty, "LEFT", 40, 0)
+    view.emptyBody:SetPoint("RIGHT", view.empty, "RIGHT", -40, 0)
     view.emptyBody:SetJustifyH("CENTER")
     view.emptyBody:SetSpacing(3)
 
@@ -321,16 +368,13 @@ function GuildView.Refresh()
         return
     end
 
-    view.header:SetText(L["name            spec          ilvl    fixes     last sim"])
-
-    -- La largeur du conteneur est REMISE a celle du roster.
-    --
-    -- La sous-vue Raid l'elargit a toute la fenetre et ne la restaurait jamais : revenir
-    -- au roster laissait un conteneur large avec des lignes ancrees pour 560 px, et les
-    -- colonnes se chevauchaient. Les deux sous-vues partagent les memes FontStrings, donc
-    -- chacune doit poser SA largeur, a chaque fois.
-    local width = ROSTER_WIDTH
+    -- Les deux sous-vues partagent les memes FontStrings : chacune pose SA largeur, a
+    -- chaque fois. Le roster restait auparavant a 560 px en dur, ce qui laissait un vide a
+    -- droite sur une fenetre agrandie ; il prend maintenant la largeur reelle, comme la
+    -- sous-vue Raid.
+    local width = math.max(420, (view.scroll:GetWidth() or 700) - 8)
     view.content:SetWidth(width)
+    setHeader(width, columnHeadings())
 
     local list = ns.Guild.Roster()
     local offset = 0
@@ -367,13 +411,13 @@ function GuildView.Refresh()
     -- Etat vide, pas page noire. Une ligne grise en haut d'un onglet entierement vide se
     -- lit comme un addon casse, pas comme « il manque une action ».
     if #list <= 1 then
-        view.header:SetText("")
+        setHeader(width, nil)
         view.empty:Show()
         view.emptyTitle:SetText(hex("text") .. L["Nobody has answered yet."] .. "|r")
         view.emptyBody:SetText(hex("muted") .. L["Run the roll call: every guild member running GearProof answers with their spec, item level and pending fixes. Nothing is sent from your client unless you tick sharing."] .. "|r")
     else
         view.empty:Hide()
-        view.header:SetText(L["name            spec          ilvl    fixes     last sim"])
+        setHeader(width, columnHeadings())
     end
 
     view.content:SetHeight(math.max(1, offset))
@@ -387,58 +431,58 @@ end
 --- quand son droptimizer date.
 -- Les colonnes du roster sont calibrees pour des noms de personnage. Un nom d'objet fait deux
 -- a trois fois cette longueur et passait donc a la ligne, ce qui rendait la liste illisible.
--- La sous-vue Raid reancre les memes FontStrings sur toute la largeur disponible.
+--
+-- La sous-vue Raid garde donc le meme modele mais RETRECIT les colonnes de droite : le nom
+-- recupere ce qu'elles rendent. C'est un remplacement de largeurs, pas une seconde grille —
+-- les positions restent calculees au meme endroit.
+local RAID_WIDTHS = { spec = 150, ilvl = 70, fixes = 70, sim = 80 }
+
 layoutRaidRow = function(row, width)
     row:SetWidth(width)
-
-    row.name:ClearAllPoints()
-    row.name:SetPoint("LEFT", 8, 0)
-    row.name:SetWidth(width - 400)
-    row.name:SetWordWrap(false)
-
-    row.spec:ClearAllPoints()
-    row.spec:SetPoint("LEFT", width - 384, 0)
-    row.spec:SetWidth(150)
-    row.spec:SetWordWrap(false)
-
-    row.ilvl:ClearAllPoints()
-    row.ilvl:SetPoint("LEFT", width - 226, 0)
-    row.ilvl:SetWidth(70)
-
-    row.fixes:ClearAllPoints()
-    row.fixes:SetPoint("LEFT", width - 150, 0)
-    row.fixes:SetWidth(70)
-
-    row.sim:ClearAllPoints()
-    row.sim:SetPoint("RIGHT", -8, 0)
-    row.sim:SetWidth(74)
+    layoutColumns(row, width, RAID_WIDTHS)
     row.sim:SetJustifyH("RIGHT")
 end
 
---- Rend les ancres d'origine, pour que le tableau du roster reste intact.
+--- Colonnes du roster : le modele commun, sans remplacement.
 layoutRosterRow = function(row, width)
     row:SetWidth(width)
+    layoutColumns(row, width)
+end
 
-    row.name:ClearAllPoints()
-    row.name:SetPoint("LEFT", 8, 0)
-    row.name:SetWidth(130)
+--- Libelles de colonnes du roster.
+columnHeadings = function()
+    return {
+        name = L["name"], spec = L["spec"], ilvl = L["ilvl"],
+        fixes = L["fixes"], sim = L["last sim"],
+    }
+end
 
-    row.spec:ClearAllPoints()
-    row.spec:SetPoint("LEFT", 142, 0)
-    row.spec:SetWidth(110)
+--- Pose l'entete. Avec `headings`, une ligne de colonnes ; sans, un simple bandeau.
+---
+--- Un seul chemin pour les deux : la sous-vue Raid s'en sert comme d'une phrase, le roster
+--- comme d'un entete de tableau, et l'un ne doit pas laisser de texte derriere lui quand
+--- l'autre prend la main.
+setHeader = function(width, headings, banner)
+    local fields = { "name", "spec", "ilvl", "fixes", "sim" }
 
-    row.ilvl:ClearAllPoints()
-    row.ilvl:SetPoint("LEFT", 256, 0)
-    row.ilvl:SetWidth(60)
+    if headings then
+        layoutColumns(view.header, width)
+        for _, key in ipairs(fields) do
+            view.header[key]:SetText(hex("muted") .. (headings[key] or "") .. "|r")
+        end
+        return
+    end
 
-    row.fixes:ClearAllPoints()
-    row.fixes:SetPoint("LEFT", 320, 0)
-    row.fixes:SetWidth(60)
-
-    row.sim:ClearAllPoints()
-    row.sim:SetPoint("LEFT", 384, 0)
-    row.sim:SetWidth(170)
-    row.sim:SetJustifyH("LEFT")
+    for _, key in ipairs(fields) do
+        view.header[key]:SetText("")
+    end
+    if banner then
+        view.header.name:ClearAllPoints()
+        view.header.name:SetPoint("LEFT", ROW_PADDING, 0)
+        view.header.name:SetWidth(math.max(200, width - ROW_PADDING * 2))
+        view.header.name:SetWordWrap(false)
+        view.header.name:SetText(hex("muted") .. banner .. "|r")
+    end
 end
 
 itemName = function(itemID)
@@ -448,14 +492,14 @@ end
 function GuildView.RefreshRaid()
     local groups = ns.Guild.LootByEncounter()
     if not groups then
-        view.header:SetText(hex("muted")
-            .. L["No droptimizer shared yet. Run the roll call, and ask members to enable sharing."] .. "|r")
+        setHeader(math.max(420, (view.scroll:GetWidth() or 700) - 8), nil,
+            L["No droptimizer shared yet. Run the roll call, and ask members to enable sharing."])
         view.content:SetHeight(1)
         return
     end
 
-    view.header:SetText(hex("muted")
-        .. L["Loot per boss, ranked by the best gain in the guild. Hover an item for the ranking."] .. "|r")
+    setHeader(math.max(420, (view.scroll:GetWidth() or 700) - 8), nil,
+        L["Loot per boss, ranked by the best gain in the guild. Hover an item for the ranking."])
 
     -- Toute la largeur du panneau, pas les 560 px du tableau du roster.
     -- La zone de defilement s'arrete deja avant la bande de chiffres : on prend sa

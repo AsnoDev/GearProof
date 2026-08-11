@@ -13,6 +13,7 @@
 
 Core.lua
 Locale.lua
+Locale\fr.lua
 Theme.lua
 Copy.lua
 ItemInfo.lua
@@ -34,6 +35,7 @@ SimC.lua
 Guild.lua
 Armory.lua
 Gauge.lua
+GearSide.lua
 GearView.lua
 RaidView.lua
 GuildView.lua
