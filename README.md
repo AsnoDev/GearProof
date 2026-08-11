@@ -219,8 +219,11 @@ Pour classer les objets de tes sacs en points de statistique, l'addon a besoin d
 poids — ceux de **ta** simulation, pas d'une moyenne.
 
 ```
-/gp weights ( Pawn: v1: "Havoc": Agility=1, CriticalStrike=0.81, Haste=0.94, ... )
+/gp weights ( Pawn: v1: "Havoc": Agility=1, CritRating=0.81, HasteRating=0.94, MasteryRating=0.7, Versatility=0.66 )
 ```
+
+C'est l'écriture de Pawn et de Raidbots, avec les secondaires en `...Rating`. Les noms
+courts (`Haste`, `CriticalStrike`, `Mastery`) sont acceptés aussi.
 
 Sans poids, une pièce se classe par niveau d'objet et porte la mention « demande une
 simulation ». C'est délibéré : il y avait auparavant un repli qui dérivait les poids de

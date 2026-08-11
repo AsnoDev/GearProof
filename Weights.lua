@@ -25,15 +25,28 @@ Weights.STAT_KEYS = {
     ITEM_MOD_VERSATILITY = "versatility",
 }
 
--- Synonymes acceptes dans une chaine Pawn.
+-- Synonymes acceptes dans une chaine Pawn, en minuscules.
+--
+-- Pawn et Raidbots ecrivent les secondaires en `...Rating` — `HasteRating=1.02`. D'autres
+-- sources, et les gens qui tapent la chaine a la main, ecrivent le nom court. Les deux
+-- sont ici, et pas par confort : la fonction rend ses poids des qu'UNE cle est reconnue.
+-- Une chaine ou seule `Agility` etait comprise donnait donc des poids « valides » portant
+-- la seule statistique principale, et les sacs se classaient la-dessus sans que rien ne le
+-- signale. Le refus franc protege du zero reconnu, pas du un sur cinq.
 local PAWN_KEYS = {
     intellect = "intellect",
     agility = "agility",
     strength = "strength",
     hasterating = "haste",
+    haste = "haste",
     critrating = "crit",
+    crit = "crit",
+    criticalstrike = "crit",
+    criticalstrikerating = "crit",
     masteryrating = "mastery",
+    mastery = "mastery",
     versatility = "versatility",
+    versatilityrating = "versatility",
 }
 
 

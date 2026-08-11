@@ -1,0 +1,347 @@
+"""Tests des fonctions pures de l'addon, executees en Lua 5.1.
+
+Ce qui est teste ici a un point commun : une erreur ne leve rien. Elle produit un export
+SimulationCraft qui decrit un autre personnage, un conseil d'arme inverse, un message de
+guilde tronque au milieu d'un nom. Aucune ne se voit a la relecture, et aucune ne se
+voyait avec les verificateurs statiques, qui lisent la syntaxe sans jamais executer.
+
+Les fixtures de chaine d'objet sont construites champ par champ (`item_string`) plutot
+que recopiees : une chaine recopiee a la main est exactement le genre de donnee dont on
+ne sait plus, six mois plus tard, si elle etait juste.
+
+Usage :
+    tools\\test_lua.cmd
+"""
+
+from __future__ import annotations
+
+import sys
+
+from common import Report, run
+from luaenv import new_runtime
+
+
+class Suite:
+    """Constats de tests, meme sortie que les verificateurs statiques."""
+
+    def __init__(self, report: Report, name: str):
+        self.report = report
+        self.name = name
+        self.count = 0
+
+    def equal(self, label, actual, expected):
+        self.count += 1
+        if actual != expected:
+            self.report.error(f"{self.name}/{label}",
+                              f"attendu {expected!r}, obtenu {actual!r}")
+
+    def truthy(self, label, actual):
+        self.equal(label, bool(actual), True)
+
+    def falsy(self, label, actual):
+        self.equal(label, bool(actual), False)
+
+    def done(self):
+        """Compte des cas. Pas un avertissement : rien ne cloche."""
+        print(f"       {self.name}: {self.count} cas")
+
+
+def lua_list(table) -> list:
+    """Sequence Lua -> liste Python. `None` pour une table absente."""
+    if table is None:
+        return []
+    return [table[i] for i in range(1, len(table) + 1)]
+
+
+def item_string(item_id, enchant=0, gems=(), bonuses=(), modifiers=()):
+    """Fabrique une chaine d'objet CONFORME au format documente.
+
+    Ordre : itemID, enchantID, gem1..gem4, suffixID, uniqueID, linkLevel,
+    specializationID, modifiersMask, itemContext, numBonusIDs[, bonus...],
+    numModifiers[, type, valeur...]
+
+    `numBonusIDs` tombe donc en 13e position. C'est le coeur du bug du 2026-08-03 : lu en
+    14e, le compteur valait le premier identifiant de bonus.
+    """
+    gems = list(gems) + [0] * (4 - len(gems))
+    fields = [item_id, enchant, *gems, 0, 0, 80, 577, 0, 0, len(bonuses), *bonuses]
+    fields += [len(modifiers)]
+    for kind, value in modifiers:
+        fields += [kind, value]
+    return "|cffa335ee|Hitem:" + ":".join(str(f) for f in fields) + "|h[Objet]|h|r"
+
+
+# --------------------------------------------------------------------- ItemLink
+
+def test_item_link(report: Report) -> None:
+    suite = Suite(report, "ItemLink.Parse")
+    _, ns, _locals = new_runtime(["ItemLink.lua"])
+    parse = ns.ItemLink.Parse
+
+    # Le cas de reference : deux gemmes, six bonus, un modificateur.
+    parsed = parse(item_string(212014, enchant=7350, gems=[213743, 213482],
+                               bonuses=[6652, 1524, 8767, 8781, 8781, 1],
+                               modifiers=[(28, 2164)]))
+    suite.equal("itemID", parsed.itemID, 212014)
+    suite.equal("enchantID", parsed.enchantID, 7350)
+    suite.equal("gemmes", lua_list(parsed.gems), [213743, 213482])
+    suite.equal("bonus", lua_list(parsed.bonuses), [6652, 1524, 8767, 8781, 8781, 1])
+    suite.equal("content_tuning", parsed.contentTuning, 2164)
+
+    # LA regression du 2026-08-03. Si le compteur est relu en 14e position, le premier
+    # bonus disparait et le bloc de modificateurs se retrouve dans la liste.
+    parsed = parse(item_string(99, bonuses=[9, 6652, 1524], modifiers=[(28, 777)]))
+    suite.equal("compteur en 13e (bonus)", lua_list(parsed.bonuses), [9, 6652, 1524])
+    suite.equal("compteur en 13e (modif)", parsed.contentTuning, 777)
+
+    # Aucun bonus, aucun modificateur : le compteur vaut 0 et rien ne deborde.
+    parsed = parse(item_string(500))
+    suite.equal("sans bonus", lua_list(parsed.bonuses), [])
+    suite.equal("sans modificateur", parsed.contentTuning, None)
+
+    # Les gemmes vides ne sont pas des gemmes.
+    parsed = parse(item_string(500, gems=[213743, 0, 0, 0]))
+    suite.equal("gemme unique", lua_list(parsed.gems), [213743])
+
+    # Statistiques d'artisanat : deux identifiants, ranges ensemble.
+    parsed = parse(item_string(500, modifiers=[(29, 40), (30, 49)]))
+    suite.equal("crafted_stats", lua_list(parsed.craftedStats), [40, 49])
+
+    # Palier d'artisanat : 1 a 5. Hors plage, on n'ecrit RIEN plutot que d'inventer.
+    suite.equal("qualite 3", parse(item_string(500, modifiers=[(38, 3)])).craftingQuality, 3)
+    suite.equal("qualite 9 refusee",
+                parse(item_string(500, modifiers=[(38, 9)])).craftingQuality, None)
+
+    # Entrees qui ne sont pas des chaines d'objet.
+    suite.equal("nil", parse(None), None)
+    suite.equal("texte simple", parse("pas un lien"), None)
+    suite.equal("lien de sort", parse("|Hspell:12345|h[Sort]|h"), None)
+
+    suite.done()
+
+
+# ---------------------------------------------------------------------- Weights
+
+def test_weights(report: Report) -> None:
+    suite = Suite(report, "Weights.ParsePawn")
+    _, ns, _locals = new_runtime(["Weights.lua"])
+    parse = ns.Weights.ParsePawn
+
+    # L'ecriture de Pawn et de Raidbots : les secondaires en `...Rating`.
+    weights, name = parse(
+        '( Pawn: v1: "Havoc": Agility=1, CritRating=0.81, HasteRating=0.94,'
+        ' MasteryRating=0.7, Versatility=0.66 )')
+    suite.equal("nom", name, "Havoc")
+    suite.equal("agilite", weights.agility, 1)
+    suite.equal("critique", weights.crit, 0.81)
+    suite.equal("hate", weights.haste, 0.94)
+    suite.equal("maitrise", weights.mastery, 0.7)
+    suite.equal("polyvalence", weights.versatility, 0.66)
+
+    # Le nom court, ecrit a la main ou venu d'une autre source. Il etait ignore en
+    # SILENCE : seule `Agility` etait reconnue, et les sacs se classaient sur elle seule.
+    weights, _ = parse('( Pawn: v1: "Court": Agility=1, Haste=0.94, CriticalStrike=0.81,'
+                       ' Mastery=0.7 )')
+    suite.equal("hate, nom court", weights.haste, 0.94)
+    suite.equal("critique, nom court", weights.crit, 0.81)
+    suite.equal("maitrise, nom court", weights.mastery, 0.7)
+
+    # Sans nom entre guillemets, un defaut plutot qu'un echec.
+    weights, name = parse("Intellect=1, Haste=0.5")
+    suite.equal("nom par defaut", name, "Pawn")
+    suite.equal("intelligence", weights.intellect, 1)
+
+    # Une chaine sans AUCUNE statistique reconnue doit echouer, pas rendre une table
+    # vide : des poids vides classeraient tous les objets a egalite, en silence.
+    suite.equal("rien de reconnu", parse("( Pawn: v1: \"Vide\": Foo=1, Bar=2 )"), None)
+    suite.equal("chaine vide", parse(""), None)
+    suite.equal("nil", parse(None), None)
+
+    suite.done()
+
+
+# ------------------------------------------------------------------------- Meta
+
+def test_weapon_pair(report: Report) -> None:
+    suite = Suite(report, "Meta.WeaponPairAdvice")
+    lua, ns, _locals = new_runtime(["Spec.lua", "Meta.lua"])
+
+    # Releve minimal : 11 joueurs en paire mixte 7983+8041, 8 en double 8041.
+    # C'est la forme reelle mesuree qui a motive l'appariement — la majorite du haut de
+    # tableau porte deux enchantements DIFFERENTS.
+    # Fixture calquee sur `Data/Meta.lua`, pas inventee : `_stamp.format` a la racine,
+    # blocs indexes par « Classe/Spe » portant `specID`, et la table s'appelle `weapons`.
+    #
+    # Ma premiere version posait `format` a la racine et un `specs = { [577] = ... }` :
+    # elle se chargeait sans erreur, et `block()` rendait nil pour une raison qui n'avait
+    # rien a voir avec ce que le test pretendait verifier. Une fixture qui ne ressemble
+    # pas au fichier reel teste le harnais, pas le code.
+    lua.execute("""
+        GearProofMeta = {
+            _stamp = { format = 2, generatedAt = "2026-01-01", specs = 1 },
+            ["DemonHunter/Havoc"] = {
+                specID = 577,
+                class = "DemonHunter",
+                spec = "Havoc",
+                sample = 20,
+                weapons = {
+                    { ids = { 7983, 8041 }, count = 11, share = 0.55 },
+                    { ids = { 8041, 8041 }, count = 8, share = 0.40 },
+                },
+            },
+        }
+    """)
+    ns.Spec.Selected = lua.eval("function() return 577 end")
+
+    advice = ns.Meta.WeaponPairAdvice
+
+    ok, best, mixed = advice(7983, 8041)
+    suite.truthy("paire mesuree acceptee", ok)
+    suite.equal("meilleure paire rendue", lua_list(best.ids), [7983, 8041])
+    # 55 % de paires mixtes : c'est ce chiffre qui justifie de ne pas exiger deux fois le
+    # meme enchantement.
+    suite.equal("part de paires mixtes", round(mixed, 2), 0.55)
+
+    # L'ordre des mains ne compte pas : la paire est triee avant comparaison.
+    suite.truthy("paire inversee acceptee", advice(8041, 7983)[0])
+    suite.truthy("paire double acceptee", advice(8041, 8041)[0])
+    suite.falsy("paire absente du releve refusee", advice(1111, 2222)[0])
+
+    # Sans releve, on ne tranche pas : `nil` veut dire « je ne sais pas », et l'appelant
+    # doit pouvoir le distinguer d'un « non » — c'est ce que `auditWeaponPair` teste avec
+    # `if ok == nil then return end` avant de compter un correctif.
+    lua.execute("GearProofMeta = { format = 2, sample = 20, specs = {} }")
+    suite.equal("sans releve, abstention", advice(7983, 8041)[0], None)
+
+    suite.done()
+
+
+# ------------------------------------------------------------------------ Guild
+
+def test_chunk_payload(report: Report) -> None:
+    suite = Suite(report, "Guild.chunkPayload")
+    lua, ns, locals_ = new_runtime(["Guild.lua"], expose={"Guild.lua": ["chunkPayload"]})
+
+    # Un decoupage errone tronque un nom de joueur au milieu, et le destinataire
+    # reconstruit un message qui n'a jamais ete envoye.
+    chunk = locals_["chunkPayload"]
+
+    payload = "A" * 250
+    parts = lua_list(chunk(payload, 100))
+    suite.equal("aucune perte", "".join(parts), payload)
+    suite.truthy("respecte le budget", all(len(p) <= 100 for p in parts))
+    suite.equal("nombre de morceaux", len(parts), 3)
+
+    # Plus court que le budget : un seul morceau, pas de decoupage inutile.
+    parts = lua_list(chunk("court", 100))
+    suite.equal("message court", parts, ["court"])
+
+    # Exactement le budget : la limite est INCLUSIVE. Un `>` au lieu d'un `>=` produirait
+    # ici un morceau vide en trop.
+    parts = lua_list(chunk("A" * 100, 100))
+    suite.equal("pile le budget", len(parts), 1)
+
+    suite.equal("charge vide", lua_list(chunk("", 100)), [])
+
+    suite.done()
+
+
+# ------------------------------------------------------------------------- SimC
+
+def test_simc_item_line(report: Report) -> None:
+    suite = Suite(report, "SimC.itemLine")
+    lua, ns, locals_ = new_runtime(["ItemLink.lua", "SimC.lua"],
+                                  expose={"SimC.lua": ["itemLine"]})
+    line = locals_["itemLine"]
+
+    parsed = ns.ItemLink.Parse(item_string(212014, enchant=7350, gems=[213743],
+                                           bonuses=[6652, 1524], modifiers=[(28, 2164)]))
+    text = line("head", parsed)
+    suite.truthy("emplacement et identifiant", text.startswith("head=,id=212014"))
+    suite.truthy("enchantement", "enchant_id=7350" in text)
+    suite.truthy("gemmes", "gem_id=213743" in text)
+    suite.truthy("bonus joints par /", "bonus_id=6652/1524" in text)
+    suite.truthy("content_tuning", "context=2164" in text or "content_tuning" in text)
+
+    # Sans decoration : ni enchant_id=0, ni gem_id vide. SimulationCraft accepte les deux
+    # mais l'export ne doit pas differer d'un export officiel sur du vide.
+    text = line("head", ns.ItemLink.Parse(item_string(212014)))
+    suite.falsy("pas d'enchant vide", "enchant_id" in text)
+    suite.falsy("pas de gemme vide", "gem_id" in text)
+
+    suite.equal("sans donnee", line("head", None), None)
+
+    suite.done()
+
+
+# ------------------------------------------------------- schema et purge des sims
+
+def test_schema_migration(report: Report) -> None:
+    suite = Suite(report, "Core.migrateSchema")
+    lua, ns, locals_ = new_runtime(["Core.lua"], expose={"Core.lua": ["migrateSchema"]})
+    migrate = locals_["migrateSchema"]
+
+    # Base NEUVE : deja au schema courant, aucune migration ne doit tourner.
+    fresh = lua.eval("{}")
+    suite.equal("base neuve, 0 etape", migrate(fresh), 0)
+    suite.truthy("base neuve estampillee", fresh.schema)
+
+    # Base EXISTANTE sans numero : elle date d'avant le mecanisme, donc schema 1.
+    legacy = lua.eval("{ theme = 'dark' }")
+    migrate(legacy)
+    suite.equal("base ancienne -> 1", legacy.schema, 1)
+    suite.equal("reglage preserve", legacy.theme, "dark")
+
+    # Base ecrite par une version PLUS RECENTE : on ne touche a rien. Deviner une
+    # transformation inverse detruirait des reglages qu'on ne sait pas relire.
+    future = lua.eval("{ schema = 99, theme = 'minimal' }")
+    suite.equal("base future, 0 etape", migrate(future), 0)
+    suite.equal("base future intacte", future.schema, 99)
+    suite.equal("reglage future intact", future.theme, "minimal")
+
+    suite.done()
+
+
+def test_prune_reports(report: Report) -> None:
+    suite = Suite(report, "Sim.pruneReports")
+    lua, ns, locals_ = new_runtime(["Sim.lua"], expose={"Sim.lua": ["pruneReports"]})
+    prune = locals_["pruneReports"]
+
+    # Six rapports du personnage connecte : les quatre plus recents restent.
+    lua.execute("""
+        GEARPROOF_NS.db = { sim = {} }
+        for i = 1, 6 do
+            GEARPROOF_NS.db.sim["rapport" .. i] = { player = "Testeur", stamp = i, items = {} }
+        end
+    """)
+    prune()
+    kept = sorted(dict(ns.db.sim).keys())
+    suite.equal("quatre gardes", len(kept), 4)
+    suite.equal("les plus recents", kept, ["rapport3", "rapport4", "rapport5", "rapport6"])
+
+    # Les rapports d'un AUTRE personnage ne sont pas purges par celui-ci : il n'a aucune
+    # idee de ce que l'autre a de plus recent.
+    lua.execute("""
+        GEARPROOF_NS.db = { sim = {} }
+        for i = 1, 6 do
+            GEARPROOF_NS.db.sim["autre" .. i] = { player = "Quelquun", stamp = i, items = {} }
+        end
+    """)
+    prune()
+    suite.equal("autre personnage intact", len(dict(ns.db.sim)), 6)
+
+    suite.done()
+
+
+def main() -> int:
+    report = Report("tests Lua")
+    for test in (test_item_link, test_weights, test_weapon_pair, test_chunk_payload,
+                 test_simc_item_line, test_schema_migration, test_prune_reports):
+        try:
+            test(report)
+        except Exception as error:  # noqa: BLE001 — un test qui casse est un constat
+            report.error(test.__name__, f"{type(error).__name__}: {error}")
+    return report.finish()
+
+
+run(main)

@@ -33,9 +33,47 @@ local function statusColor(status)
     return { 0.30, 0.30, 0.30 }
 end
 
-local panel, tiles, model, recoverable, modelToggle
+-- EPAISSEUR de bordure par etat, en plus de la couleur.
+--
+-- La couleur seule ne porte jamais l'information dans cet addon, et cette grille etait le
+-- dernier endroit qui y contrevenait : vert / orange / rouge sur des bordures de meme
+-- taille se ressemblent pour un deutan, et c'est la vue d'ensemble — celle qu'on balaie
+-- en trois secondes avant un pull. Les pastilles `!` et `*` ne couvrent que deux cas ;
+-- une piece simplement abimee n'en porte aucune.
+--
+-- Plus c'est epais, plus ca demande attention. La difference se voit en vision
+-- peripherique, ce qu'une teinte ne fait pas.
+local STATUS_EDGE = {
+    critical = 3,
+    problem = 2,
+    ok = 1,
+    ignored = 1,
+}
+local DEFAULT_EDGE = 1
 
-Armory.WIDTH = WIDTH
+--- Applique couleur ET epaisseur. Ne redessine le fond que si l'epaisseur change.
+---
+--- `SetBackdrop` reconstruit toutes les textures du cadre : l'appeler a chaque
+--- rafraichissement pour seize tuiles couterait cher pour un etat qui, la plupart du
+--- temps, n'a pas bouge.
+local function applyStatus(tile, status)
+    local edge = STATUS_EDGE[status] or DEFAULT_EDGE
+    if tile.edge ~= edge then
+        tile.edge = edge
+        tile:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\Buttons\\WHITE8X8",
+            edgeSize = edge,
+        })
+        -- Le fond de tuile est repose par l'habillage : `SetBackdrop` vient de l'effacer.
+        ns.Theme.Track(tile, 1.4)
+    end
+
+    local color = statusColor(status)
+    tile:SetBackdropBorderColor(color[1], color[2], color[3], status == "ok" and 0.7 or 1)
+end
+
+local panel, tiles, model, recoverable, modelToggle
 
 local function statusOf(entry)
     if not entry then return "empty" end
@@ -153,6 +191,8 @@ local function createTile(parent, slotName, index)
         edgeFile = "Interface\\Buttons\\WHITE8X8",
         edgeSize = 2,
     })
+    -- `applyStatus` compare a cette valeur pour savoir s'il doit reconstruire le fond.
+    tile.edge = 2
     -- Le fond de tuile suivait un noir code en dur : en habillage `blizzard`, seize
     -- carres noirs au milieu d'un cadre clair. Il passe par l'habillage, comme le reste.
     ns.Theme.Track(tile, 1.4)
@@ -320,9 +360,7 @@ function Armory.Refresh()
         tile.icon:SetTexture(texture or tile.defaultTexture)
         tile.icon:SetDesaturated(texture == nil or (entry and entry.ignored) or false)
 
-        local status = statusOf(entry)
-        local color = statusColor(status)
-        tile:SetBackdropBorderColor(color[1], color[2], color[3], status == "ok" and 0.7 or 1)
+        applyStatus(tile, statusOf(entry))
 
         if entry and entry.itemLevel then
             tile.ilvl:SetText(tostring(entry.itemLevel))

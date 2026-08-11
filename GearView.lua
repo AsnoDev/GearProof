@@ -49,7 +49,21 @@ local function acquire(kind)
     return pools[kind]:Acquire()
 end
 
---- Carte d'un probleme : bandeau colore, icone, titre, conseil.
+-- Hauteur d'une carte de correctif : UNE ligne.
+--
+-- Elle en faisait trois — titre, corps, gestes — pour 58 px minimum. Cinq correctifs
+-- occupaient donc 290 px de la colonne centrale, et il fallait faire defiler pour voir la
+-- liste que l'onglet est cense montrer d'un coup.
+--
+-- Le corps etait la redondance : `issueTitle` ecrit deja « Cape : Glissement du Void
+-- manquant », et `entry.problems` redisait « enchantement manquant » juste en dessous. Ce
+-- qui reste tient sur une ligne : marqueur, icone, titre a gauche, geste a droite.
+--
+-- Le geste reste PERMANENT, pas au survol. Il etait invisible avant qu'on l'affiche, et
+-- personne ne devinait le clic droit ; il change juste de place, pas de statut.
+local ISSUE_HEIGHT = 28
+
+--- Carte d'un probleme : bandeau colore, icone, titre, geste.
 local function newIssueCard()
     local card = CreateFrame("Button", nil, view.content, "BackdropTemplate")
     card:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -64,29 +78,27 @@ local function newIssueCard()
     card.accent:SetPoint("BOTTOMLEFT")
     card.accent:SetWidth(3)
 
-    card.marker = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    card.marker:SetPoint("TOPLEFT", 10, -8)
-    card.marker:SetText("[!]")
+    card:SetHeight(ISSUE_HEIGHT)
 
     card.icon = card:CreateTexture(nil, "ARTWORK")
     card.icon:SetSize(18, 18)
-    card.icon:SetPoint("TOPLEFT", 12, -26)
+    card.icon:SetPoint("LEFT", 9, 0)
     card.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    card.title = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    card.title:SetPoint("TOPLEFT", 34, -8)
+    card.marker = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    card.marker:SetPoint("LEFT", card.icon, "RIGHT", 6, 0)
+
+    card.title = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    card.title:SetPoint("LEFT", card.marker, "RIGHT", 5, 0)
     card.title:SetJustifyH("LEFT")
+    card.title:SetWordWrap(false)
 
-    card.body = card:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    card.body:SetPoint("TOPLEFT", 34, -26)
-    card.body:SetJustifyH("LEFT")
-    card.body:SetJustifyV("TOP")
-    card.body:SetSpacing(2)
-
-    -- Ligne de gestes, permanente : elle ne depend ni du survol ni de la presence d'un releve.
+    -- Geste, aligne a droite sur la meme ligne. Permanent : il ne depend ni du survol ni
+    -- de la presence d'un releve.
     card.hint = card:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    card.hint:SetPoint("TOPLEFT", card.body, "BOTTOMLEFT", 0, -4)
-    card.hint:SetJustifyH("LEFT")
+    card.hint:SetPoint("RIGHT", -10, 0)
+    card.hint:SetJustifyH("RIGHT")
+    card.hint:SetWordWrap(false)
 
     return card
 end
@@ -280,42 +292,57 @@ local function issueOnEnter(self)
     if not entry then return end
     ns.Armory.Highlight(entry.slot, true)
 
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:ClearLines()
+
     -- Infobulle de L'ENCHANTEMENT, pas de la piece.
     --
     -- WoW n'a pas de type de lien pour un enchantement : impossible de lui demander une
     -- infobulle. Le seul endroit ou le client decrit un enchantement, c'est l'infobulle
     -- de l'objet qui le porte. On affiche donc ce que l'enchantement y ajoute, mot pour
     -- mot — texte du client, deja formate et deja traduit.
-    if not entry.missingEnchant then return end
+    local enchantID, share = entry.missingEnchant and ns.Meta.Enchant(entry.slot)
+    if enchantID then
+        local name = ns.Meta.EnchantName(entry.link, enchantID)
+        GameTooltip:AddLine(name or ("Enchant #" .. enchantID), 0, 0.9, 0.46)
 
-    local enchantID, share = ns.Meta.Enchant(entry.slot)
-    if not enchantID then return end
-
-    local name = ns.Meta.EnchantName(entry.link, enchantID)
-    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:ClearLines()
-    GameTooltip:AddLine(name or ("Enchant #" .. enchantID), 0, 0.9, 0.46)
-
-    local points, lines = ns.Gear.EnchantPoints(entry.link, entry.slot, enchantID)
-    for _, line in ipairs(lines or {}) do
-        -- Une ligne qui ne fait que repeter le nom sans porter de chiffre n'ajoute rien
-        -- au titre deja affiche.
-        local repeatsName = name and line.text:find(name, 1, true) and not line.text:find("%d")
-        if not repeatsName then
-            GameTooltip:AddLine(line.text, line.r, line.g, line.b, true)
+        local points, lines = ns.Gear.EnchantPoints(entry.link, entry.slot, enchantID)
+        for _, line in ipairs(lines or {}) do
+            -- Une ligne qui ne fait que repeter le nom sans porter de chiffre n'ajoute
+            -- rien au titre deja affiche.
+            local repeatsName = name and line.text:find(name, 1, true) and not line.text:find("%d")
+            if not repeatsName then
+                GameTooltip:AddLine(line.text, line.r, line.g, line.b, true)
+            end
         end
+
+        if points > 0 then
+            GameTooltip:AddLine(string.format(L["%d stat points"], points), 0.54, 0.54, 0.54)
+        end
+
+        GameTooltip:AddLine(" ")
+        -- Le chiffre d'adoption sans le rappel de la source : elle est nommee dans
+        -- l'entete de la fenetre et en pied du bloc gemmes, une fois chacune.
+        GameTooltip:AddLine(string.format(L["%d%% adoption"],
+            (share or 0) * 100 + 0.5), 0.54, 0.54, 0.54)
+    else
+        GameTooltip:AddLine(L[entry.label], 0.91, 0.91, 0.91)
+        for _, problem in ipairs(entry.problems) do
+            GameTooltip:AddLine(problem, 0.81, 0.79, 0.87, true)
+        end
+        GameTooltip:AddLine(" ")
     end
 
-    if points > 0 then
-        GameTooltip:AddLine(string.format(L["%d stat points"], points), 0.54, 0.54, 0.54)
-    end
-
-    GameTooltip:AddLine(" ")
-    -- Le chiffre d'adoption sans le rappel de la source : elle est nommee dans l'entete de
-    -- la fenetre et en pied du bloc gemmes, une fois chacune.
-    GameTooltip:AddLine(string.format(L["%d%% adoption"],
-        (share or 0) * 100 + 0.5), 0.54, 0.54, 0.54)
-    GameTooltip:AddLine(L["click to copy the name"], 0, 0.69, 1)
+    -- LES DEUX GESTES, sur toutes les cartes.
+    --
+    -- La carte n'en montre plus qu'un : la place d'une seconde mention y valait le titre.
+    -- Mais l'infobulle ne s'ouvrait qu'en presence d'un enchantement releve, et sortait
+    -- donc en meme temps que la ligne « clic droit : ignorer » — un geste que personne ne
+    -- devine et qu'aucun autre ecran ne mentionne. Elle s'ouvre desormais toujours.
+    GameTooltip:AddLine(entry.missingEnchant and enchantID
+        and L["click to copy the name"] or L["left-click: details"], 0, 0.69, 1)
+    GameTooltip:AddLine(entry.ignored and L["right-click: un-ignore"]
+        or L["right-click: ignore"], 0.54, 0.54, 0.54)
     GameTooltip:Show()
 end
 
@@ -353,44 +380,45 @@ local function layoutIssue(entry, width, top, color)
     card:SetPoint("TOPLEFT", 0, top)
     card:SetWidth(width)
 
+    card:SetHeight(ISSUE_HEIGHT)
+
     ns.Theme.ApplyCard(card, color)
     card.accent:SetColorTexture(color[1], color[2], color[3], 1)
-    card.marker:SetText(hex(color) .. "[!]|r")
-    card.title:SetWidth(width - 46)
-    card.title:SetText(issueTitle(entry))
+    card.marker:SetText(hex(color) .. "!|r")
 
     local texture = entry.slotID and GetInventoryItemTexture("player", entry.slotID)
     card.icon:SetTexture(texture or "Interface\\Icons\\INV_Misc_QuestionMark")
 
-    local details = {}
-    for _, problem in ipairs(entry.problems) do
-        table.insert(details, "|cffcfc9dd" .. problem .. "|r")
+    -- UN geste sur la carte : celui du clic gauche, qui varie selon la piece. Le clic
+    -- droit « ignorer » est le meme partout, il vit dans l'infobulle et dans l'onglet
+    -- Aide — le repeter sur chaque ligne prenait la place du titre.
+    local hint = (entry.missingEnchant and ns.Meta.Enchant(entry.slot))
+        and L["left-click: copy the enchant name"] or L["left-click: details"]
+    card.hint:SetText("|cff5A5A5A" .. hint .. "|r")
+
+    -- Le titre prend ce que le geste laisse. Mesure REELLE de la largeur du geste : la
+    -- reserver en dur donnerait un titre tronque en francais et un blanc en anglais.
+    local hintWidth = math.ceil(card.hint:GetStringWidth() or 0)
+    card.title:SetWidth(math.max(60, width - hintWidth - 60))
+
+    -- `issueTitle` porte deja le nom de l'emplacement et ce qui manque. Ce que la liste
+    -- des problemes ajoute vraiment — un compte de chasses, une piece ignoree — est
+    -- accole ; le reste redisait le titre mot pour mot sur une deuxieme ligne.
+    local title = issueTitle(entry)
+    if (entry.emptySockets or 0) > 1 then
+        title = title .. string.format("|cff8A8A8A  (%d)|r", entry.emptySockets)
     end
-    if entry.ignored then table.insert(details, "|cff8b6bff" .. L["ignored"] .. "|r") end
-    card.body:SetWidth(width - 46)
-    card.body:SetText(table.concat(details, "\n"))
+    if entry.ignored then
+        title = title .. "|cff8b6bff  " .. L["ignored"] .. "|r"
+    end
+    card.title:SetText(title)
 
     card.entry = entry
     card:SetScript("OnEnter", issueOnEnter)
     card:SetScript("OnLeave", issueOnLeave)
     card:SetScript("OnClick", issueOnClick)
 
-    -- Les gestes disponibles, ecrits sur la carte. Ils etaient invisibles : l'indication de
-    -- copie ne s'affichait que dans une infobulle elle-meme conditionnee a la presence d'un
-    -- releve, et le clic droit n'etait mentionne que dans une fenetre qu'on ne pouvait
-    -- atteindre qu'en devinant le clic gauche.
-    local hints = { entry.ignored and L["right-click: un-ignore"] or L["right-click: ignore"] }
-    if entry.missingEnchant and ns.Meta.Enchant(entry.slot) then
-        table.insert(hints, 1, L["left-click: copy the enchant name"])
-    else
-        table.insert(hints, 1, L["left-click: details"])
-    end
-    card.hint:SetWidth(width - 46)
-    card.hint:SetText("|cff5A5A5A" .. table.concat(hints, "  ·  ") .. "|r")
-
-    local height = 34 + card.body:GetStringHeight() + card.hint:GetStringHeight() + 14
-    card:SetHeight(math.max(58, height))
-    return top - math.max(58, height) - 8
+    return top - ISSUE_HEIGHT - 4
 end
 
 local function layoutSide(summary)
@@ -574,14 +602,33 @@ function GearView.Create(parent)
         detail = ns.Pool.New(newDetail),
     }
 
-    view.summary = view:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    view.summary:SetPoint("TOPLEFT", 2, -2)
-    view.summary:SetWidth(300)
+    -- Le verdict, en tete : UNE ligne qui repond « est-ce que je suis pret ».
+    --
+    -- L'onglet s'ouvrait sur « 2 enchantements manquants · 1 chasse vide · 1 piece
+    -- abimee » : une enumeration, donc quelque chose a additionner soi-meme avant de
+    -- savoir si on peut entrer en raid. Le detail reste, il passe simplement dessous.
+    --
+    -- Le verdict COMPTE, il ne note pas — meme regle que la jauge. « Pret » veut dire
+    -- zero correctif en attente, pas « bon equipement » : l'addon n'a aucun moyen de
+    -- juger la seconde chose, et pretendre le contraire serait la note sur 100 qu'on a
+    -- refusee partout ailleurs.
+    view.verdict = view:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    view.verdict:SetPoint("TOPLEFT", 2, -2)
+    view.verdict:SetWidth(400)
+    view.verdict:SetJustifyH("LEFT")
+
+    view.summary = view:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    view.summary:SetPoint("TOPLEFT", view.verdict, "BOTTOMLEFT", 0, -3)
+    view.summary:SetWidth(400)
     view.summary:SetJustifyH("LEFT")
 
+    -- « Tout reactiver » vit SUR la bande d'entete, aligne a droite, et non plus sous le
+    -- resume. Empile, il poussait la grille vers le bas — mais seulement quand il etait
+    -- visible, donc la mise en page changeait selon qu'on avait ignore une piece ou non.
+    -- Ici il n'interagit avec la hauteur de rien.
     view.reset = CreateFrame("Button", nil, view, "UIPanelButtonTemplate")
     view.reset:SetSize(110, 20)
-    view.reset:SetPoint("TOPLEFT", view.summary, "BOTTOMLEFT", 0, -2)
+    view.reset:SetPoint("TOPRIGHT", view, "TOPRIGHT", -(SIDE_WIDTH + 30), -4)
     ns.Localize(view.reset, "Re-enable all")
     view.reset:SetScript("OnClick", function()
         -- Passe par Gear : ecrire `ns.db.ignoredSlots` en direct laissait le cache
@@ -592,10 +639,13 @@ function GearView.Create(parent)
 
     -- Colonne 1 : la grille compacte, dans l'onglet et non plus dans la fenetre.
     view.grid = ns.Armory.Create(view)
-    view.grid:SetPoint("TOPLEFT", 0, -26)
+    -- Ancre RELATIVE au resume, pas un -26 en dur : l'entete est passee a deux lignes et
+    -- le decalage constant l'aurait recouverte. Le moteur de mise en page resout la
+    -- position, on n'a aucune hauteur a mesurer ni a deviner.
+    view.grid:SetPoint("TOPLEFT", view.summary, "BOTTOMLEFT", -2, -10)
 
     view.scroll = CreateFrame("ScrollFrame", nil, view, "UIPanelScrollFrameTemplate")
-    view.scroll:SetPoint("TOPLEFT", ns.Armory.WIDTH + 16, -26)
+    view.scroll:SetPoint("TOPLEFT", view.grid, "TOPRIGHT", 16, 0)
     view.scroll:SetPoint("BOTTOMRIGHT", -(SIDE_WIDTH + 30), 0)
 
     view.content = CreateFrame("Frame", nil, view.scroll)
@@ -825,15 +875,38 @@ function GearView.Refresh()
     ns.Armory.Refresh()
     resetPools()
 
+    -- « Equipement complet » et non « pret pour le raid » : zero correctif en attente est
+    -- un fait compte, la seconde formule serait un jugement que l'addon n'a pas les moyens
+    -- de porter — c'est la note sur 100 refusee partout ailleurs, en trois mots.
     if summary.problems == 0 then
-        view.summary:SetText(hex(COLORS.good) .. L["Gear complete"] .. "|r")
+        view.verdict:SetText(hex(COLORS.good) .. L["Gear complete"] .. "|r")
+        view.summary:SetText(hex(COLORS.minor) .. string.format(
+            L["%d slots checked, nothing to fix"], summary.checked or 0) .. "|r")
     else
         local parts = {}
         if summary.missingEnchants > 0 then table.insert(parts, string.format(L["%d missing enchant(s)"], summary.missingEnchants)) end
         if summary.emptySockets > 0 then table.insert(parts, string.format(L["%d empty socket(s)"], summary.emptySockets)) end
         if summary.emptySlots > 0 then table.insert(parts, string.format(L["%d empty slot(s)"], summary.emptySlots)) end
         if summary.damaged > 0 then table.insert(parts, string.format(L["%d damaged piece(s)"], summary.damaged)) end
-        view.summary:SetText(hex(COLORS.major) .. table.concat(parts, "  ·  ") .. "|r")
+        if (summary.weaponPair or 0) > 0 then table.insert(parts, L["weapon enchant combination"]) end
+
+        -- Ce que ca COUTE de ne rien faire, a cote du compte. Le chiffre existait deja
+        -- sous la grille, ou il repond a une question qu'on ne se pose qu'apres avoir lu
+        -- le verdict — et la grille est dans l'autre colonne.
+        --
+        -- Le `≥` a le meme sens qu'ailleurs : tous les correctifs n'ont pas de valeur
+        -- mesurable, donc le total est un plancher, jamais un montant exact.
+        local stat, measured, fixes = ns.Gear.Recoverable()
+        local cost = ""
+        if stat > 0 then
+            local shown = BreakUpLargeNumbers and BreakUpLargeNumbers(stat) or tostring(stat)
+            cost = string.format("|cff8A8A8A  ·  %s%s %s|r",
+                measured < fixes and "≥ " or "", shown, L["stat"])
+        end
+
+        view.verdict:SetText(string.format("%s%s|r%s", hex(COLORS.major),
+            string.format(L["%d fix(es) pending"], summary.problems), cost))
+        view.summary:SetText(hex(COLORS.minor) .. table.concat(parts, "  ·  ") .. "|r")
     end
 
     view.reset:SetShown(summary.ignored > 0)

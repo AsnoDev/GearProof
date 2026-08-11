@@ -374,6 +374,7 @@ translations.fr = {
     ["Copy SimC"] = "Copier SimC",
     ["nothing to recover"] = "rien a recuperer",
     ["%d fix(es) pending"] = "%d correctif(s) en attente",
+    ["%d slots checked, nothing to fix"] = "%d emplacements verifies, rien a corriger",
     ["stat"] = "stat",
     ["to fix"] = "a corriger",
     ["/sa to open  ·  minimap icon  ·  right click a tile to mute its alert"] =
