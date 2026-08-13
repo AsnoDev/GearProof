@@ -224,6 +224,43 @@ local function widget(kind, template, label)
         end,
     }
 
+    -- ARGUMENTS VERIFIES sur les poseurs de geometrie.
+    --
+    -- Cote C, `SetSize(width, height)` exige deux nombres et leve « Usage: ... ». Un stub
+    -- qui accepte tout laisse passer exactement le bug qui a casse l'addon :
+    -- `view.content:SetSize(ROSTER_WIDTH, 1)` ou la constante avait ete supprimee. Lire
+    -- une globale absente ne leve rien en Lua — elle vaut nil, et c'est l'API qui refuse.
+    local function number(value, position, method)
+        if type(value) ~= "number" then
+            error(string.format("%s: %s argument #%d attendu nombre, recu %s",
+                label or "?", method, position, type(value)), 3)
+        end
+    end
+
+    handlers.SetSize = function(_, w, h)
+        number(w, 1, "SetSize"); number(h, 2, "SetSize")
+    end
+    handlers.SetWidth = function(_, w) number(w, 1, "SetWidth") end
+    handlers.SetHeight = function(_, h) number(h, 1, "SetHeight") end
+    handlers.SetPoint = function(_, point, a, b, c, d)
+        if type(point) ~= "string" then
+            error(string.format("%s: SetPoint argument #1 attendu chaine, recu %s",
+                label or "?", type(point)), 3)
+        end
+        -- Deux formes : (point, x, y) et (point, relativeTo, relativePoint, x, y).
+        if type(a) == "number" then
+            number(a, 2, "SetPoint"); number(b, 3, "SetPoint")
+        elseif a ~= nil then
+            if type(b) ~= "string" then
+                error(string.format("%s: SetPoint argument #3 attendu chaine, recu %s",
+                    label or "?", type(b)), 3)
+            end
+            if c ~= nil or d ~= nil then
+                number(c, 4, "SetPoint"); number(d, 5, "SetPoint")
+            end
+        end
+    end
+
     return setmetatable(object, {
         __index = function(_, key)
             if handlers[key] then return handlers[key] end

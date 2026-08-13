@@ -287,7 +287,12 @@ function GuildView.Create(parent)
     view.scroll:SetPoint("BOTTOMRIGHT", -(SUMMARY_WIDTH + 38), 0)
 
     view.content = CreateFrame("Frame", nil, view.scroll)
-    view.content:SetSize(ROSTER_WIDTH, 1)
+    -- AUCUNE largeur ici : `Refresh` et `RefreshRaid` la posent depuis la largeur reelle
+    -- du ScrollFrame. Cette ligne passait encore `ROSTER_WIDTH`, la constante supprimee
+    -- avec le modele de colonnes — donc `SetSize(nil, 1)`, donc une erreur qui avortait
+    -- `GuildView.Create` et, avec elle, la construction de la fenetre ENTIERE : `UI.lua`
+    -- enchaine les `Create` des cinq vues sans pcall.
+    view.content:SetHeight(1)
     view.scroll:SetScrollChild(view.content)
     ns.Theme.CleanScrollBar(view.scroll)
 

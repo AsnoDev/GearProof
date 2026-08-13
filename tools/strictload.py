@@ -72,24 +72,50 @@ def main() -> int:
         return report.finish()
     step("PLAYER_LOGIN", 'GEARPROOF_NS.events:Fire("OnEvent", "PLAYER_LOGIN")')
 
-    # Un equipement qui porte des problemes, sinon aucune carte n'est posee ni recyclee.
-    lua.execute("""
-        GetInventoryItemLink = function(_, slot)
-            if slot == 5 or slot == 1 then
-                return "|cffa335ee|Hitem:212014:0:0:0:0:0:0:0:80:577:0:0:2:6652:1524:0|h[Piece]|h|r"
+    # DEUX etats d'equipement, et c'est indispensable.
+    #
+    # Un equipement AVEC problemes pose des cartes de correctif ; un equipement SANS
+    # probleme emprunte une branche entierement differente — la carte « Rien a corriger ».
+    # Cette branche-la posait `card.body` sur une carte qui n'en a plus, et n'etait
+    # atteinte par aucun test tant que le personnage simule avait le moindre defaut.
+    # Un onglet ne se teste pas sur un seul jeu de donnees.
+    STATES = {
+        "equipement incomplet": """
+            GetInventoryItemLink = function(_, slot)
+                if slot == 5 or slot == 1 then
+                    return "|cffa335ee|Hitem:212014:0:0:0:0:0:0:0:80:577:0:0:2:6652:1524:0|h[P]|h|r"
+                end
+                return nil
             end
-            return nil
-        end
-        GetInventoryItemTexture = function() return "Interface\\\\Icons\\\\INV_Misc_QuestionMark" end
-        GetInventoryItemDurability = function() return 40, 100 end
-    """)
-    ns.Gear.Invalidate()
+            GetInventoryItemDurability = function() return 40, 100 end
+        """,
+        "equipement complet": """
+            GetInventoryItemLink = function()
+                return "|cffa335ee|Hitem:212014:7350:0:0:0:0:0:0:80:577:0:0:2:6652:1524:0|h[P]|h|r"
+            end
+            GetInventoryItemDurability = function() return 100, 100 end
+        """,
+        "aucun equipement": """
+            GetInventoryItemLink = function() return nil end
+            GetInventoryItemDurability = function() return nil end
+        """,
+    }
 
-    # DEUX passages sur chaque onglet. Le second est le seul qui exerce la remise a neuf
-    # des pools — sans lui, ce fichier n'aurait pas trouve le bug qu'il a trouve.
-    for pass_number in (1, 2):
-        for tab in TABS:
-            step(f"passe {pass_number} — onglet {tab}", f"GEARPROOF_NS.UI.Show('{tab}')")
+    lua.execute("""
+        GetInventoryItemTexture = function() return "Interface\\\\Icons\\\\INV_Misc_QuestionMark" end
+    """)
+
+    # DEUX passages par etat. Le second est le seul qui exerce la remise a neuf des pools :
+    # une fonction de reset ne tourne jamais au premier rendu.
+    for state, setup in STATES.items():
+        lua.execute(setup)
+        ns.Gear.Invalidate()
+        if ns.Bags and ns.Bags.Invalidate:
+            ns.Bags.Invalidate()
+        for pass_number in (1, 2):
+            for tab in TABS:
+                step(f"{state}, passe {pass_number} — onglet {tab}",
+                     f"GEARPROOF_NS.UI.Show('{tab}')")
 
     step("RefreshNow", "GEARPROOF_NS.UI.RefreshNow()")
 

@@ -111,7 +111,13 @@ tools\check_addon.cmd
 
 Quatre vérificateurs qui **lisent** le code — syntaxe (luaparser), encodage (UTF-8 strict,
 mojibake, CRLF), cohérence des traductions (doublons, clés manquantes, orphelines),
-références croisées et globales accidentelles — puis une suite qui l'**exécute**.
+références croisées — puis deux suites qui l'**exécutent**.
+
+`check_refs.py` porte trois constats, et le troisième vient d'une panne réelle : une
+constante en majuscules **lue** mais déclarée nulle part. Le contrôle des globales ne
+regardait que les *écritures*, donc `SetSize(ROSTER_WIDTH, 1)` a survécu au retrait de
+`ROSTER_WIDTH` — lire une globale absente ne lève rien en Lua, c'est l'API du client qui
+refuse, bien plus tard, en avortant la construction de la fenêtre entière.
 
 `tools/test_lua.py` charge les fichiers dans **Lua 5.1** via `lupa` : la version exacte du
 client, `unpack` global et `table.unpack` absent. Deux familles de tests :
@@ -127,6 +133,17 @@ client, `unpack` global et `table.unpack` absent. Deux familles de tests :
 Aucune entrée de test n'existe dans le code livré : `tools/luaenv.py` exploite le fait
 qu'un `local` de portée fichier est encore visible à la fin du chunk, et concatène un
 `return { ... }` avant de compiler.
+
+`tools/strictload.py` rejoue le **démarrage complet** sous `tools/wowstrict.lua`, un stub
+d'API qui connaît les méthodes de chaque type de widget, lève sur une méthode appartenant
+à un autre type, et **vérifie les arguments** de `SetSize`/`SetWidth`/`SetPoint`. Trois
+conditions sans lesquelles il ne trouve rien, chacune apprise d'un bug qui est passé :
+
+| Condition | Ce qu'elle attrape |
+|---|---|
+| Rejouer les **événements** (`ADDON_LOADED`, `PLAYER_LOGIN`) | `ns.db` n'existe qu'après — sans ça tout échoue pour la mauvaise raison |
+| Rafraîchir **deux fois** | La remise à neuf d'un pool ne tourne jamais au premier rendu |
+| **Trois** états d'équipement (incomplet, complet, nu) | Un équipement parfait emprunte une branche entièrement différente |
 
 Toute modification d'un vérificateur se teste **dans les deux sens** : zéro erreur sur
 l'arbre propre, exactement l'erreur attendue quand le bug est réintroduit.

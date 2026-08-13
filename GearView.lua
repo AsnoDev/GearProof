@@ -688,23 +688,24 @@ function GearView.Refresh()
     end
 
     if shown == 0 then
+        -- Meme carte d'une ligne que les correctifs, meme champs. Elle posait encore
+        -- `card.body`, le second texte retire avec la densification : l'onglet Equipement
+        -- tombait donc sur un equipement PARFAIT, exactement le cas ou il n'a rien a dire.
+        -- La phrase de detail passe dans le champ de droite, qui est libre ici.
         local card = acquire("issue")
         card:SetParent(view.content)
         card:ClearAllPoints()
         card:SetPoint("TOPLEFT", 0, 0)
         card:SetWidth(width)
-        card:SetHeight(54)
+        card:SetHeight(ISSUE_HEIGHT)
         ns.Theme.ApplyCard(card, COLORS.good)
         card.accent:SetColorTexture(COLORS.good[1], COLORS.good[2], COLORS.good[3], 1)
-        card.marker:SetText(hex(COLORS.good) .. "[ok]|r")
+        card.marker:SetText(hex(COLORS.good) .. "+|r")
         card.icon:SetTexture("Interface\\Icons\\INV_Misc_Note_01")
-        card.title:SetWidth(width - 46)
+        card.hint:SetText("|cff5A5A5A" .. L["Everything is enchanted, socketed and in shape."] .. "|r")
+        card.title:SetWidth(math.max(60, width - math.ceil(card.hint:GetStringWidth() or 0) - 60))
         card.title:SetText(L["Nothing to fix"])
-        card.body:SetWidth(width - 46)
-        card.body:SetText("|cffcfc9dd" .. L["Everything is enchanted, socketed and in shape."] .. "|r")
-        -- Ligne de gestes et scripts sont deja vides par le pool : cette carte ne pose
-        -- que ce qu'elle affiche.
-        top = -62
+        top = -(ISSUE_HEIGHT + 8)
     end
 
     top = layoutGems(width, top, entries)

@@ -52,6 +52,29 @@ FOR_IN = re.compile(r"\bfor\s+([\w\s,]+?)\s+in\b")
 
 ASSIGN = re.compile(r"^\s*([A-Za-z_]\w*)\s*=[^=]")
 
+# Constante en MAJUSCULES lue quelque part : ni precedee d'un point ou de deux-points
+# (ce serait un champ de table), ni suivie d'un `=` (ce serait une affectation, deja
+# couverte par le constat 2).
+UPPER_READ = re.compile(r"(?<![.:\w])([A-Z][A-Z0-9_]{2,})\b(?!\s*=[^=])")
+
+# Constantes du client qu'un addon a le droit de LIRE. Elles ne sont pas inventees : la
+# liste est celle des globales que ce depot utilise reellement, verifiee une par une.
+WOW_CONSTANTS = {
+    "ENCHANTED_TOOLTIP_LINE",       # modele d'infobulle « Enchante : %s »
+    "ITEM_QUALITY_COLORS",          # couleurs de qualite d'objet
+    "NORMAL_FONT_COLOR",
+    "UISpecialFrames",              # fermeture a Echap — casse mixte, hors motif
+    "SOUNDKIT",
+    "OKAY",                         # libelle de bouton, traduit par le client
+    "LE_UNIT_STAT_INTELLECT",
+    # Indices de « combat rating ». DONNEE DE PATCH au meme titre que les tables du
+    # depot : Blizzard les renumerote a chaque extension.
+    "CR_HASTE_SPELL",
+    "CR_CRIT_SPELL",
+    "CR_MASTERY",
+    "CR_VERSATILITY_DAMAGE_DONE",
+}
+
 
 def strip_noise(line: str) -> str:
     """Retire commentaires et litteraux de chaine : leurs accolades ne comptent pas."""
@@ -225,6 +248,20 @@ def main() -> int:
                 for member in re.findall(rf"\b{table}\.(\w+)", line):
                     used.setdefault(f"{local_to_module[table]}.{member}",
                                     f"{where}:{line_number}")
+
+            # Constante en majuscules LUE mais jamais declaree dans ce fichier.
+            #
+            # Le constat 2 ne regarde que les ECRITURES. Une constante de portee fichier
+            # supprimee par une refonte, mais encore lue quelque part, passait donc au
+            # vert : `view.content:SetSize(ROSTER_WIDTH, 1)` a survecu au retrait de
+            # `ROSTER_WIDTH` et rendait `SetSize(nil, 1)` — l'erreur avortait la creation
+            # de la vue Guilde et, avec elle, la fenetre entiere. Lire une globale absente
+            # ne leve rien en Lua : c'est l'API du client qui refuse, bien plus tard.
+            for name in UPPER_READ.findall(line):
+                if name in locals_here or name in ALLOWED_GLOBALS or name in WOW_CONSTANTS:
+                    continue
+                report.error(f"{where}:{line_number}",
+                             f"constante lue mais jamais declaree ici : {name}")
 
             depth += line.count("{") - line.count("}")
 
