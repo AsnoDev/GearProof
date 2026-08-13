@@ -359,6 +359,31 @@ ns.translations.fr = {
     -- Guilde
     ["Guild"] = "Guilde",
     ["Guild audit"] = "Audit de guilde",
+
+    -- Onglet Guilde, refonte. Le mot « pret » n'y figure plus : il designait a la fois une
+    -- simulation fraiche et « rien a corriger », et l'ecran affichait les deux sous le
+    -- meme nom. « frais » parle du droptimizer, « rien a signaler » de la ligne entiere.
+    ["Loot"] = "Butin",
+    ["EQUIPMENT"] = "EQUIPEMENT",
+    ["DROPTIMIZER"] = "DROPTIMIZER",
+    ["MEMBER"] = "MEMBRE",
+    ["SPEC"] = "SPE",
+    ["ILVL"] = "ILVL",
+    ["FIXES"] = "CORRECTIFS",
+    ["TO FIX"] = "A CORRIGER",
+    ["NOTHING TO REPORT"] = "RIEN A SIGNALER",
+    ["of %d"] = "sur %d",
+    ["no fix"] = "sans correctif",
+    ["expand"] = "deplier",
+    ["collapse"] = "replier",
+    -- Abrege de « jours », dans une colonne de 84 px : « 12 j » et non « 12 jours ».
+    ["%d d"] = "%d j",
+    ["%d concerned"] = "%d concernes",
+    ["Fixes pending"] = "Correctifs en attente",
+    ["not shared"] = "non partage",
+    ["click to copy the report link"] = "clic : copier le lien du rapport",
+    ["Sorted by the best gain in the guild. Hover an item for the full ranking."] =
+        "Classe par meilleur gain dans la guilde. Survole un objet pour le classement complet.",
     ["Members running GearProof answer the roll call. Nothing is sent unless sharing is on."] =
         "Les membres equipes de l'addon repondent a l'appel. Rien ne sort sans ton accord.",
     ["Roll call"] = "Appel",

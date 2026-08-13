@@ -5,80 +5,236 @@ ns.GuildView = GuildView
 
 local L = ns.L
 
--- Tableau de la guilde : une ligne par membre equipe de l'addon.
+-- Onglet Guilde : DEUX ecrans, une question chacun.
+--
+--   Roster — « est-ce que tout le monde est pret ? »
+--   Butin  — « quel boss ce soir, et qui a besoin de cet objet ? »
+--
+-- L'ancienne version les faisait cohabiter dans une seule grille de cinq FontStrings
+-- reutilisees pour des sens sans rapport : en mode Butin, `name` portait un nom d'objet,
+-- `spec` un nom de joueur, `fixes` un compte de convoiteurs — et l'entete de colonnes
+-- etait remplacee par une phrase, donc cinq colonnes de chiffres sans le moindre libelle.
+--
+-- TROIS REGLES, qui expliquent la quasi-totalite des choix ci-dessous.
+--
+-- 1. Le mot « pret » n'apparait plus. Il designait deux choses a la fois — une simulation
+--    fraiche et « rien a corriger » — et l'ecran affichait les deux sous le meme nom.
+--    Desormais : « frais » pour une simulation, « rien a signaler » pour une ligne propre.
+--
+-- 2. Un compte ne s'ecrit que s'il est exact sur TOUT le roster. Le bandeau porte deux
+--    partitions qui somment chacune au total, et la liste deux sections qui somment au
+--    total. Aucune paire de nombres de cet ecran ne peut se contredire. Les sous-etats
+--    sont portes par le TRI et le GLYPHE, jamais par un sous-compte qui ne tombe pas juste.
+--
+-- 3. La gouttiere de gauche ne porte pas d'alphabet a elle : elle RECOPIE le glyphe de la
+--    colonne qui a decide du rang de la ligne. `!` ne veut donc jamais dire autre chose
+--    que « correctif », ou qu'on le lise.
+--
+-- Alphabet, repris de `GearView.layoutGems` — un seul jeu de signes dans tout l'addon :
+--   `!` correctif en attente   `x` rien de partage   `~` perime   `+` conforme
 
 local ROW_HEIGHT = 22
--- Bande de chiffres de tete, a droite du tableau.
-local SUMMARY_WIDTH = 190
+local SECTION_HEIGHT = 24
+local BOSS_HEIGHT = 46
+local LOOT_HEIGHT = 34
+local GUTTER = 18
+local CHEVRON = 14
+local PADDING = 8
+local BOSS_WIDTH = 246
 
--- UN modele de colonnes, pour le tableau ET pour son entete.
---
--- Il y en avait trois : les largeurs posees a la creation de la ligne, celles reposees par
--- `layoutRosterRow`, celles reposees par `layoutRaidRow` — et une quatrieme, implicite,
--- dans l'entete, qui etait une chaine bourree d'espaces
--- (« name            spec          ilvl    fixes     last sim ») censee tomber en face.
--- Le commentaire de `ROSTER_WIDTH` l'assumait : « les changer sans changer celle-ci fait
--- chevaucher les colonnes ». Quatre sources pour une meme grille, dont une non calculable.
---
--- Les colonnes de droite ont une largeur FIXE — elles portent des nombres, dont la place
--- ne depend pas de la fenetre. Le nom prend ce qui reste : c'est la seule colonne dont
--- l'allongement sert a quelque chose. Le tableau suit donc la largeur reelle du cadre au
--- lieu de s'arreter a 560 px avec un vide a droite.
+-- Colonnes de droite du roster : largeur FIXE, elles portent des nombres dont la place ne
+-- depend pas de la fenetre. Le nom prend ce qui reste — c'est la seule colonne dont
+-- l'allongement serve a quelque chose.
 local COLUMNS = {
-    { key = "spec",  width = 150, justify = "LEFT" },
-    { key = "ilvl",  width = 62,  justify = "LEFT" },
-    { key = "fixes", width = 76,  justify = "LEFT" },
-    { key = "sim",   width = 128, justify = "LEFT" },
+    { key = "spec",  width = 128, justify = "LEFT" },
+    { key = "ilvl",  width = 54,  justify = "RIGHT" },
+    { key = "fixes", width = 66,  justify = "RIGHT" },
+    { key = "sim",   width = 84,  justify = "RIGHT" },
 }
 local NAME_MIN = 90
-local ROW_PADDING = 8
 
-local view, rows
-local guildMode = "roster"
-
---- Pose les cinq colonnes d'une ligne. Sert aussi a l'entete, qui a les memes champs.
---- @param widths table|nil largeurs de remplacement, par cle (sous-vue Raid)
-local function layoutColumns(row, width, widths)
-    local fixed = 0
-    for _, column in ipairs(COLUMNS) do
-        fixed = fixed + ((widths and widths[column.key]) or column.width)
-    end
-
-    row.name:ClearAllPoints()
-    row.name:SetPoint("LEFT", ROW_PADDING, 0)
-    row.name:SetWidth(math.max(NAME_MIN, width - fixed - ROW_PADDING * 2))
-    row.name:SetJustifyH("LEFT")
-    row.name:SetWordWrap(false)
-
-    local offset = ROW_PADDING + math.max(NAME_MIN, width - fixed - ROW_PADDING * 2)
-    for _, column in ipairs(COLUMNS) do
-        local field = row[column.key]
-        local columnWidth = (widths and widths[column.key]) or column.width
-        field:ClearAllPoints()
-        field:SetPoint("LEFT", offset, 0)
-        field:SetWidth(columnWidth)
-        field:SetJustifyH(column.justify)
-        field:SetWordWrap(false)
-        offset = offset + columnWidth
-    end
-end
-
--- Declarations en amont. Ces trois fonctions sont definies plus bas, avec la sous-vue Raid,
--- mais `GuildView.Refresh` les appelle : sans cette declaration, un `local function` place
--- apres l'appelant n'est pas en portee et l'appel part chercher un global inexistant. C'est
--- exactement ce qui a casse le bouton de tournee.
-local layoutRaidRow, layoutRosterRow, itemName, setHeader, columnHeadings
+local view, pools
+local screen = "roster"
+local expanded = false
+local selectedEncounter
 
 local function hex(key)
     return ns.Theme.C(key)
 end
 
--- Gestionnaires de lignes, poses UNE fois.
+--- Teinte d'un glyphe. La couleur DOUBLE le signe, elle ne le remplace jamais.
+local function glyphColor(glyph)
+    if glyph == "!" then return hex("critical") end
+    if glyph == "x" then return hex("critical") end
+    if glyph == "~" then return hex("bis") end
+    return hex("good")
+end
+
+local function tint(percent)
+    if percent >= 2 then return "good" end
+    if percent >= 0.5 then return "bis" end
+    return "muted"
+end
+
+-- ------------------------------------------------------------------ fabriques
+
+--- Une ligne de membre : gouttiere, nom, puis les colonnes de nombres.
+local function newMemberRow()
+    local row = CreateFrame("Button", nil, view.content)
+    row:SetHeight(ROW_HEIGHT)
+    row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+
+    row.glyph = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.glyph:SetPoint("LEFT", PADDING, 0)
+    row.glyph:SetWidth(GUTTER)
+    row.glyph:SetJustifyH("CENTER")
+
+    -- Le NOM est le texte le plus gros de la ligne, et les nombres viennent juste apres.
+    -- L'ancienne version mettait le nom en GameFontHighlight et TOUS les chiffres en
+    -- GameFontNormalSmall : le contenu utile etait le plus petit texte de la ligne.
+    row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    row.name:SetJustifyH("LEFT")
+    row.name:SetWordWrap(false)
+
+    for _, column in ipairs(COLUMNS) do
+        local font = column.key == "spec" and "GameFontDisableSmall" or "GameFontHighlight"
+        row[column.key] = row:CreateFontString(nil, "OVERLAY", font)
+        row[column.key]:SetWordWrap(false)
+    end
+
+    row.chevron = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    row.chevron:SetPoint("RIGHT", -PADDING, 0)
+    row.chevron:SetWidth(CHEVRON)
+    row.chevron:SetJustifyH("RIGHT")
+
+    return row
+end
+
+--- Titre de section : « A CORRIGER — 10 ». Ce n'est PAS une ligne de donnees deguisee.
+local function newSection()
+    local frame = CreateFrame("Button", nil, view.content)
+    frame:SetHeight(SECTION_HEIGHT)
+
+    frame.label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    frame.label:SetPoint("LEFT", PADDING, -2)
+    frame.label:SetJustifyH("LEFT")
+
+    frame.action = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    frame.action:SetPoint("RIGHT", -PADDING, -2)
+    frame.action:SetJustifyH("RIGHT")
+
+    frame.rule = frame:CreateTexture(nil, "ARTWORK")
+    frame.rule:SetHeight(1)
+    frame.rule:SetPoint("BOTTOMLEFT", PADDING, 0)
+    frame.rule:SetPoint("BOTTOMRIGHT", -PADDING, 0)
+
+    return frame
+end
+
+--- Carte de boss, colonne de gauche de l'ecran Butin.
+local function newBossCard()
+    local card = CreateFrame("Button", nil, view.bossList, "BackdropTemplate")
+    card:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+    card:SetHeight(BOSS_HEIGHT)
+
+    card.portrait = card:CreateTexture(nil, "ARTWORK")
+    card.portrait:SetSize(34, 34)
+    card.portrait:SetPoint("LEFT", 6, 0)
+    card.portrait:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+
+    card.name = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    card.name:SetPoint("TOPLEFT", card.portrait, "TOPRIGHT", 8, -2)
+    card.name:SetPoint("RIGHT", card, "RIGHT", -8, 0)
+    card.name:SetJustifyH("LEFT")
+    card.name:SetWordWrap(false)
+
+    card.detail = card:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    card.detail:SetPoint("TOPLEFT", card.name, "BOTTOMLEFT", 0, -3)
+    card.detail:SetPoint("RIGHT", card, "RIGHT", -8, 0)
+    card.detail:SetJustifyH("LEFT")
+    card.detail:SetWordWrap(false)
+
+    return card
+end
+
+--- Ligne d'objet convoite, colonne de droite de l'ecran Butin.
+local function newLootRow()
+    local row = CreateFrame("Button", nil, view.content)
+    row:SetHeight(LOOT_HEIGHT)
+    row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+
+    row.icon = row:CreateTexture(nil, "ARTWORK")
+    row.icon:SetSize(26, 26)
+    row.icon:SetPoint("LEFT", PADDING, 0)
+    row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    row.name:SetPoint("TOPLEFT", row.icon, "TOPRIGHT", 8, -1)
+    row.name:SetJustifyH("LEFT")
+    row.name:SetWordWrap(false)
+
+    -- Sous-ligne grise : niveau simule, premier pretendant, nombre de membres. Le
+    -- CLASSEMENT complet reste dans l'infobulle, ou `AddDoubleLine` l'aligne deja en deux
+    -- colonnes — l'aplatir ici ferait une file de nombres a abscisses variables.
+    row.detail = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    row.detail:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -2)
+    row.detail:SetJustifyH("LEFT")
+    row.detail:SetWordWrap(false)
+
+    row.value = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.value:SetPoint("RIGHT", -PADDING, 0)
+    row.value:SetWidth(86)
+    row.value:SetJustifyH("RIGHT")
+
+    return row
+end
+
+-- Remise a neuf. AUCUN champ ne survit d'un rendu a l'autre.
 --
--- Les lignes sont reutilisees d'un rafraichissement a l'autre, mais leurs gestionnaires
--- etaient reconstruits a chaque fois : une tournee de guilde a trente membres en
--- fabriquait trente, et la sous-vue Raid deux par objet convoite. L'etat voyage sur la
--- ligne (`row.card`, `row.item`, `row.encounter`).
+-- L'ancienne version ne vidait ni texte ni script : elle ne tenait que parce que les deux
+-- sous-vues ecrivaient les cinq memes `SetText`. Survoler la liste des membres apres avoir
+-- consulte la sous-vue Butin sortait donc l'infobulle d'un objet. C'est la famille de bug
+-- deja payee deux fois dans ce depot.
+local function resetMemberRow(row)
+    row.card = nil
+    row.glyph:SetText("")
+    row.name:SetText("")
+    row.chevron:SetText("")
+    for _, column in ipairs(COLUMNS) do row[column.key]:SetText("") end
+    row:SetScript("OnClick", nil)
+    row:SetScript("OnEnter", nil)
+    row:SetScript("OnLeave", nil)
+end
+
+local function resetSection(frame)
+    frame.label:SetText("")
+    frame.action:SetText("")
+    frame:SetScript("OnClick", nil)
+end
+
+local function resetBossCard(card)
+    card.group = nil
+    card.name:SetText("")
+    card.detail:SetText("")
+    card.portrait:SetTexture(nil)
+    card:SetScript("OnClick", nil)
+end
+
+local function resetLootRow(row)
+    row.item, row.encounter = nil, nil
+    row.name:SetText("")
+    row.detail:SetText("")
+    row.value:SetText("")
+    row.icon:SetTexture(nil)
+    row:SetScript("OnEnter", nil)
+    row:SetScript("OnLeave", nil)
+end
+
+-- ---------------------------------------------------------------- gestionnaires
 
 local function hideTooltip()
     GameTooltip:Hide()
@@ -91,19 +247,55 @@ local function memberOnClick(self)
     end
 end
 
-local function needOnEnter(self)
+local function memberOnEnter(self)
+    local card = self.card
+    if not card then return end
+
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:ClearLines()
+    GameTooltip:AddLine(card.name, 0.91, 0.91, 0.91)
+    if card.spec ~= "" then GameTooltip:AddLine(card.spec, 0.54, 0.54, 0.54) end
+
+    GameTooltip:AddLine(" ")
+    if (card.fixes or 0) > 0 then
+        GameTooltip:AddDoubleLine(L["Fixes pending"], tostring(card.fixes),
+            0.54, 0.54, 0.54, 1, 0.42, 0.42)
+    else
+        GameTooltip:AddDoubleLine(L["Fixes pending"], L["none"],
+            0.54, 0.54, 0.54, 0.45, 0.78, 0.62)
+    end
+
+    if card.simState == "missing" then
+        GameTooltip:AddDoubleLine(L["Droptimizer"], L["not shared"],
+            0.54, 0.54, 0.54, 1, 0.42, 0.42)
+    else
+        GameTooltip:AddDoubleLine(L["Droptimizer"],
+            string.format(L["%d day(s) old"], math.max(0, card.simAge)),
+            0.54, 0.54, 0.54, card.simState == "stale" and 0.89 or 0.45,
+            card.simState == "stale" and 0.64 or 0.78, card.simState == "stale" and 0.36 or 0.62)
+        GameTooltip:AddLine(L["click to copy the report link"], 0, 0.69, 1)
+    end
+    GameTooltip:Show()
+end
+
+local function sectionOnClick()
+    expanded = not expanded
+    GuildView.Refresh()
+end
+
+local function bossOnClick(self)
+    selectedEncounter = self.group and self.group.encounter
+    GuildView.Refresh()
+end
+
+local function lootOnEnter(self)
     local item = self.item
     if not item then return end
 
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:ClearLines()
-    -- Le lien du journal des aventures porte les identifiants de bonus, donc le VRAI
-    -- niveau. `SetItemByID` ne connait que le modele et rend 44 sur une piece de raid.
-    --
-    -- Les quatre arguments comptent. Il n'en recevait que trois — sans l'instance, et avec
-    -- une difficulte qui n'existait sur aucun objet de guilde puisqu'elle n'etait pas
-    -- transmise. Le journal ne pouvait donc jamais aboutir : l'infobulle tombait a chaque
-    -- fois sur le modele et contredisait le niveau simule affiche sur la ligne.
+    -- Le lien du journal porte les identifiants de bonus, donc le VRAI niveau.
+    -- `SetItemByID` ne connait que le modele et rend 44 sur une piece de raid.
     local link = ns.Sim.LootLink(self.encounter, item.id, item.difficulty, item.instance)
     local shown = link and pcall(GameTooltip.SetHyperlink, GameTooltip, link)
     if not shown and not pcall(GameTooltip.SetItemByID, GameTooltip, item.id) then
@@ -135,61 +327,304 @@ local function needOnEnter(self)
     GameTooltip:Show()
 end
 
---- Remet une ligne a neuf : etat ET gestionnaires.
+-- ------------------------------------------------------------------ mise en page
+
+--- Pose les colonnes d'une ligne de membre. Le nom prend ce que les nombres laissent.
+local function layoutMemberRow(row, width)
+    row:SetWidth(width)
+
+    local fixed = CHEVRON + PADDING
+    for _, column in ipairs(COLUMNS) do fixed = fixed + column.width end
+
+    local nameWidth = math.max(NAME_MIN, width - fixed - GUTTER - PADDING * 2)
+    row.name:ClearAllPoints()
+    row.name:SetPoint("LEFT", PADDING + GUTTER + 4, 0)
+    row.name:SetWidth(nameWidth)
+
+    local offset = PADDING + GUTTER + 4 + nameWidth
+    for _, column in ipairs(COLUMNS) do
+        local field = row[column.key]
+        field:ClearAllPoints()
+        field:SetPoint("LEFT", offset, 0)
+        field:SetWidth(column.width)
+        field:SetJustifyH(column.justify)
+        offset = offset + column.width
+    end
+end
+
+--- Entete de colonnes : la MEME fonction de mise en page que les lignes.
 ---
---- Les memes lignes servent la liste des membres et la sous-vue Raid. Chaque vue ne
---- posait que les gestionnaires dont ELLE avait besoin, sans retirer ceux de l'autre :
---- une ligne qui avait affiche un objet convoite gardait son OnEnter, et survoler la
---- liste des membres apres avoir consulte la sous-vue Raid sortait l'infobulle d'un objet
---- appartenant a l'affichage precedent. La remise a neuf est ici, une fois, pour les deux.
-local function resetRow(row)
-    row.card, row.item, row.encounter = nil, nil, nil
-    row:SetScript("OnEnter", nil)
-    row:SetScript("OnLeave", nil)
-    row:SetScript("OnClick", nil)
-    return row
+--- C'etait une chaine unique bourree d'espaces censee tomber en face de colonnes qu'elle
+--- ne pouvait pas connaitre — la police n'est pas a chasse fixe. Elle ne peut plus
+--- deriver : elle EST le modele.
+local function layoutHeader(width)
+    layoutMemberRow(view.header, width)
+    view.header.glyph:SetText("")
+    view.header.chevron:SetText("")
+    view.header.name:SetText(hex("muted") .. L["MEMBER"] .. "|r")
+    view.header.spec:SetText(hex("muted") .. L["SPEC"] .. "|r")
+    view.header.ilvl:SetText(hex("muted") .. L["ILVL"] .. "|r")
+    view.header.fixes:SetText(hex("muted") .. L["FIXES"] .. "|r")
+    view.header.sim:SetText(hex("muted") .. L["DROPTIMIZER"] .. "|r")
 end
 
-local function acquireRow(index)
-    if rows[index] then return resetRow(rows[index]) end
+--- Une carte du bandeau : un titre, puis une partition qui somme au total.
+local function fillCard(card, title, total, parts)
+    card.title:SetText(string.format("%s%s|r   %s%s|r",
+        hex("link"), title, hex("muted"), string.format(L["of %d"], total)))
 
-    local row = CreateFrame("Button", nil, view.content)
-    row:SetHeight(ROW_HEIGHT)
-    row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
-
-    -- Aucune position ni largeur ici : `layoutColumns` les pose au rendu, quand la largeur
-    -- du cadre est connue. Les fixer a la creation, c'etait la premiere des quatre sources
-    -- de verite.
-    row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    row.spec = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    row.ilvl = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.fixes = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.sim = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-
-    rows[index] = row
-    return row
+    local text = {}
+    for _, part in ipairs(parts) do
+        table.insert(text, string.format("%s%s|r %s%d|r %s%s|r",
+            glyphColor(part.glyph), part.glyph,
+            part.count > 0 and hex("text") or hex("muted"), part.count,
+            hex("muted"), part.label))
+    end
+    card.body:SetText(table.concat(text, "    "))
 end
+
+-- ------------------------------------------------------------------ ecran Roster
+
+local function refreshRoster(width)
+    local state = ns.Guild.RosterState()
+
+    fillCard(view.gearCard, L["EQUIPMENT"], state.total, {
+        { glyph = "!", count = state.gear.withFixes, label = L["to fix"] },
+        { glyph = "+", count = state.gear.clean,     label = L["no fix"] },
+    })
+    fillCard(view.simCard, L["DROPTIMIZER"], state.total, {
+        { glyph = "x", count = state.sim.missing, label = L["none"] },
+        { glyph = "~", count = state.sim.stale,   label = L["stale"] },
+        { glyph = "+", count = state.sim.fresh,   label = L["fresh"] },
+    })
+
+    layoutHeader(width)
+
+    local todo, done = {}, {}
+    for _, card in ipairs(state.list) do
+        table.insert(card.needsWork and todo or done, card)
+    end
+
+    local top = 0
+
+    local function memberRow(card)
+        local row = pools.member:Acquire()
+        row:SetParent(view.content)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, top)
+        layoutMemberRow(row, width)
+
+        row.glyph:SetText(glyphColor(card.glyph) .. card.glyph .. "|r")
+        row.name:SetText(card.name)
+        row.spec:SetText(card.spec ~= "" and card.spec or "")
+        row.ilvl:SetText(card.ilvl > 0 and tostring(card.ilvl) or "—")
+
+        -- Zero ne s'ecrit pas « 0 » ni « ok » : un tiret cadratin n'a pas de forme de
+        -- chiffre, donc une colonne sans probleme se balaie sans etre lue.
+        row.fixes:SetText((card.fixes or 0) > 0
+            and string.format("%s!|r %s%d|r", hex("critical"), hex("text"), card.fixes)
+            or (hex("muted") .. "—|r"))
+
+        if card.simState == "missing" then
+            row.sim:SetText(string.format("%sx|r %s—|r", hex("critical"), hex("muted")))
+        else
+            local color = card.simState == "stale" and hex("bis") or hex("good")
+            local mark = card.simState == "stale" and "~" or "+"
+            row.sim:SetText(string.format("%s%s|r %s%s|r", color, mark, hex("text"),
+                string.format(L["%d d"], math.max(0, card.simAge))))
+        end
+
+        -- Le chevron n'apparait QUE si le clic fait quelque chose. Un geste annonce sous
+        -- un clic mort est le bug deja corrige sur la carte « Rien a corriger ».
+        row.chevron:SetText(card.sim ~= "" and (hex("muted") .. ">|r") or "")
+
+        row.card = card
+        row:SetScript("OnClick", memberOnClick)
+        row:SetScript("OnEnter", memberOnEnter)
+        row:SetScript("OnLeave", hideTooltip)
+        row:Show()
+        top = top - ROW_HEIGHT
+    end
+
+    local function section(label, count, action)
+        local frame = pools.section:Acquire()
+        frame:SetParent(view.content)
+        frame:ClearAllPoints()
+        frame:SetPoint("TOPLEFT", 0, top)
+        frame:SetWidth(width)
+        frame.label:SetText(string.format("%s%s|r %s— %d|r",
+            hex("text"), label, hex("muted"), count))
+        frame.rule:SetColorTexture(unpack(ns.Theme.RGB.border))
+        if action then
+            frame.action:SetText(hex("link") .. action .. "|r")
+            frame:SetScript("OnClick", sectionOnClick)
+        end
+        frame:Show()
+        top = top - SECTION_HEIGHT
+    end
+
+    if #todo > 0 then
+        section(L["TO FIX"], #todo)
+        for _, card in ipairs(todo) do memberRow(card) end
+    end
+
+    if #done > 0 then
+        top = top - 6
+        section(L["NOTHING TO REPORT"], #done, expanded and L["collapse"] or L["expand"])
+        if expanded then
+            for _, card in ipairs(done) do memberRow(card) end
+        end
+    end
+
+    view.content:SetHeight(math.max(1, -top + 8))
+    return state.total
+end
+
+-- ------------------------------------------------------------------- ecran Butin
+
+local function refreshLoot(width)
+    local groups = ns.Guild.LootByEncounter()
+    if not groups then
+        view.bossList:Hide()
+        view.content:SetHeight(1)
+        return 0, L["No droptimizer shared yet. Run the roll call, and ask members to enable sharing."]
+    end
+
+    view.bossList:Show()
+
+    -- Rencontre choisie : celle qu'on a cliquee, sinon la premiere — la plus payante.
+    local chosen
+    for _, group in ipairs(groups) do
+        if group.encounter == selectedEncounter then chosen = group end
+    end
+    chosen = chosen or groups[1]
+    selectedEncounter = chosen.encounter
+
+    local top = 0
+    for _, group in ipairs(groups) do
+        local card = pools.boss:Acquire()
+        card:SetParent(view.bossList)
+        card:ClearAllPoints()
+        card:SetPoint("TOPLEFT", 0, top)
+        card:SetWidth(BOSS_WIDTH)
+
+        local active = group.encounter == chosen.encounter
+        ns.Theme.ApplyCard(card, active and ns.Theme.RGB.link or nil)
+
+        -- Portrait absent : la carte se decale, elle ne montre pas un point
+        -- d'interrogation permanent. Une fiche venue d'un client anterieur ne porte pas
+        -- d'instance, donc la lecture du journal echoue — c'est un manque, pas une erreur.
+        local portrait = ns.Journal.Portrait(group.instance, group.encounter)
+        card.portrait:SetTexture(portrait)
+        card.portrait:SetShown(portrait ~= nil)
+        card.name:ClearAllPoints()
+        card.name:SetPoint("TOPLEFT", portrait and 48 or 10, -6)
+        card.name:SetPoint("RIGHT", card, "RIGHT", -8, 0)
+
+        local members = 0
+        for _, item in ipairs(group.items) do members = members + #item.members end
+
+        card.name:SetText((active and hex("link") or hex("text"))
+            .. (group.name or string.format(L["encounter %d"], group.encounter)) .. "|r")
+        card.detail:SetText(string.format("%s%s  ·  %s|r   %s%+.2f%%|r",
+            hex("muted"),
+            string.format(L["%d items"], #group.items),
+            string.format(L["%d concerned"], members),
+            hex(tint(group.best)), group.best))
+
+        card.group = group
+        card:SetScript("OnClick", bossOnClick)
+        card:Show()
+        top = top - BOSS_HEIGHT - 4
+    end
+    view.bossList:SetHeight(math.max(1, -top))
+
+    -- Colonne de droite : les objets de la rencontre choisie, et d'elle seule.
+    local lootTop = 0
+    for _, item in ipairs(chosen.items) do
+        local row = pools.loot:Acquire()
+        row:SetParent(view.content)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, lootTop)
+        row:SetWidth(width)
+
+        local link = ns.Sim.LootLink(chosen.encounter, item.id,
+            item.difficulty or chosen.difficulty, item.instance or chosen.instance)
+
+        local icon
+        local getIcon = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
+        if getIcon then
+            local ok, value = pcall(getIcon, item.id)
+            if ok then icon = value end
+        end
+        row.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+
+        row.name:SetWidth(math.max(80, width - 150))
+        row.name:SetText(link or ns.ItemInfo.ColoredName(item.id)
+            or (hex("muted") .. "item:" .. item.id .. "|r"))
+
+        local top1 = item.members[1]
+        local detail = {}
+        if item.ilvl and item.ilvl > 0 then
+            table.insert(detail, "ilvl " .. item.ilvl)
+        end
+        if top1 then table.insert(detail, top1.name) end
+        table.insert(detail, string.format(L["%d concerned"], #item.members))
+        row.detail:SetWidth(math.max(80, width - 150))
+        row.detail:SetText(hex("muted") .. table.concat(detail, "  ·  ") .. "|r")
+
+        row.value:SetText(string.format("%s%+.2f%%|r", hex(tint(item.best)), item.best))
+
+        row.item, row.encounter = item, chosen.encounter
+        row:SetScript("OnEnter", lootOnEnter)
+        row:SetScript("OnLeave", hideTooltip)
+        row:Show()
+        lootTop = lootTop - LOOT_HEIGHT - 2
+    end
+
+    view.content:SetHeight(math.max(1, -lootTop + 8))
+    return #groups
+end
+
+-- ---------------------------------------------------------------------- public
 
 function GuildView.Create(parent)
     if view then return view end
 
     view = CreateFrame("Frame", nil, parent)
     view:SetAllPoints(parent)
-    rows = {}
 
-    view.title = view:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    view.title:SetPoint("TOPLEFT", 2, -2)
-    ns.Localize(view.title, "Guild audit")
-
-    view.hint = view:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    view.hint:SetPoint("TOPLEFT", 2, -26)
-    view.hint:SetPoint("RIGHT", view, "RIGHT", -(SUMMARY_WIDTH + 40), 0)
-    view.hint:SetJustifyH("LEFT")
-    ns.Localize(view.hint, "Members running GearProof answer the roll call. Nothing is sent unless sharing is on.")
+    -- UNE barre d'action. Le titre « Audit de guilde » a disparu : l'onglet porte deja le
+    -- nom, et la phrase permanente sur la confidentialite se lit une fois puis n'est plus
+    -- que du bruit — elle vit maintenant dans l'infobulle de la case de partage et dans
+    -- le panneau de reglages, ou on la cherche.
+    view.modes = {}
+    for index, mode in ipairs({
+        { key = "roster", label = "Roster" },
+        { key = "loot",   label = "Loot" },
+    }) do
+        local button = CreateFrame("Button", nil, view, "BackdropTemplate")
+        button:SetSize(84, 22)
+        button:SetPoint("TOPLEFT", (index - 1) * 88, -2)
+        button:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8X8",
+            edgeFile = "Interface\\Buttons\\WHITE8X8",
+            edgeSize = 1,
+        })
+        button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        button.text:SetPoint("CENTER")
+        button.key = mode.key
+        button.label = mode.label
+        button:SetScript("OnClick", function(self)
+            screen = self.key
+            GuildView.Refresh()
+        end)
+        view.modes[index] = button
+    end
 
     view.request = CreateFrame("Button", nil, view, "UIPanelButtonTemplate")
-    view.request:SetSize(150, 22)
-    view.request:SetPoint("TOPLEFT", 0, -50)
+    view.request:SetSize(130, 22)
+    view.request:SetPoint("TOPLEFT", 190, -2)
     ns.Localize(view.request, "Roll call")
     view.request:SetScript("OnClick", function()
         if ns.Guild.Request() then GuildView.Refresh() end
@@ -205,122 +640,110 @@ function GuildView.Create(parent)
 
     view.share = CreateFrame("CheckButton", "GearProofShareToggle", view, "UICheckButtonTemplate")
     view.share:SetSize(22, 22)
-    view.share:SetPoint("LEFT", view.export, "RIGHT", 16, 0)
+    view.share:SetPoint("LEFT", view.export, "RIGHT", 14, 0)
     view.share.text = view.share:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     view.share.text:SetPoint("LEFT", view.share, "RIGHT", 2, 0)
     ns.Localize(view.share.text, "Share my data")
     view.share:SetScript("OnClick", function(self)
         ns.db.shareWithGuild = self:GetChecked() and true or false
     end)
+    view.share:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine(L["Share my data"])
+        GameTooltip:AddLine(L["Members running GearProof answer the roll call. Nothing is sent unless sharing is on."],
+            0.8, 0.8, 0.9, true)
+        GameTooltip:Show()
+    end)
+    view.share:SetScript("OnLeave", hideTooltip)
 
-    -- Deux sous-vues : le tableau du roster, et la couverture par rencontre. Les boutons
-    -- restent des boutons plats maison, pas des onglets Blizzard : la fenetre a deja une
-    -- rangee d'onglets et en empiler une seconde brouillerait la hierarchie.
-    view.modes = {}
-    for index, mode in ipairs({
-        { key = "roster", label = "Roster" },
-        { key = "raid",   label = "Raid" },
-    }) do
-        local button = CreateFrame("Button", nil, view, "BackdropTemplate")
-        button:SetSize(96, 20)
-        button:SetPoint("TOPLEFT", (index - 1) * 100, -78)
-        button:SetBackdrop({
+    -- Bandeau : DEUX cartes, deux partitions du meme total. Elles se partagent la largeur
+    -- en fraction — jamais a x fixe : le francais fait une bonne moitie de plus que
+    -- l'anglais, et le mode etroit est le cas nominal a l'ouverture, pas un cas limite.
+    local function newCard()
+        local card = CreateFrame("Frame", nil, view, "BackdropTemplate")
+        card:SetBackdrop({
             bgFile = "Interface\\Buttons\\WHITE8X8",
             edgeFile = "Interface\\Buttons\\WHITE8X8",
             edgeSize = 1,
         })
-        button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        button.text:SetPoint("CENTER")
-        button.key = mode.key
-        button.label = mode.label
-        button:SetScript("OnClick", function(self)
-            guildMode = self.key
-            GuildView.Refresh()
-        end)
-        view.modes[index] = button
+        card:SetHeight(44)
+        card.title = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        card.title:SetPoint("TOPLEFT", 10, -7)
+        card.title:SetJustifyH("LEFT")
+        card.body = card:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        card.body:SetPoint("TOPLEFT", 10, -24)
+        card.body:SetJustifyH("LEFT")
+        card.body:SetWordWrap(false)
+        ns.Theme.Track(card)
+        return card
     end
 
-    -- Bandeau de fraicheur : la reponse a « qui a un droptimizer, et depuis quand ».
-    view.coverage = view:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    view.coverage:SetPoint("TOPLEFT", 210, -78)
-    view.coverage:SetJustifyH("LEFT")
+    view.gearCard = newCard()
+    view.gearCard:SetPoint("TOPLEFT", 0, -30)
+    view.simCard = newCard()
+    view.simCard:SetPoint("TOPLEFT", view.gearCard, "TOPRIGHT", 8, 0)
 
-    -- L'entete est une LIGNE, avec les memes champs qu'une ligne de donnees, posee par le
-    -- meme `layoutColumns`. C'etait une seule chaine bourree d'espaces censee tomber en
-    -- face des colonnes : elle ne pouvait s'aligner avec aucune d'elles — la police n'est
-    -- pas a chasse fixe — et il fallait la retoucher a la main a chaque changement de
-    -- largeur. Elle ne peut plus deriver : elle EST le modele.
+    -- L'entete de colonnes est HORS de la zone de defilement : c'est la legende des
+    -- glyphes, elle doit rester quand la liste defile.
     view.header = CreateFrame("Frame", nil, view)
     view.header:SetHeight(ROW_HEIGHT)
-    view.header:SetPoint("TOPLEFT", 0, -100)
-
-    for _, key in ipairs({ "name", "spec", "ilvl", "fixes", "sim" }) do
-        view.header[key] = view.header:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    view.header:SetPoint("TOPLEFT", view.gearCard, "BOTTOMLEFT", 0, -6)
+    view.header.glyph = view.header:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    view.header.glyph:SetPoint("LEFT", PADDING, 0)
+    view.header.glyph:SetWidth(GUTTER)
+    view.header.name = view.header:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    view.header.name:SetJustifyH("LEFT")
+    for _, column in ipairs(COLUMNS) do
+        view.header[column.key] = view.header:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     end
+    view.header.chevron = view.header:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    view.header.chevron:SetPoint("RIGHT", -PADDING, 0)
+    view.header.chevron:SetWidth(CHEVRON)
 
-    -- Bande de chiffres de tete, a droite.
-    --
-    -- C'est la meilleure idee des croquis : « combien sont prets, combien de gain le raid
-    -- a devant lui, combien de gens ont encore quelque chose a corriger » repond en un
-    -- coup d'oeil a la seule question d'un officier a vingt minutes du pull. La liste,
-    -- elle, demande de parcourir ligne a ligne.
-    view.summary = CreateFrame("Frame", nil, view, "BackdropTemplate")
-    view.summary:SetWidth(SUMMARY_WIDTH)
-    view.summary:SetPoint("TOPRIGHT", -26, -102)
-    view.summary:SetPoint("BOTTOM", view, "BOTTOM", 0, 4)
-    view.summary:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    ns.Theme.Track(view.summary)
-
-    view.summaryValue = view.summary:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
-    view.summaryValue:SetPoint("TOP", view.summary, "TOP", 0, -16)
-
-    view.summaryLabel = view.summary:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    view.summaryLabel:SetPoint("TOP", view.summaryValue, "BOTTOM", 0, -2)
-
-    view.summaryBody = view.summary:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    view.summaryBody:SetPoint("TOPLEFT", view.summary, "TOPLEFT", 12, -66)
-    view.summaryBody:SetWidth(SUMMARY_WIDTH - 24)
-    view.summaryBody:SetJustifyH("LEFT")
-    view.summaryBody:SetSpacing(6)
+    -- Colonne des boss, ecran Butin. Elle vit a cote de la zone de defilement, pas dedans.
+    view.bossList = CreateFrame("Frame", nil, view)
+    view.bossList:SetWidth(BOSS_WIDTH)
+    view.bossList:SetPoint("TOPLEFT", view.header, "BOTTOMLEFT", 0, -4)
+    view.bossList:Hide()
 
     view.scroll = CreateFrame("ScrollFrame", nil, view, "UIPanelScrollFrameTemplate")
-    view.scroll:SetPoint("TOPLEFT", 0, -118)
-    view.scroll:SetPoint("BOTTOMRIGHT", -(SUMMARY_WIDTH + 38), 0)
+    view.scroll:SetPoint("TOPLEFT", view.header, "BOTTOMLEFT", 0, -4)
+    view.scroll:SetPoint("BOTTOMRIGHT", -26, 4)
 
     view.content = CreateFrame("Frame", nil, view.scroll)
-    -- AUCUNE largeur ici : `Refresh` et `RefreshRaid` la posent depuis la largeur reelle
-    -- du ScrollFrame. Cette ligne passait encore `ROSTER_WIDTH`, la constante supprimee
-    -- avec le modele de colonnes — donc `SetSize(nil, 1)`, donc une erreur qui avortait
-    -- `GuildView.Create` et, avec elle, la construction de la fenetre ENTIERE : `UI.lua`
-    -- enchaine les `Create` des cinq vues sans pcall.
     view.content:SetHeight(1)
     view.scroll:SetScrollChild(view.content)
     ns.Theme.CleanScrollBar(view.scroll)
 
-    -- L'etat vide s'arrete avant la bande de chiffres, comme la zone de defilement :
-    -- sinon son texte centre passe dessous.
+    view.note = view:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    view.note:SetPoint("TOPLEFT", view.header, "BOTTOMLEFT", PADDING, -6)
+    view.note:SetPoint("RIGHT", view, "RIGHT", -26, 0)
+    view.note:SetJustifyH("LEFT")
+    view.note:Hide()
+
+    -- Etat vide, centre. Une ligne grise en haut d'un onglet vide se lit comme un addon
+    -- casse, pas comme « il manque une action ».
     view.empty = CreateFrame("Frame", nil, view)
-    view.empty:SetPoint("TOPLEFT", 0, -118)
-    view.empty:SetPoint("BOTTOMRIGHT", -(SUMMARY_WIDTH + 38), 0)
+    view.empty:SetPoint("TOPLEFT", view.header, "BOTTOMLEFT", 0, -40)
+    view.empty:SetPoint("BOTTOMRIGHT", -26, 0)
     view.empty:Hide()
 
     view.emptyTitle = view.empty:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    view.emptyTitle:SetPoint("TOP", view.empty, "TOP", 0, -40)
+    view.emptyTitle:SetPoint("TOP", view.empty, "TOP", 0, -30)
 
     view.emptyBody = view.empty:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     view.emptyBody:SetPoint("TOP", view.emptyTitle, "BOTTOM", 0, -10)
-    -- Largeur SUIVIE, pas figee : deux ancres horizontales font que le retour a la
-    -- ligne se recalcule quand la fenetre est redimensionnee. Un `SetWidth` en dur
-    -- laissait le texte a sa largeur d'origine, centre dans un vide de plus en plus
-    -- large — ou tronque si la fenetre retrecissait.
     view.emptyBody:SetPoint("LEFT", view.empty, "LEFT", 40, 0)
     view.emptyBody:SetPoint("RIGHT", view.empty, "RIGHT", -40, 0)
     view.emptyBody:SetJustifyH("CENTER")
     view.emptyBody:SetSpacing(3)
+
+    pools = {
+        member = ns.Pool.New(newMemberRow, resetMemberRow),
+        section = ns.Pool.New(newSection, resetSection),
+        boss = ns.Pool.New(newBossCard, resetBossCard),
+        loot = ns.Pool.New(newLootRow, resetLootRow),
+    }
 
     return view
 end
@@ -328,257 +751,60 @@ end
 function GuildView.Refresh()
     if not view then return end
 
-    view.share:SetChecked(ns.db.shareWithGuild == true)
-
-    for _, row in pairs(rows) do row:Hide() end
+    ns.Pool.ResetAll(pools)
+    view.share:SetChecked(ns.db.shareWithGuild and true or false)
 
     for _, button in ipairs(view.modes) do
-        local active = button.key == guildMode
-        if active then
-            ns.Theme.ApplyCard(button, ns.Theme.RGB.link)
-        else
-            ns.Theme.ApplyCard(button)
-        end
-        button.text:SetText((active and hex("link") or hex("text")) .. L[button.label] .. "|r")
+        local active = button.key == screen
+        ns.Theme.ApplyCard(button, active and ns.Theme.RGB.link or nil)
+        button.text:SetText((active and hex("link") or hex("muted")) .. L[button.label] .. "|r")
     end
 
-    -- Chiffres de tete. Le gros nombre est le compte de PRETS : c'est celui qu'on lit de
-    -- loin. Les trois autres le qualifient, en plus petit.
-    local summary = ns.Guild.Summary()
-    view.summaryValue:SetText(string.format("%s%d|r",
-        summary.ready == summary.total and hex("good") or hex("bis"), summary.ready))
-    view.summaryLabel:SetText(hex("muted")
-        .. string.format(L["ready of %d"], summary.total) .. "|r")
+    -- Les deux cartes se partagent la largeur en fraction.
+    local total = view:GetWidth()
+    if not total or total < 200 then total = 900 end
+    local cardWidth = math.floor((total - 26 - 8) / 2)
+    view.gearCard:SetWidth(cardWidth)
+    view.simCard:SetWidth(cardWidth)
 
-    local lines = {}
-    if summary.bestSum > 0 then
-        table.insert(lines, string.format("%s%s|r\n%s+%.2f%%|r",
-            hex("muted"), L["Total gain on the table"], hex("good"), summary.bestSum))
-        table.insert(lines, string.format("%s%s|r\n%s+%.2f%%|r",
-            hex("muted"), L["Average per member"], hex("text"), summary.bestAverage))
+    local loot = screen == "loot"
+    view.gearCard:SetShown(not loot)
+    view.simCard:SetShown(not loot)
+    view.header:SetShown(not loot)
+    view.note:SetShown(loot)
+
+    -- La zone de defilement demarre sous le bandeau au Roster, sous la barre d'action au
+    -- Butin : ancrage RELATIF, aucune hauteur devinee.
+    view.scroll:ClearAllPoints()
+    view.scroll:SetPoint("BOTTOMRIGHT", -26, 4)
+    view.bossList:ClearAllPoints()
+    if loot then
+        view.bossList:SetPoint("TOPLEFT", view.note, "BOTTOMLEFT", -PADDING, -6)
+        view.scroll:SetPoint("TOPLEFT", view.bossList, "TOPRIGHT", 12, 0)
     else
-        table.insert(lines, hex("muted") .. L["No shared droptimizer yet"] .. "|r")
-    end
-    table.insert(lines, string.format("%s%s|r\n%s%d / %d|r",
-        hex("muted"), L["Members with fixes pending"],
-        summary.withFixes > 0 and hex("bis") or hex("good"),
-        summary.withFixes, summary.total))
-    view.summaryBody:SetText(table.concat(lines, "\n\n"))
-
-    -- Fraicheur des droptimizers, toujours visible : c'est la question qu'un officier pose
-    -- avant un soir de raid.
-    local counts = ns.Guild.Droptimizers()
-    view.coverage:SetText(string.format("%s%d %s|r   %s%d %s|r   %s%d %s|r",
-        hex("good"), counts.ready, L["ready"],
-        hex("bis"), counts.stale, L["stale"],
-        hex("critical"), counts.missing, L["no droptimizer"]))
-
-    if guildMode == "raid" then
-        GuildView.RefreshRaid()
-        return
+        view.scroll:SetPoint("TOPLEFT", view.header, "BOTTOMLEFT", 0, -4)
     end
 
-    -- Les deux sous-vues partagent les memes FontStrings : chacune pose SA largeur, a
-    -- chaque fois. Le roster restait auparavant a 560 px en dur, ce qui laissait un vide a
-    -- droite sur une fenetre agrandie ; il prend maintenant la largeur reelle, comme la
-    -- sous-vue Raid.
-    local width = math.max(420, (view.scroll:GetWidth() or 700) - 8)
+    local width = math.max(360, (view.scroll:GetWidth() or 640) - 8)
     view.content:SetWidth(width)
-    setHeader(width, columnHeadings())
 
-    local list = ns.Guild.Roster()
-    local offset = 0
-
-    for index, card in ipairs(list) do
-        local row = acquireRow(index)
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", 0, -offset)
-        layoutRosterRow(row, width)
-
-        row.name:SetText(card.name)
-        row.spec:SetText(card.spec ~= "" and card.spec or "-")
-        row.ilvl:SetText(card.ilvl > 0 and tostring(card.ilvl) or "-")
-
-        row.fixes:SetText(card.fixes > 0
-            and string.format("%s%d|r", hex("critical"), card.fixes)
-            or string.format("%sok|r", hex("good")))
-
-        if card.sim ~= "" then
-            local stale = card.simAge < 0 or card.simAge >= 7
-            row.sim:SetText(string.format("%s%s (%dd)|r",
-                stale and hex("bis") or hex("good"), card.sim, math.max(0, card.simAge)))
-        else
-            row.sim:SetText(hex("bis") .. L["no sim"] .. "|r")
-        end
-
-        row.card = card
-        row:SetScript("OnClick", memberOnClick)
-
-        row:Show()
-        offset = offset + ROW_HEIGHT
+    local count, message
+    if loot then
+        view.note:SetText(hex("muted")
+            .. L["Sorted by the best gain in the guild. Hover an item for the full ranking."] .. "|r")
+        count, message = refreshLoot(width)
+    else
+        count = refreshRoster(width)
     end
 
-    -- Etat vide, pas page noire. Une ligne grise en haut d'un onglet entierement vide se
-    -- lit comme un addon casse, pas comme « il manque une action ».
-    if #list <= 1 then
-        setHeader(width, nil)
+    -- L'etat vide passe APRES le remplissage : un ecran replie ne doit jamais afficher
+    -- « personne n'a repondu » alors que vingt personnes ont repondu.
+    if count and count <= 1 then
         view.empty:Show()
         view.emptyTitle:SetText(hex("text") .. L["Nobody has answered yet."] .. "|r")
-        view.emptyBody:SetText(hex("muted") .. L["Run the roll call: every guild member running GearProof answers with their spec, item level and pending fixes. Nothing is sent from your client unless you tick sharing."] .. "|r")
+        view.emptyBody:SetText(hex("muted") .. (message
+            or L["Run the roll call: every guild member running GearProof answers with their spec, item level and pending fixes. Nothing is sent from your client unless you tick sharing."]) .. "|r")
     else
         view.empty:Hide()
-        setHeader(width, columnHeadings())
     end
-
-    view.content:SetHeight(math.max(1, offset))
-end
-
---- Sous-vue Raid : la couverture de la guilde, rencontre par rencontre.
----
---- Meme lecture que l'onglet Raid du joueur — instance, boss, portrait — mais la colonne de
---- droite repond a une autre question. Aucun pourcentage ne circule sur le canal de guilde,
---- donc on ne classe pas les joueurs par gain : on montre QUI est pret pour ce boss et depuis
---- quand son droptimizer date.
--- Les colonnes du roster sont calibrees pour des noms de personnage. Un nom d'objet fait deux
--- a trois fois cette longueur et passait donc a la ligne, ce qui rendait la liste illisible.
---
--- La sous-vue Raid garde donc le meme modele mais RETRECIT les colonnes de droite : le nom
--- recupere ce qu'elles rendent. C'est un remplacement de largeurs, pas une seconde grille —
--- les positions restent calculees au meme endroit.
-local RAID_WIDTHS = { spec = 150, ilvl = 70, fixes = 70, sim = 80 }
-
-layoutRaidRow = function(row, width)
-    row:SetWidth(width)
-    layoutColumns(row, width, RAID_WIDTHS)
-    row.sim:SetJustifyH("RIGHT")
-end
-
---- Colonnes du roster : le modele commun, sans remplacement.
-layoutRosterRow = function(row, width)
-    row:SetWidth(width)
-    layoutColumns(row, width)
-end
-
---- Libelles de colonnes du roster.
-columnHeadings = function()
-    return {
-        name = L["name"], spec = L["spec"], ilvl = L["ilvl"],
-        fixes = L["fixes"], sim = L["last sim"],
-    }
-end
-
---- Pose l'entete. Avec `headings`, une ligne de colonnes ; sans, un simple bandeau.
----
---- Un seul chemin pour les deux : la sous-vue Raid s'en sert comme d'une phrase, le roster
---- comme d'un entete de tableau, et l'un ne doit pas laisser de texte derriere lui quand
---- l'autre prend la main.
-setHeader = function(width, headings, banner)
-    local fields = { "name", "spec", "ilvl", "fixes", "sim" }
-
-    if headings then
-        layoutColumns(view.header, width)
-        for _, key in ipairs(fields) do
-            view.header[key]:SetText(hex("muted") .. (headings[key] or "") .. "|r")
-        end
-        return
-    end
-
-    for _, key in ipairs(fields) do
-        view.header[key]:SetText("")
-    end
-    if banner then
-        view.header.name:ClearAllPoints()
-        view.header.name:SetPoint("LEFT", ROW_PADDING, 0)
-        view.header.name:SetWidth(math.max(200, width - ROW_PADDING * 2))
-        view.header.name:SetWordWrap(false)
-        view.header.name:SetText(hex("muted") .. banner .. "|r")
-    end
-end
-
-itemName = function(itemID)
-    return ns.ItemInfo.ColoredName(itemID)
-end
-
-function GuildView.RefreshRaid()
-    local groups = ns.Guild.LootByEncounter()
-    if not groups then
-        setHeader(math.max(420, (view.scroll:GetWidth() or 700) - 8), nil,
-            L["No droptimizer shared yet. Run the roll call, and ask members to enable sharing."])
-        view.content:SetHeight(1)
-        return
-    end
-
-    setHeader(math.max(420, (view.scroll:GetWidth() or 700) - 8), nil,
-        L["Loot per boss, ranked by the best gain in the guild. Hover an item for the ranking."])
-
-    -- Toute la largeur du panneau, pas les 560 px du tableau du roster.
-    -- La zone de defilement s'arrete deja avant la bande de chiffres : on prend sa
-    -- largeur reelle, sans plancher a 560 qui la ferait deborder dessous.
-    local width = math.max(420, (view.scroll:GetWidth() or 700) - 8)
-    view.content:SetWidth(width)
-
-    local offset = 0
-    local index = 0
-
-    for _, group in ipairs(groups) do
-        index = index + 1
-        local header = acquireRow(index)
-        header:ClearAllPoints()
-        header:SetPoint("TOPLEFT", 0, -offset)
-        layoutRaidRow(header, width)
-
-        header.name:SetText(hex("link")
-            .. (group.name or string.format(L["encounter %d"], group.encounter)) .. "|r")
-        header.spec:SetText(hex("muted")
-            .. string.format(L["%d items"], #group.items) .. "|r")
-        header.ilvl:SetText("")
-        header.fixes:SetText("")
-        header.sim:SetText(string.format("%s%+.2f%%|r", hex("good"), group.best))
-        header:SetScript("OnEnter", nil)
-        header:SetScript("OnLeave", nil)
-        header:SetScript("OnClick", nil)
-        header:Show()
-        offset = offset + ROW_HEIGHT
-
-        for _, item in ipairs(group.items) do
-            index = index + 1
-            local row = acquireRow(index)
-            row:ClearAllPoints()
-            row:SetPoint("TOPLEFT", 16, -offset)
-            layoutRaidRow(row, width - 16)
-
-            -- Le lien du journal, quand il existe, porte le nom colore ET le vrai niveau.
-            -- Instance et difficulte viennent desormais du canal de guilde : sans elles la
-            -- lecture du journal echouait a tous les coups, et le nom retombait sur la
-            -- variante grise du modele d'objet.
-            local link = ns.Sim.LootLink(group.encounter, item.id,
-                item.difficulty or group.difficulty, item.instance or group.instance)
-            row.name:SetText(link
-                or itemName(item.id)
-                or (hex("muted") .. "item:" .. item.id .. "|r"))
-            -- Le premier du classement est l'information utile a la repartition du butin.
-            local top = item.members[1]
-            row.spec:SetText(top and (hex("text") .. top.name .. "|r") or "")
-            -- Le niveau SIMULE, pas celui du modele d'objet : sans les identifiants de bonus,
-            -- le client rend le niveau de base, qui peut etre absurde (44 sur une piece de
-            -- raid). Notre chiffre vient du droptimizer, il est juste.
-            row.ilvl:SetText(item.ilvl and item.ilvl > 0
-                and (hex("muted") .. "ilvl " .. item.ilvl .. "|r") or "")
-            row.fixes:SetText(hex("muted") .. string.format(L["%d need"], #item.members) .. "|r")
-            row.sim:SetText(string.format("%s%+.2f%%|r", hex("good"), item.best))
-
-            -- Au survol : l'infobulle de l'objet, puis le classement complet de la guilde.
-            row.item = item
-            row.encounter = group.encounter
-            row:SetScript("OnEnter", needOnEnter)
-            row:SetScript("OnLeave", hideTooltip)
-            row:SetScript("OnClick", nil)
-            row:Show()
-            offset = offset + ROW_HEIGHT
-        end
-
-        offset = offset + 6
-    end
-
-    view.content:SetHeight(math.max(1, offset))
 end

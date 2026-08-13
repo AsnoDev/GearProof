@@ -110,38 +110,6 @@ local function lootOnEnter(self)
     GameTooltip:Show()
 end
 
---- Portrait d'un boss, comme le journal l'affiche.
----
---- Mis en cache par rencontre. La version precedente reglait le journal a CHAQUE boss et
---- a CHAQUE rafraichissement — donc une dizaine de changements d'etat par ouverture de
---- l'onglet, sur une interface partagee avec le joueur. Un portrait ne change pas.
-local portraitCache = {}
-
-local function bossPortrait(instanceID, encounterID)
-    if not encounterID then return nil end
-
-    local cached = portraitCache[encounterID]
-    if cached then return cached end
-
-    if type(EJ_GetCreatureInfo) ~= "function" then return nil end
-
-    local portrait = ns.Journal.Read(instanceID, nil, nil, function()
-        -- EJ_GetCreatureInfo : id, nom, description, displayInfo, iconImage.
-        local results = { pcall(EJ_GetCreatureInfo, 1, encounterID) }
-        return results[1] and results[1 + 5] or nil
-    end)
-
-    -- SEUL un succes est mis en cache.
-    --
-    -- La version precedente memorisait l'echec sous forme de `false` pour ne pas relire
-    -- a chaque rendu. Mais `Journal.Read` rend nil dans deux cas parfaitement
-    -- temporaires : le journal des aventures pas encore initialise, et le joueur qui l'a
-    -- ouvert — on s'abstient alors de toucher a sa selection. Un seul echec au premier
-    -- affichage condamnait donc le portrait pour toute la session. C'est la cause des
-    -- points d'interrogation a la place des boss.
-    if portrait then portraitCache[encounterID] = portrait end
-    return portrait
-end
 
 -- La lecture d'objet passe par ItemInfo.lua : nom, qualite et code couleur.
 
@@ -518,7 +486,7 @@ function RaidView.Refresh()
             ns.Theme.ApplyCard(button)
         end
 
-        button.portrait:SetTexture(bossPortrait(group.instance, group.encounter)
+        button.portrait:SetTexture(ns.Journal.Portrait(group.instance, group.encounter)
             or "Interface\\Icons\\INV_Misc_QuestionMark")
         button.name:SetText((active and hex("link") or hex("text"))
             .. (group.name or string.format(L["encounter %d"], group.encounter)) .. "|r")

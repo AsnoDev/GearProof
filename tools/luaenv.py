@@ -228,8 +228,11 @@ def new_runtime(files: list[str], *, locale: bool = True, expose: dict | None = 
             value = returned[key] if returned is not None else None
             if value is None:
                 raise RuntimeError(
-                    f"{name} : `local {key}` introuvable a la fin du chunk — "
-                    "renomme, devenu global, ou enferme dans une fonction")
+                    f"{name} : `local {key}` vaut nil a la fin du chunk — renomme, devenu "
+                    "global, enferme dans une fonction, ou simplement PAS ENCORE AFFECTE. "
+                    "Ce mecanisme capture une VALEUR, pas une reference : une table remplie "
+                    "plus tard (dans un `Create`, par exemple) ne peut pas etre exposee "
+                    "ainsi. Expose plutot une fonction, ou une table creee au chargement.")
             locals_[key] = value
 
     return lua, ns, locals_

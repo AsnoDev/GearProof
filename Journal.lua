@@ -115,7 +115,42 @@ end
 -- journal est un objet a etat, le consulter coute cher, et une table de butin ne change
 -- pas en cours de session.
 
-local raidCache, encounterCache, lootCache = nil, {}, {}
+local raidCache, encounterCache, lootCache, portraitCache = nil, {}, {}, {}
+
+--- Portrait d'un boss, comme le journal l'affiche.
+---
+--- Vivait en local dans `RaidView`. L'onglet Guilde en a besoin pour la meme chose : ce
+--- fichier est par convention le SEUL acces au journal des aventures, et un second lecteur
+--- aurait porte son propre cache et sa propre facon de rater.
+---
+--- Mis en cache par rencontre. La version d'origine reglait le journal a CHAQUE boss et a
+--- CHAQUE rafraichissement — une dizaine de changements d'etat par ouverture d'onglet, sur
+--- une interface partagee avec le joueur. Un portrait ne change pas.
+--- @return string|nil chemin de texture
+function Journal.Portrait(instanceID, encounterID)
+    if not encounterID then return nil end
+
+    local cached = portraitCache[encounterID]
+    if cached then return cached end
+
+    if type(EJ_GetCreatureInfo) ~= "function" then return nil end
+
+    local portrait = Journal.Read(instanceID, nil, nil, function()
+        -- EJ_GetCreatureInfo : id, nom, description, displayInfo, iconImage.
+        local results = { pcall(EJ_GetCreatureInfo, 1, encounterID) }
+        return results[1] and results[1 + 5] or nil
+    end)
+
+    -- SEUL un succes est mis en cache.
+    --
+    -- Memoriser l'echec sous forme de `false` pour ne pas relire a chaque rendu condamnait
+    -- le portrait pour toute la session : `Journal.Read` rend nil dans deux cas
+    -- parfaitement temporaires — journal pas encore initialise, ou joueur qui l'a ouvert,
+    -- auquel cas on s'abstient de toucher a sa selection. C'est la cause des points
+    -- d'interrogation a la place des boss.
+    if portrait then portraitCache[encounterID] = portrait end
+    return portrait
+end
 
 --- Raids de l'extension en cours.
 --- @return table { { id, name }, ... }

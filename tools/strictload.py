@@ -50,7 +50,12 @@ def main() -> int:
     files = toc_files()
 
     try:
-        lua, ns, _ = new_runtime(files, locale=False, strict=True)
+        # `roster` est un local de portee fichier : on l'expose pour pouvoir peupler la
+        # guilde. Sans membres, l'onglet Guilde ne rend QUE son etat vide — donc aucune
+        # ligne, aucune section, aucune carte de boss, et le test ne prouve rien.
+        lua, ns, locals_ = new_runtime(files, locale=False, strict=True,
+                                       expose={"Guild.lua": ["roster"],
+                                               "GuildView.lua": ["sectionOnClick"]})
     except Exception as error:  # noqa: BLE001
         report.error("chargement", first_line(error))
         return report.finish()
@@ -118,6 +123,74 @@ def main() -> int:
                      f"GEARPROOF_NS.UI.Show('{tab}')")
 
     step("RefreshNow", "GEARPROOF_NS.UI.RefreshNow()")
+
+    # L'onglet Guilde a DEUX ecrans et une section repliable, tous derriere des boutons.
+    # `UI.Show('guild')` n'en montre qu'un : le defaut. La derniere panne en date venait
+    # exactement de la : une branche jamais atteinte parce que le test ne changeait pas
+    # d'etat. On pilote donc les boutons, comme le ferait un joueur.
+    # Une guilde qui couvre les QUATRE rangs du tri : correctifs, aucun droptimizer,
+    # droptimizer perime, rien a signaler. Sans ca, la section « rien a signaler » et son
+    # repli ne sont jamais atteints.
+    lua.globals().GEARPROOF_ROSTER = locals_["roster"]
+    lua.execute("""
+        local gains = {
+            [2607] = { instance = 1273, difficulty = 15, items = {
+                [212014] = { percent = 4.25, ilvl = 639 },
+                [212020] = { percent = 1.10, ilvl = 626 },
+            } },
+            [2611] = { instance = 1273, difficulty = 15, items = {
+                [212099] = { percent = 2.75, ilvl = 639 },
+            } },
+        }
+        local people = {
+            { name = "Ashaya",  spec = "Devastation", ilvl = 662, fixes = 3, sim = "abc", simAge = 2 },
+            { name = "Morwen",  spec = "Fureur",      ilvl = 638, fixes = 2, sim = "",    simAge = -1 },
+            { name = "Doumbra", spec = "Ombre",       ilvl = 671, fixes = 0, sim = "",    simAge = -1 },
+            { name = "Ysmir",   spec = "Givre",       ilvl = 644, fixes = 0, sim = "def", simAge = 14 },
+            { name = "Cora",    spec = "Restau",      ilvl = 664, fixes = 0, sim = "ghi", simAge = 1 },
+            { name = "Brann",   spec = "Protection",  ilvl = 658, fixes = 0, sim = "jkl", simAge = 3 },
+        }
+        for _, card in ipairs(people) do
+            card.encounters = { 2607, 2611 }
+            card.gains = gains
+            GEARPROOF_ROSTER[card.name] = card
+        end
+    """)
+
+    lua.execute("GEARPROOF_GUILD = GEARPROOF_NS.GuildView.Create(nil)")
+    for label, code in [
+        ("guilde, ecran Butin", 'GEARPROOF_GUILD.modes[2]:Fire("OnClick")'),
+        ("guilde, retour Roster", 'GEARPROOF_GUILD.modes[1]:Fire("OnClick")'),
+        ("guilde, case de partage", 'GEARPROOF_GUILD.share:Fire("OnClick")'),
+        ("guilde, infobulle de partage", 'GEARPROOF_GUILD.share:Fire("OnEnter")'),
+        ("guilde, appel de guilde", 'GEARPROOF_GUILD.request:Fire("OnClick")'),
+        ("guilde, export Discord", 'GEARPROOF_GUILD.export:Fire("OnClick")'),
+    ]:
+        step(label, code)
+
+    # Deux passes de plus sur les deux ecrans : le recyclage des pools de CE tab.
+    for pass_number in (1, 2):
+        step(f"guilde, Butin passe {pass_number}", 'GEARPROOF_GUILD.modes[2]:Fire("OnClick")')
+        step(f"guilde, Roster passe {pass_number}", 'GEARPROOF_GUILD.modes[1]:Fire("OnClick")')
+
+    # Le repli de « rien a signaler » est une branche a part entiere. On appelle son
+    # gestionnaire directement : les pools ne sont pas exposables (ils valent nil au
+    # chargement, et `expose` capture une VALEUR, pas une reference).
+    lua.globals().GEARPROOF_FOLD = locals_["sectionOnClick"]
+    for label in ("deplier", "replier"):
+        step(f"guilde, {label} la section", "GEARPROOF_FOLD()")
+
+    # Un [ok] sur un ecran VIDE ne prouverait rien. On verifie la donnee que l'ecran rend,
+    # et l'invariant qui fonde toute la mise en page : chaque partition somme au total.
+    state = ns.Guild.RosterState()
+    if state.total != 6:
+        report.error("guilde, roster", f"{state.total} membre(s), attendu 6")
+    gear = state.gear.withFixes + state.gear.clean
+    sim = state.sim.missing + state.sim.stale + state.sim.fresh
+    if gear != state.total:
+        report.error("guilde, partition equipement", f"{gear} != {state.total}")
+    if sim != state.total:
+        report.error("guilde, partition droptimizer", f"{sim} != {state.total}")
 
     for command in COMMANDS:
         label = f"/gp {command}".strip()

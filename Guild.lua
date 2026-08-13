@@ -382,46 +382,96 @@ function Guild.Roster()
     return list
 end
 
+--- Une tournee est-elle en cours ?
+---
+--- Les reponses arrivent une par une et chacune redessine la vue. Un tri par urgence
+--- ferait donc SAUTER les lignes sous les yeux pendant les cinq premieres secondes. Tant
+--- que la tournee court, la vue trie par nom ; ensuite seulement par urgence.
+function Guild.IsPolling()
+    return (GetTime() - lastRequest) < THROTTLE
+end
+
 -- Age au-dela duquel un droptimizer ne decrit plus l'equipement actuel. Seuil d'AFFICHAGE :
 -- un reset hebdomadaire suffit a perimer une simulation.
 local STALE_DAYS = 7
 
---- Etat des droptimizers de la guilde. Repond a « qui en a un, et depuis quand ».
---- @return table { ready, stale, missing, total }, table lignes triees
-function Guild.Droptimizers()
-    local counts = { ready = 0, stale = 0, missing = 0, total = 0 }
+--- Le roster, trie et qualifie, avec DEUX partitions du meme total.
+---
+--- Le mot « pret » a disparu de cette API, et c'est delibere. Il designait deux choses a
+--- la fois — une simulation fraiche (`Summary.ready`) et « rien a corriger » — et l'ecran
+--- affichait les deux sous le meme nom. Ici la fraicheur de simulation se dit `sim`, et
+--- l'absence de tache se dit `clean`. Deux mots, deux sens.
+---
+--- INVARIANT : on ne rend un compte que s'il est exact sur TOUT le roster. Les deux
+--- partitions somment donc chacune a `total`, et la vue peut les afficher cote a cote sans
+--- qu'aucune paire de nombres ne se contredise. Les sous-etats a l'interieur d'un groupe
+--- sont portes par le TRI et le GLYPHE, jamais par un sous-compte qui ne tomberait pas
+--- juste — c'est exactement ce qui rendait l'ancien ecran illisible.
+---
+--- @return table { list, total, gear = { withFixes, clean }, sim = { missing, stale, fresh } }
+function Guild.RosterState()
     local list = {}
+    local state = {
+        total = 0,
+        gear = { withFixes = 0, clean = 0 },
+        sim = { missing = 0, stale = 0, fresh = 0 },
+    }
 
     for _, card in pairs(roster) do
-        counts.total = counts.total + 1
+        state.total = state.total + 1
 
-        local state
-        if card.sim == "" or card.simAge < 0 then
-            state = "missing"
+        local simState
+        if card.sim == "" or (card.simAge or -1) < 0 then
+            simState = "missing"
         elseif card.simAge >= STALE_DAYS then
-            state = "stale"
+            simState = "stale"
         else
-            state = "ready"
+            simState = "fresh"
         end
-        counts[state] = counts[state] + 1
+        state.sim[simState] = state.sim[simState] + 1
 
-        table.insert(list, {
-            name = card.name, spec = card.spec, state = state,
-            age = card.simAge, sim = card.sim,
-            encounters = card.encounters or {},
-        })
+        local fixes = card.fixes or 0
+        if fixes > 0 then
+            state.gear.withFixes = state.gear.withFixes + 1
+        else
+            state.gear.clean = state.gear.clean + 1
+        end
+
+        -- Le glyphe de la ligne RECOPIE celui de la colonne qui a decide de son rang : la
+        -- gouttiere ne porte jamais un alphabet a elle, sinon `!` finirait par vouloir dire
+        -- deux choses selon la colonne ou on le lit.
+        local glyph, rank
+        if fixes > 0 then
+            glyph, rank = "!", 1
+        elseif simState == "missing" then
+            glyph, rank = "x", 2
+        elseif simState == "stale" then
+            glyph, rank = "~", 3
+        else
+            glyph, rank = "+", 4
+        end
+
+        card.simState, card.glyph, card.rank = simState, glyph, rank
+        card.needsWork = rank < 4
+        table.insert(list, card)
     end
 
-    -- Manquants d'abord, puis perimes, puis du plus ancien au plus recent : l'ordre dans
-    -- lequel un officier veut lire la liste.
-    local RANK = { missing = 1, stale = 2, ready = 3 }
+    -- Pendant la tournee, tri par NOM : les reponses arrivent une par une et chacune
+    -- redessine la vue, donc un tri par urgence ferait sauter les lignes sous les yeux
+    -- pendant les cinq premieres secondes.
+    local polling = Guild.IsPolling()
     table.sort(list, function(a, b)
-        if RANK[a.state] ~= RANK[b.state] then return RANK[a.state] < RANK[b.state] end
-        if a.age ~= b.age then return a.age > b.age end
+        if not polling then
+            if a.rank ~= b.rank then return a.rank < b.rank end
+            if a.rank == 1 and a.fixes ~= b.fixes then return a.fixes > b.fixes end
+            -- A rang egal chez les perimes, le plus vieux droptimizer d'abord.
+            if a.rank == 3 and a.simAge ~= b.simAge then return a.simAge > b.simAge end
+        end
         return (a.name or "") < (b.name or "")
     end)
 
-    return counts, list
+    state.list = list
+    return state
 end
 
 
@@ -481,44 +531,6 @@ function Guild.LootByEncounter()
 
     table.sort(order, function(a, b) return a.best > b.best end)
     return #order > 0 and order or nil
-end
-
---- Chiffres de tete du roster : ce qu'un officier regarde avant un soir de raid.
----
---- Quatre nombres, pas un tableau. « Combien sont prets, combien de gain le raid a
---- devant lui, et combien de gens ont encore quelque chose a corriger » — c'est la seule
---- question qui se pose a vingt minutes du premier pull, et elle n'avait aucune reponse
---- lisible : il fallait parcourir la liste ligne a ligne.
----
---- Le gain total est une SOMME de meilleurs gains individuels. Elle ne veut pas dire que
---- le raid gagnera ce pourcentage — c'est un potentiel cumule, et le libelle le dit.
---- @return table { ready, total, withFixes, bestSum, bestAverage }
-function Guild.Summary()
-    local summary = { ready = 0, total = 0, withFixes = 0, bestSum = 0, bestAverage = 0 }
-
-    local rated = 0
-    for _, card in pairs(roster) do
-        summary.total = summary.total + 1
-        if card.sim ~= "" and card.simAge >= 0 and card.simAge < STALE_DAYS then
-            summary.ready = summary.ready + 1
-        end
-        if (card.fixes or 0) > 0 then summary.withFixes = summary.withFixes + 1 end
-
-        -- Meilleur gain de ce membre, tous boss confondus.
-        local best = 0
-        for _, block in pairs(card.gains or {}) do
-            for _, gain in pairs(block.items or {}) do
-                if (gain.percent or 0) > best then best = gain.percent end
-            end
-        end
-        if best > 0 then
-            summary.bestSum = summary.bestSum + best
-            rated = rated + 1
-        end
-    end
-
-    if rated > 0 then summary.bestAverage = summary.bestSum / rated end
-    return summary
 end
 
 --- Resume texte du roster, pret a coller dans Discord.

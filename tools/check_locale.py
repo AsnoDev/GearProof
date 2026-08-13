@@ -51,8 +51,8 @@ DYNAMIC_KEYS = {
     "stat enchant", "leg armor", "weapon enchant",
     # UI.TABS[].label
     "Equipment", "Raid", "Guild", "Help",
-    # GuildView sous-vues
-    "Roster",
+    # GuildView : les deux ecrans, poses via `L[button.label]`
+    "Roster", "Loot",
     # Options.lua : les libelles et infobulles passent par une variable
     # (`checkbox(parent, anchor, key, text, tip, ...)`), pas par un litteral.
     "Language",
