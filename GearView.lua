@@ -341,12 +341,18 @@ function GearView.Create(parent)
     view = CreateFrame("Frame", nil, parent)
     view:SetAllPoints(parent)
 
-    -- Les cartes de probleme portent quatre textes et trois scripts qui ne sont pas tous
+    -- Les cartes de probleme portent des textes et des scripts qui ne sont pas tous
     -- reecrits par chaque usage : la carte « Rien a corriger » n'en pose que deux. Sans
     -- remise a neuf, elle heritait de la ligne de gestes de son occupant precedent.
+    --
+    -- Cette fonction touchait encore `card.body`, retire quand les cartes sont passees a
+    -- une ligne. Elle ne s'execute qu'au RECYCLAGE d'une carte : la fenetre s'ouvrait donc
+    -- normalement sur un equipement complet, et tombait des le premier correctif a
+    -- afficher. Toute suppression de widget doit passer par ici.
     local function resetIssueCard(card)
+        card.entry = nil
+        card.marker:SetText("")
         card.title:SetText("")
-        card.body:SetText("")
         card.hint:SetText("")
         card:SetScript("OnEnter", nil)
         card:SetScript("OnLeave", nil)

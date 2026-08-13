@@ -83,6 +83,9 @@ CreateFrame = function() return setmetatable({}, frame) end
 
 UnitName = function() return "Testeur" end
 UnitClass = function() return "Chasseur de demons", "DEMONHUNTER", 12 end
+UnitRace = function() return "Elfe de la nuit", "NightElf", 4 end
+UnitSex = function() return 2 end
+UnitFactionGroup = function() return "Alliance", "Alliance" end
 UnitLevel = function() return 80 end
 GetLocale = function() return "frFR" end
 GetBuildInfo = function() return "12.0.7", "60000", "2026-01-01", 120007 end
@@ -97,10 +100,79 @@ GameTooltip = setmetatable({}, frame)
 SlashCmdList = {}
 ReloadUI = function() end
 print = function() end
+
+-- Equipement. `GetInventorySlotInfo` rend un identifiant NUMERIQUE : du code qui en fait
+-- une cle de table ou l'ajoute a un decalage doit recevoir un nombre, pas nil.
+local SLOT_IDS = {
+    HeadSlot = 1, NeckSlot = 2, ShoulderSlot = 3, ShirtSlot = 4, ChestSlot = 5,
+    WaistSlot = 6, LegsSlot = 7, FeetSlot = 8, WristSlot = 9, HandsSlot = 10,
+    Finger0Slot = 11, Finger1Slot = 12, Trinket0Slot = 13, Trinket1Slot = 14,
+    BackSlot = 15, MainHandSlot = 16, SecondaryHandSlot = 17, TabardSlot = 19,
+}
+GetInventorySlotInfo = function(name)
+    return SLOT_IDS[name] or 1, "Interface\\PaperDoll\\UI-PaperDoll-Slot-Head", true
+end
+GetInventoryItemLink = function() return nil end
+GetInventoryItemTexture = function() return nil end
+GetInventoryItemDurability = function() return nil end
+GetInventoryItemID = function() return nil end
+GetItemInfo = function() return nil end
+GetItemIcon = function() return nil end
+GetDetailedItemLevelInfo = function() return nil end
+GetContainerNumSlots = function() return 0 end
+GetSpecialization = function() return 1 end
+GetSpecializationInfo = function() return 577, "Havoc", "", "", nil, "AGILITY" end
+GetNumSpecializations = function() return 3 end
+GetProfessions = function() return nil end
+GetProfessionInfo = function() return nil end
+GetNumGuildMembers = function() return 0 end
+GetGuildRosterInfo = function() return nil end
+IsInRaid = function() return false end
+IsInGroup = function() return false end
+UnitGUID = function() return "Player-1-00000001" end
+UnitIsUnit = function() return false end
+IsPlayerSpell = function() return false end
+BreakUpLargeNumbers = function(value) return tostring(value) end
+C_ChatInfo = { RegisterAddonMessagePrefix = function() return true end,
+               SendAddonMessage = function() end }
+C_Container = { GetContainerNumSlots = function() return 0 end,
+                GetContainerItemLink = function() return nil end,
+                GetContainerItemInfo = function() return nil end }
+C_EncounterJournal = {}
+EJ_SelectInstance = function() end
+EJ_SelectEncounter = function() end
+EJ_SetDifficulty = function() end
+EJ_SetLootFilter = function() end
+EJ_GetNumLoot = function() return 0 end
+EJ_GetLootInfoByIndex = function() return nil end
+EJ_GetInstanceByIndex = function() return nil end
+EJ_GetEncounterInfoByIndex = function() return nil end
+EJ_GetCreatureInfo = function() return nil end
+EJ_GetCurrentInstance = function() return nil end
+EJ_GetDifficulty = function() return 14 end
+EJ_GetLootFilter = function() return 0, 0 end
+EJ_ClearSearch = function() end
+InterfaceOptions_AddCategory = function() end
+Settings = { RegisterCanvasLayoutCategory = function() return {} end,
+             RegisterAddOnCategory = function() end,
+             OpenToCategory = function() end }
+ITEM_QUALITY_COLORS = setmetatable({}, { __index = function()
+    return { r = 0.6, g = 0.6, b = 0.6, hex = "|cff999999" }
+end })
+ENCHANTED_TOOLTIP_LINE = "Enchanted: %s"
+NORMAL_FONT_COLOR = { r = 1, g = 0.82, b = 0 }
+UISpecialFrames = {}
+UIParent = UIParent or nil
+InCombatLockdown = function() return false end
+IsAddOnLoaded = function() return false end
+GetAddOnMetadata = function() return nil end
+PlaySound = function() end
+SOUNDKIT = setmetatable({}, { __index = function() return 1 end })
 """
 
 
-def new_runtime(files: list[str], *, locale: bool = True, expose: dict | None = None):
+def new_runtime(files: list[str], *, locale: bool = True, expose: dict | None = None,
+                strict: bool = False):
     """Interpreteur Lua 5.1 avec l'API stub et les fichiers demandes, deja charges.
 
     Retourne `(lua, ns, locals_)` : `ns` est la table de namespace de l'addon, celle que
@@ -117,6 +189,11 @@ def new_runtime(files: list[str], *, locale: bool = True, expose: dict | None = 
     """
     lua = lua51.LuaRuntime(unpack_returned_tuples=True)
     lua.execute(WOW_STUB)
+
+    # Le stub strict ECRASE `CreateFrame` et `GameTooltip` du stub permissif : il connait
+    # les methodes de chaque type de widget et leve sur tout le reste.
+    if strict:
+        lua.execute((ADDON_ROOT / "tools" / "wowstrict.lua").read_text(encoding="utf-8"))
 
     ns = lua.eval("{}")
 

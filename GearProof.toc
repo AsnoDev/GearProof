@@ -5,7 +5,7 @@
 ## Author: Edouard
 ## Version: 0.5.0
 ## X-License: MIT
-## X-Website: https://github.com/REMPLACER-MOI/GearProof
+## X-Website: https://github.com/AsnoDev/GearProof
 ## SavedVariables: GearProofDB
 ## OptionalDeps: SimulationCraft
 ## Category: Character Advancement

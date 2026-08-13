@@ -24,10 +24,20 @@ ADDON_ROOT = Path(__file__).resolve().parent.parent
 GENERATED = {"Data/Meta.lua", "Data/Sim.lua"}
 
 
+# Dossiers qui ne contiennent pas de code d'ADDON. `tools/` heberge desormais du Lua —
+# le stub d'API de `wowstrict.lua` — qui pose volontairement des globales (CreateFrame,
+# GameTooltip, UIParent) : c'est son travail, et le verificateur de references les
+# signalait comme des globales accidentelles.
+NON_ADDON_DIRS = {"tools", ".git", "__pycache__"}
+
+
 def lua_files(include_generated: bool = False):
     """Fichiers Lua de l'addon, chemins relatifs a la racine, ordre stable."""
     for path in sorted(ADDON_ROOT.rglob("*.lua")):
-        relative = path.relative_to(ADDON_ROOT).as_posix()
+        relative = path.relative_to(ADDON_ROOT)
+        if any(part in NON_ADDON_DIRS for part in relative.parts):
+            continue
+        relative = relative.as_posix()
         if not include_generated and relative in GENERATED:
             continue
         yield relative, path
