@@ -275,10 +275,22 @@ end
 --- Deux lecteurs pour la meme donnee, divergeant sur un detail invisible : c'est la
 --- duplication qui a coute le plus cher dans ce depot. Il n'en reste qu'un.
 --- @return string|nil lien d'objet
+--- Difficulte Raidbots -> identifiant de difficulte du client.
+---
+--- Expose parce que le canal de guilde doit la TRANSMETTRE : un nombre tient en deux
+--- chiffres la ou « raid-mythic » en coute onze, sur un canal plafonne a 255 octets.
+--- @param difficulty string|number la chaine Raidbots, ou deja un identifiant
+--- @return number identifiant de difficulte du client
+function Sim.DifficultyID(difficulty)
+    if type(difficulty) == "number" then return difficulty end
+    return DIFFICULTY[difficulty or ""] or 16
+end
+
+--- @param difficulty string|number chaine Raidbots ou identifiant de difficulte du client
 function Sim.LootLink(encounterID, itemID, difficulty, instanceID)
     if not encounterID or not itemID then return nil end
 
-    local difficultyID = DIFFICULTY[difficulty or ""] or 16
+    local difficultyID = Sim.DifficultyID(difficulty)
 
     local function find(classID, specID)
         for _, loot in ipairs(ns.Journal.Loot(instanceID, encounterID, difficultyID, classID, specID)) do

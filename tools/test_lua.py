@@ -333,6 +333,78 @@ def test_prune_reports(report: Report) -> None:
     suite.done()
 
 
+# ------------------------------------------------------------ format du canal guilde
+
+def test_guild_payload(report: Report) -> None:
+    """Aller-retour de la charge utile de guilde : encodage, decoupage, reconstruction.
+
+    C'est un FORMAT DE FIL. Deux clients de versions differentes se parlent dessus, et une
+    derive silencieuse ne se voit pas : le membre disparait du tableau, ou ses chiffres
+    sont faux sans que rien ne le signale.
+
+    Il a deja derive une fois. L'instance et la difficulte n'etaient pas transmises, donc
+    l'onglet Guilde interrogeait le journal des aventures sans savoir dans quel raid
+    chercher : aucun lien, et l'infobulle affichait le niveau du modele d'objet — 44 sur
+    une piece de raid — a cote du niveau simule, correct, de la meme ligne.
+    """
+    suite = Suite(report, "Guild.payload")
+    lua, ns, locals_ = new_runtime(
+        ["Spec.lua", "Sim.lua", "Guild.lua"], expose={"Guild.lua": ["absorb", "chunkPayload"]})
+    lua.globals().GEARPROOF_NS = ns
+    lua.execute("GEARPROOF_NS.db = { shareWithGuild = true, sim = {} }")
+
+    # Deux rencontres du meme raid, en heroique.
+    lua.execute("""
+        GearProofSim = { r1 = { baseline = 100000, player = "Testeur", stamp = 1, items = {
+            [212014] = { percent=4.25, ilvl=639, encounter=2607, instance=1273, difficulty="raid-heroic" },
+            [212020] = { percent=1.10, ilvl=626, encounter=2607, instance=1273, difficulty="raid-heroic" },
+            [212099] = { percent=2.75, ilvl=639, encounter=2611, instance=1273, difficulty="raid-heroic" },
+        } } }
+    """)
+
+    payload = ns.Guild.SimPayload()
+    suite.truthy("l'instance voyage", ".1273." in payload)
+    suite.truthy("la difficulte voyage", ".15:" in payload)
+
+    absorb = locals_["absorb"]
+
+    # Un seul morceau : le cas courant.
+    gains = absorb("Bob", 1, 1, payload)
+    suite.truthy("charge utile reconstruite", gains is not None)
+    if gains is not None:
+        block = gains[2607]
+        suite.equal("instance rendue", block.instance, 1273)
+        suite.equal("difficulte rendue", block.difficulty, 15)
+        suite.equal("gain d'un objet", round(block["items"][212014].percent, 2), 4.25)
+        suite.equal("niveau d'un objet", block["items"][212014].ilvl, 639)
+
+    # Decoupe en morceaux, comme sur le canal reel : le resultat doit etre identique.
+    chunks = locals_["chunkPayload"](payload, 40)
+    count = len(chunks)
+    suite.truthy("decoupe en plusieurs morceaux", count > 1)
+    for index in range(1, count + 1):
+        rebuilt = absorb("Alice", index, count, chunks[index])
+    suite.truthy("reconstruction apres decoupe", rebuilt is not None)
+    if rebuilt is not None:
+        suite.equal("instance apres decoupe", rebuilt[2607].instance, 1273)
+        suite.equal("objets apres decoupe", rebuilt[2611]["items"][212099].ilvl, 639)
+
+    # ANCIEN format, sans instance ni difficulte. Un membre reste au moins une session sur
+    # sa version precedente : sa fiche doit se lire, pas disparaitre.
+    old = absorb("Carol", 1, 1, "2607:212014.425.639,212020.110.626")
+    suite.truthy("ancien format accepte", old is not None)
+    if old is not None:
+        suite.equal("ancien format, instance absente", old[2607].instance, None)
+        suite.equal("ancien format, gains lus", round(old[2607]["items"][212014].percent, 2), 4.25)
+
+    # Conversion de difficulte, dans les deux sens.
+    suite.equal("heroique -> 15", ns.Sim.DifficultyID("raid-heroic"), 15)
+    suite.equal("identifiant deja numerique", ns.Sim.DifficultyID(15), 15)
+    suite.equal("inconnue -> mythique", ns.Sim.DifficultyID(None), 16)
+
+    suite.done()
+
+
 # ------------------------------------------------------ chargement de tout le .toc
 
 def test_all_files_load(report: Report) -> None:
@@ -377,7 +449,8 @@ def main() -> int:
     report = Report("tests Lua")
     for test in (test_all_files_load,
                  test_item_link, test_weights, test_weapon_pair, test_chunk_payload,
-                 test_simc_item_line, test_schema_migration, test_prune_reports):
+                 test_guild_payload, test_simc_item_line, test_schema_migration,
+                 test_prune_reports):
         try:
             test(report)
         except Exception as error:  # noqa: BLE001 — un test qui casse est un constat

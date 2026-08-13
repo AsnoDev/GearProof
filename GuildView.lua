@@ -97,9 +97,14 @@ local function needOnEnter(self)
 
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:ClearLines()
-    -- Le lien du journal des aventures porte les identifiants de bonus, donc le vrai
-    -- niveau. `SetItemByID` ne connait que le modele.
-    local link = ns.Sim.LootLink(self.encounter, item.id, item.difficulty)
+    -- Le lien du journal des aventures porte les identifiants de bonus, donc le VRAI
+    -- niveau. `SetItemByID` ne connait que le modele et rend 44 sur une piece de raid.
+    --
+    -- Les quatre arguments comptent. Il n'en recevait que trois — sans l'instance, et avec
+    -- une difficulte qui n'existait sur aucun objet de guilde puisqu'elle n'etait pas
+    -- transmise. Le journal ne pouvait donc jamais aboutir : l'infobulle tombait a chaque
+    -- fois sur le modele et contredisait le niveau simule affiche sur la ligne.
+    local link = ns.Sim.LootLink(self.encounter, item.id, item.difficulty, item.instance)
     local shown = link and pcall(GameTooltip.SetHyperlink, GameTooltip, link)
     if not shown and not pcall(GameTooltip.SetItemByID, GameTooltip, item.id) then
         GameTooltip:AddLine("item:" .. item.id)
@@ -543,9 +548,11 @@ function GuildView.RefreshRaid()
             layoutRaidRow(row, width - 16)
 
             -- Le lien du journal, quand il existe, porte le nom colore ET le vrai niveau.
-            -- La difficulte n'est pas diffusee : on prend celle du releve local, sinon
-            -- mythique — c'est la difficulte d'un droptimizer de progression.
-            local link = ns.Sim.LootLink(group.encounter, item.id, item.difficulty)
+            -- Instance et difficulte viennent desormais du canal de guilde : sans elles la
+            -- lecture du journal echouait a tous les coups, et le nom retombait sur la
+            -- variante grise du modele d'objet.
+            local link = ns.Sim.LootLink(group.encounter, item.id,
+                item.difficulty or group.difficulty, item.instance or group.instance)
             row.name:SetText(link
                 or itemName(item.id)
                 or (hex("muted") .. "item:" .. item.id .. "|r"))

@@ -177,10 +177,20 @@ end
 
 --- Gains simules locaux, groupes par rencontre, en une chaine compacte.
 ---
---- Format : `encounter:itemID.centiemes.ilvl,...;encounter:...`
+--- Format : `encounter.instance.difficulte:itemID.centiemes.ilvl,...;encounter...:...`
 --- Les centiemes evitent le point decimal et l'ambiguite de locale : 4,25 % s'ecrit 425.
---- Le niveau voyage avec : sans lui, l'interface retombe sur le niveau du modele d'objet, qui
---- ignore les identifiants de bonus et peut valoir 44 sur une piece de raid.
+---
+--- Le niveau voyage avec : sans lui, l'interface retombe sur le niveau du modele d'objet,
+--- qui ignore les identifiants de bonus et peut valoir 44 sur une piece de raid.
+---
+--- L'INSTANCE et la DIFFICULTE voyagent aussi, et c'est recent. Sans elles, l'onglet
+--- Guilde appelait `Sim.LootLink` sans savoir dans quel raid ni a quelle difficulte
+--- chercher : le journal des aventures ne rendait aucun lien, l'infobulle retombait sur
+--- `SetItemByID`, et affichait le niveau du modele — le fameux 44 — juste a cote du niveau
+--- simule, correct, de la ligne. Deux nombres contradictoires pour le meme objet.
+---
+--- Elles sont posees UNE fois par rencontre, pas par objet : quinze objets d'un meme boss
+--- partagent forcement son instance et sa difficulte, et le canal est plafonne a 255 octets.
 function Guild.SimPayload()
     local groups = ns.Sim.ByEncounter()
     if not groups then return "" end
@@ -188,12 +198,16 @@ function Guild.SimPayload()
     local blocks = {}
     for _, group in ipairs(groups) do
         local items = {}
+        local difficulty
         for _, item in ipairs(group.items) do
+            difficulty = difficulty or item.difficulty
             table.insert(items, string.format("%d.%d.%d",
                 item.id, math.floor((item.percent or 0) * 100 + 0.5), item.ilvl or 0))
         end
         if #items > 0 then
-            table.insert(blocks, group.encounter .. ":" .. table.concat(items, ","))
+            table.insert(blocks, string.format("%d.%d.%d:%s",
+                group.encounter, group.instance or 0,
+                ns.Sim.DifficultyID(difficulty), table.concat(items, ",")))
         end
     end
     return table.concat(blocks, ";")
@@ -297,13 +311,27 @@ local function absorb(name, index, total, chunk)
     local payload = table.concat(pending.parts)
     incoming[name] = nil
 
+    -- L'en-tete de bloc accepte les DEUX formes : `encounter:` et
+    -- `encounter.instance.difficulte:`. Le canal de guilde met en presence des clients de
+    -- versions differentes, et un membre reste au moins une session sur son ancienne
+    -- version : refuser sa charge utile le ferait disparaitre du tableau sans un mot.
     local byEncounter = {}
-    for encounter, list in payload:gmatch("(%d+):([^;]+)") do
+    for head, list in payload:gmatch("([%d%.]+):([^;]+)") do
+        local encounter, instance, difficulty = head:match("^(%d+)%.(%d+)%.(%d+)$")
+        if not encounter then encounter = head:match("^(%d+)$") end
+
         local items = {}
         for itemID, centiemes, ilvl in list:gmatch("(%d+)%.(%d+)%.(%d+)") do
             items[tonumber(itemID)] = { percent = tonumber(centiemes) / 100, ilvl = tonumber(ilvl) }
         end
-        byEncounter[tonumber(encounter)] = items
+
+        if encounter then
+            byEncounter[tonumber(encounter)] = {
+                instance = tonumber(instance),
+                difficulty = tonumber(difficulty),
+                items = items,
+            }
+        end
     end
     return byEncounter
 end
@@ -322,13 +350,21 @@ function Guild.Request()
     outbox = {}
     local card = Guild.LocalCard()
     -- Ses propres gains sont lus directement, sans passer par le canal.
+    -- Meme FORME que ce que `absorb` reconstruit depuis le canal : instance et difficulte
+    -- a cote des objets. Deux formes differentes selon la provenance obligeraient chaque
+    -- lecteur a savoir d'ou vient la fiche.
     card.gains = {}
     for _, group in ipairs(ns.Sim.ByEncounter() or {}) do
-        local items = {}
+        local items, difficulty = {}, nil
         for _, item in ipairs(group.items) do
+            difficulty = difficulty or item.difficulty
             items[item.id] = { percent = item.percent, ilvl = item.ilvl }
         end
-        card.gains[group.encounter] = items
+        card.gains[group.encounter] = {
+            instance = group.instance,
+            difficulty = ns.Sim.DifficultyID(difficulty),
+            items = items,
+        }
     end
     roster[card.name] = card
 
@@ -399,7 +435,7 @@ function Guild.LootByEncounter()
     local groups, order = {}, {}
 
     for _, card in pairs(roster) do
-        for encounter, items in pairs(card.gains or {}) do
+        for encounter, block in pairs(card.gains or {}) do
             local group = groups[encounter]
             if not group then
                 group = { encounter = encounter, name = ns.Sim.EncounterName(encounter),
@@ -408,14 +444,23 @@ function Guild.LootByEncounter()
                 table.insert(order, group)
             end
 
-            for itemID, gain in pairs(items) do
+            -- Instance et difficulte : le PREMIER membre qui les connait decide. Une fiche
+            -- venue d'un client plus ancien ne les porte pas ; elle ne doit pas effacer
+            -- celles d'un membre a jour, sans quoi le lien de butin se reperd.
+            group.instance = group.instance or block.instance
+            group.difficulty = group.difficulty or block.difficulty
+
+            for itemID, gain in pairs(block.items or {}) do
                 local item = group.index[itemID]
                 if not item then
-                    item = { id = itemID, members = {}, best = 0, ilvl = gain.ilvl }
+                    item = { id = itemID, members = {}, best = 0, ilvl = gain.ilvl,
+                        instance = block.instance, difficulty = block.difficulty }
                     group.index[itemID] = item
                     table.insert(group.items, item)
                 end
                 item.ilvl = item.ilvl or gain.ilvl
+                item.instance = item.instance or block.instance
+                item.difficulty = item.difficulty or block.difficulty
                 table.insert(item.members,
                     { name = card.name, spec = card.spec, percent = gain.percent })
                 if gain.percent > item.best then item.best = gain.percent end
@@ -461,8 +506,8 @@ function Guild.Summary()
 
         -- Meilleur gain de ce membre, tous boss confondus.
         local best = 0
-        for _, items in pairs(card.gains or {}) do
-            for _, gain in pairs(items) do
+        for _, block in pairs(card.gains or {}) do
+            for _, gain in pairs(block.items or {}) do
                 if (gain.percent or 0) > best then best = gain.percent end
             end
         end
