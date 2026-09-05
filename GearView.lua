@@ -150,6 +150,58 @@ local function newDetail()
     return card
 end
 
+--- Carte des gemmes : la reponse d'abord, le detail ensuite.
+---
+--- Elle ne reutilise pas `newPanel` parce qu'elle porte une ICONE et deux lignes de tete
+--- de tailles differentes : la gemme a poser doit se voir sans etre lue.
+local function newGemCard()
+    local card = CreateFrame("Button", nil, view.content, "BackdropTemplate")
+    card:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+
+    card.title = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    card.title:SetPoint("TOPLEFT", 12, -8)
+
+    card.icon = card:CreateTexture(nil, "ARTWORK")
+    card.icon:SetSize(24, 24)
+    card.icon:SetPoint("TOPLEFT", 12, -26)
+    card.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    card.headline = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    card.headline:SetPoint("LEFT", card.icon, "RIGHT", 8, 0)
+    card.headline:SetJustifyH("LEFT")
+    card.headline:SetWordWrap(false)
+
+    card.count = card:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    card.count:SetPoint("RIGHT", -12, 0)
+    card.count:SetPoint("TOP", card.icon, "TOP", 0, -6)
+    card.count:SetJustifyH("RIGHT")
+    card.count:SetWordWrap(false)
+
+    card.body = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    card.body:SetPoint("TOPLEFT", 12, -56)
+    card.body:SetJustifyH("LEFT")
+    card.body:SetJustifyV("TOP")
+    card.body:SetSpacing(3)
+
+    -- Survol : l'infobulle REELLE de la gemme. Un nom seul ne dit pas ce qu'elle donne.
+    card:SetScript("OnEnter", function(self)
+        if not self.gemID then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:ClearLines()
+        if not pcall(GameTooltip.SetItemByID, GameTooltip, self.gemID) then
+            GameTooltip:AddLine("item:" .. self.gemID)
+        end
+        GameTooltip:Show()
+    end)
+    card:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    return card
+end
+
 --- Pose le panneau de detail. Retourne le nouveau haut.
 local function layoutDetail(top, width, entry)
     if not entry or not entry.link then return top end
@@ -212,7 +264,7 @@ local function issueOnEnter(self)
     -- infobulle. Le seul endroit ou le client decrit un enchantement, c'est l'infobulle
     -- de l'objet qui le porte. On affiche donc ce que l'enchantement y ajoute, mot pour
     -- mot — texte du client, deja formate et deja traduit.
-    local enchantID, share = entry.missingEnchant and ns.Meta.Enchant(entry.slot)
+    local enchantID = entry.missingEnchant and ns.Meta.Enchant(entry.slot)
     if enchantID then
         local name = ns.Meta.EnchantName(entry.link, enchantID)
         GameTooltip:AddLine(name or ("Enchant #" .. enchantID), 0, 0.9, 0.46)
@@ -232,10 +284,6 @@ local function issueOnEnter(self)
         end
 
         GameTooltip:AddLine(" ")
-        -- Le chiffre d'adoption sans le rappel de la source : elle est nommee dans
-        -- l'entete de la fenetre et en pied du bloc gemmes, une fois chacune.
-        GameTooltip:AddLine(string.format(L["%d%% adoption"],
-            (share or 0) * 100 + 0.5), 0.54, 0.54, 0.54)
     else
         GameTooltip:AddLine(L[entry.label], 0.91, 0.91, 0.91)
         for _, problem in ipairs(entry.problems) do
@@ -363,6 +411,7 @@ function GearView.Create(parent)
         issue = ns.Pool.New(newIssueCard, resetIssueCard),
         panel = ns.Pool.New(newPanel),
         detail = ns.Pool.New(newDetail),
+        gems = ns.Pool.New(newGemCard),
     }
 
     -- Le verdict, en tete : UNE ligne qui repond « est-ce que je suis pret ».
@@ -458,67 +507,107 @@ end
 --- Le releve donne la gemme par RANG de chasse (chasse 1, chasse 2), jamais par couleur —
 --- la couleur de la chasse n'est pas dans les donnees de Warcraft Logs.
 layoutGems = function(width, top, entries)
-    local lines = {}
+    -- LA question du joueur est « quelle gemme je pose ». Ce bloc y repondait par un pave
+    -- organise par emplacement PUIS par rang de chasse : « Tete + Eclat de Vide · Cou !
+    -- vide -> Eclat de Vide · Anneau 2 ~ Autre gemme », suivi d'une legende de trois
+    -- glyphes et d'une ligne de provenance. Tout y etait, et rien ne repondait.
+    --
+    -- Il est desormais construit dans l'ordre de la question :
+    --   1. LA gemme a poser, en gros, avec son icone ;
+    --   2. dans combien de chasses, et LESQUELLES ;
+    --   3. seulement ensuite, ce qui est deja serti et differe du releve.
+    --
+    -- L'ordre par rang de chasse a disparu avec le reste : ou poser quelle gemme est une
+    -- decision de joueur, c'est deja la regle de l'onglet Recommandations.
+    local bestID, bestShare = ns.Meta.Gem()
+    local emptySlots, differing = {}, {}
     local missing = 0
 
     for _, entry in ipairs(entries) do
         if entry.link and (entry.sockets or 0) > 0 then
-            local sockets = ns.Meta.SocketGems(entry.slot)
-            local parts = {}
-
-            for index = 1, entry.sockets do
-                local worn = entry.gemIDs and entry.gemIDs[index]
-                local best = sockets and sockets[index] and sockets[index][1]
-
-                -- Un glyphe double la couleur. Sans lui, l'etat d'une chasse etait porte par
-                -- la teinte seule : un daltonien deutan ne distingue pas « conforme au
-                -- releve » de « chasse vide ».
-                if worn then
-                    local name = ns.Meta.GemName(worn) or ("#" .. worn)
-                    local ok = best and worn == best.id
-                    table.insert(parts, string.format("%s%s %s|r",
-                        ok and hex(COLORS.good) or hex(COLORS.minor),
-                        ok and "+" or "~", name))
-                else
-                    missing = missing + 1
-                    local advice = best and (ns.Meta.GemName(best.id) or ("#" .. best.id))
-                    table.insert(parts, string.format("%s! %s|r",
-                        hex(COLORS.critical),
-                        advice and string.format(L["empty → %s"], advice) or L["empty socket"]))
+            local worn = entry.gemIDs or {}
+            local holes = entry.sockets - #worn
+            if holes > 0 then
+                missing = missing + holes
+                table.insert(emptySlots, { label = entry.label, holes = holes })
+            end
+            for _, gemID in ipairs(worn) do
+                if gemID ~= bestID then
+                    table.insert(differing, { label = entry.label, id = gemID })
                 end
             end
-
-            table.insert(lines, string.format("|cffE8E8E8%s|r  %s",
-                L[entry.label], table.concat(parts, "  ·  ")))
         end
     end
 
-    if #lines == 0 then return top end
+    -- Rien a dire : ni chasse vide, ni releve. On n'occupe pas la colonne pour ca.
+    if missing == 0 and not bestID then return top end
 
-    local card = acquire("panel")
+    local card = acquire("gems")
     card:SetParent(view.content)
     card:ClearAllPoints()
     card:SetPoint("TOPLEFT", 0, top - 6)
     card:SetWidth(width)
-    ns.Theme.ApplyCard(card)
+    ns.Theme.ApplyCard(card, missing > 0 and COLORS.critical or nil)
 
-    card.title:SetText(hex(COLORS.accent) .. L["GEMS"] .. "|r"
-        .. (missing > 0 and string.format("  %s%d|r", hex(COLORS.critical), missing) or ""))
+    card.title:SetText(hex(COLORS.accent) .. L["GEMS"] .. "|r")
 
-    -- Legende des glyphes, puis provenance : sans elle, un nom de gemme est un avis.
-    table.insert(lines, "")
-    table.insert(lines, string.format("|cff5A5A5A%s+|r %s   %s~|r %s   %s!|r %s|cff5A5A5A|r",
-        hex(COLORS.good), L["as measured"],
-        hex(COLORS.minor), L["different"],
-        hex(COLORS.critical), L["empty"]))
-    if ns.Meta.Available() then
-        table.insert(lines, hex(COLORS.minor)
-            .. string.format(L["measured on %d top players"], ns.Meta.Sample()) .. "|r")
+    local icon
+    if bestID then
+        local getIcon = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
+        if getIcon then
+            local ok, value = pcall(getIcon, bestID)
+            if ok then icon = value end
+        end
+    end
+    card.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_Gem_Variety_01")
+    card.icon:SetShown(bestID ~= nil)
+
+    -- La reponse, en toutes lettres.
+    card.gemID = bestID
+    if bestID then
+        card.headline:SetText(string.format("%s%s|r", hex(COLORS.accent),
+            ns.Meta.GemName(bestID) or ("gem #" .. bestID)))
+        card.count:SetText(missing > 0
+            and string.format("%s%s|r", hex(COLORS.critical),
+                string.format(L["to socket in %d slot(s)"], missing))
+            or string.format("%s%s|r", hex(COLORS.good), L["every socket is filled"]))
+    else
+        card.headline:SetText(hex(COLORS.minor) .. L["No gem recorded yet."] .. "|r")
+        card.count:SetText("")
+    end
+
+    -- OU les poser. C'est ce qui manquait pour agir sans revenir a la grille.
+    local body = {}
+    if #emptySlots > 0 then
+        local names = {}
+        for _, slot in ipairs(emptySlots) do
+            table.insert(names, L[slot.label] .. (slot.holes > 1 and (" x" .. slot.holes) or ""))
+        end
+        table.insert(body, string.format("%s!|r  %s", hex(COLORS.critical),
+            table.concat(names, "  ·  ")))
+    end
+
+    -- Ce qui est deja serti mais differe : une remarque, pas une alerte. Le releve dit ce
+    -- que le haut de tableau pose le plus, pas ce qui est faux.
+    if #differing > 0 then
+        local names = {}
+        for _, item in ipairs(differing) do
+            table.insert(names, string.format("%s (%s)", L[item.label],
+                ns.Meta.GemName(item.id) or ("#" .. item.id)))
+        end
+        table.insert(body, string.format("%s~|r  %s%s : %s|r", hex(COLORS.minor),
+            hex(COLORS.minor), L["other than measured"], table.concat(names, "  ·  ")))
+    end
+
+    if bestShare and bestShare > 0 then
+        table.insert(body, string.format("%s%d%% %s|r", hex(COLORS.minor),
+            bestShare * 100 + 0.5,
+            string.format(L["of gems on %d top players"], ns.Meta.Sample())))
     end
 
     card.body:SetWidth(width - 24)
-    card.body:SetText(table.concat(lines, "\n"))
-    card:SetHeight(34 + card.body:GetStringHeight() + 12)
+    card.body:SetText(table.concat(body, "\n"))
+    card:SetHeight(46 + card.body:GetStringHeight() + 12)
 
     return top - card:GetHeight() - 8
 end

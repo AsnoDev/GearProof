@@ -53,7 +53,12 @@ local function formatIsReadable()
     return false
 end
 
--- Deux lecteurs ont ete retires ici : `Auras` (buffs au pull) et `Tertiary`. Ils
+-- Trois lecteurs ont ete retires ici : `Auras` (buffs au pull), `Tertiary` et
+-- `SocketGems` — ce dernier rendait la gemme la plus posee par RANG DE CHASSE. Le bloc
+-- gemmes de l'onglet Equipement s'en servait pour dire « chasse 1 de la Tete : X, chasse
+-- 1 du Cou : Y », soit une quarantaine de lignes pour repondre a une question qui en
+-- demande une : quelle gemme poser. Ou la poser appartient au joueur — c'est deja la
+-- regle de l'onglet Recommandations. La table `sockets` reste generee et livree. Ils
 -- alimentaient deux categories de l'onglet Recommandations jugees sans valeur a l'usage.
 -- Les donnees `auras`, `auraSample` et `tertiary` sont donc toujours generees et livrees
 -- pour les 40 specialisations sans etre lues : le generateur peut cesser de les emettre,
@@ -253,14 +258,6 @@ end
 --- Le rang, pas la couleur : l'equipement releve ne porte que les identifiants de gemmes
 --- dans l'ordre des chasses de l'objet, jamais la couleur de la chasse. Dire « chasse 1 »
 --- est exact ; dire « la chasse jaune » serait une extrapolation.
---- @return table|nil { [rang] = { { id, count, share }, ... } }
-function Meta.SocketGems(slot)
-    local data = block()
-    local sockets = data and data.sockets
-    if type(sockets) ~= "table" then return nil end
-    local entry = sockets[slot]
-    return type(entry) == "table" and entry or nil
-end
 
 --- Deux ecoles dans une meme specialisation, quand le releve en detecte.
 ---
@@ -529,11 +526,14 @@ function Meta.EnchantAdvice(slot, referenceLink)
     local enchantID, share = Meta.Enchant(slot)
     if not enchantID then return nil end
 
-    local name = Meta.EnchantName(referenceLink, enchantID)
-    -- L'echantillon n'est plus dans la ligne : il est declare une fois par bloc.
-    return string.format("%s  |cff8A8A8A(%s)|r",
-        name or ("enchant #" .. enchantID),
-        string.format(ns.L["%d%% adoption"], (share or 0) * 100 + 0.5))
+    -- Le NOM, rien d'autre.
+    --
+    -- La part etait accolee entre parentheses a chaque titre de carte, a chaque infobulle
+    -- d'objet et a chaque ligne de l'onglet Recommandations : le meme « 35 % » repete
+    -- partout finit par ne plus rien vouloir dire, et il vole la place du nom — la seule
+    -- information dont le joueur a besoin pour aller chez l'enchanteur. Le chiffre survit
+    -- a UN seul endroit, l'onglet Recommandations, ou il classe.
+    return Meta.EnchantName(referenceLink, enchantID) or ("enchant #" .. enchantID)
 end
 
 --- Texte de conseil de gemme, ou nil.
@@ -541,8 +541,6 @@ function Meta.GemAdvice()
     local gemID, share = Meta.Gem()
     if not gemID then return nil end
 
-    local name = Meta.GemName(gemID)
-    return string.format("%s  |cff8A8A8A(%d%% of gems socketed)|r",
-        name or ("gem #" .. gemID),
-        (share or 0) * 100 + 0.5)
+    -- Le nom seul, comme pour les enchantements : le titre de carte doit dire QUOI poser.
+    return Meta.GemName(gemID) or ("gem #" .. gemID)
 end

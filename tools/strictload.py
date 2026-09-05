@@ -108,6 +108,9 @@ def main() -> int:
 
     lua.execute("""
         GetInventoryItemTexture = function() return "Interface\\\\Icons\\\\INV_Misc_QuestionMark" end
+        -- Des CHASSES sur les pieces : sans elles, le bloc gemmes de l'onglet
+        -- Equipement sort en amont et n'est jamais rendu.
+        C_Item.GetItemStats = function() return { EMPTY_SOCKET_PRISMATIC = 2 } end
     """)
 
     # DEUX passages par etat. Le second est le seul qui exerce la remise a neuf des pools :

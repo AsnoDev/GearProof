@@ -52,6 +52,14 @@ ns.translations.fr = {
     ["%s: %s missing"] = "%s : %s manquant",
     ["gem missing"] = "gemme manquante",
     ["Gear complete"] = "Equipement complet",
+
+    -- Bloc gemmes de l'onglet Equipement. Il repond a « quelle gemme je pose » : le nom
+    -- d'abord, puis combien de chasses et lesquelles. Il listait auparavant chaque chasse
+    -- de chaque piece par rang, avec une legende de trois glyphes.
+    ["to socket in %d slot(s)"] = "a poser dans %d chasse(s)",
+    ["every socket is filled"] = "toutes les chasses sont serties",
+    ["other than measured"] = "autre que le releve",
+    ["of gems on %d top players"] = "des gemmes chez %d joueurs du haut de tableau",
     ["Nothing to fix"] = "Rien a corriger",
     ["Everything is enchanted, socketed and in shape."] = "Tout est enchante, serti et en etat.",
     ["SECONDARY STATS"] = "STATISTIQUES SECONDAIRES",
@@ -180,7 +188,6 @@ ns.translations.fr = {
     ["socket"] = "chasse",
     ["unrated"] = "non chiffre",
     ["Weapons (pair)"] = "Armes (paire)",
-    ["%d%% adoption"] = "%d%% d'adoption",
     ["No socket was measured for this spec."] = "Aucune chasse relevee pour cette specialisation.",
     ["measured by your droptimizer"] = "mesure par ton droptimizer",
     ["import a droptimizer that covers it"] = "importe un droptimizer qui le couvre",

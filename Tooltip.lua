@@ -94,13 +94,11 @@ function Tooltip.LinesFor(link)
             local enchantID, share = ns.Meta.Enchant(slot)
             local name = enchantID and ns.Meta.EnchantName(link, enchantID)
             if name then
-                -- Le pourcentage seul. Que la reference soit le haut de tableau est deja
-                -- porte par le nom de l'addon en tete d'infobulle ; le repeter a chaque
-                -- ligne coute de la largeur sans rien apprendre. Le CHIFFRE reste, lui :
-                -- il dit si le choix est unanime ou dispute, ce qu'aucun autre mot ne dit.
+                -- Le NOM seul. Une infobulle se lit en une seconde, et l'enchantement a
+                -- poser est la reponse ; sa part de haut de tableau ne change pas ce qu'on
+                -- va faire. Elle vit dans l'onglet Recommandations, ou elle CLASSE.
                 table.insert(lines, {
-                    text = string.format("%s  |cff8A8A8A%s|r", name,
-                        string.format(ns.L["%d%% adoption"], (share or 0) * 100 + 0.5)),
+                    text = name,
                     r = 1, g = 0.76, b = 0.03,
                 })
             end

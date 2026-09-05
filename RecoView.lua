@@ -170,9 +170,6 @@ local function heading(top, width, label)
     return text(top, width, hex("link") .. label:upper() .. "|r") - 6
 end
 
-local function adoption(share)
-    return string.format(ns.L["%d%% adoption"], (share or 0) * 100 + 0.5)
-end
 
 -- ------------------------------------------------------------ enchantements
 
@@ -325,8 +322,10 @@ local function layoutGems(top, width)
 
         row.name:SetWidth(math.max(80, width - 180))
         row.name:SetText(hex("text") .. (ns.Meta.GemName(gem.id) or ("#" .. gem.id)) .. "|r")
-        row.share:SetText(string.format("%s%s|r", hex(index == 1 and "link" or "muted"),
-            adoption(gem.share)))
+        -- Le chiffre nu, comme sur les lignes d'enchantement juste au-dessus. Le mot
+        -- « adoption » etait repete a chaque ligne pour dire ce que l'entete dit deja.
+        row.share:SetText(string.format("%s%d%%|r", hex(index == 1 and "link" or "muted"),
+            (gem.share or 0) * 100 + 0.5))
 
         row.gemID = gem.id
         row:SetScript("OnEnter", gemOnEnter)

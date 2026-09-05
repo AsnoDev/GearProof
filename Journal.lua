@@ -13,10 +13,60 @@ ns.Journal = Journal
 --
 -- Tout passe maintenant par ici, et ce qui a ete trouve est remis en place.
 
-local function selectInstance(instanceID)
-    if instanceID and instanceID > 0 and type(EJ_SelectInstance) == "function" then
-        pcall(EJ_SelectInstance, instanceID)
+-- Palier d'extension d'une instance, retenu une fois trouve.
+--
+-- `EJ_SelectInstance` ne trouve une instance que dans le palier COURANT du journal. Rien
+-- ne le disait ici : `Journal.Read` capturait et restaurait le palier, mais ne le reglait
+-- jamais. Tant que le joueur etait sur le palier de la saison en cours et que le
+-- droptimizer couvrait cette meme saison, ca marchait par coincidence.
+--
+-- Au changement de saison, la coincidence tombe : le journal s'ouvre sur le nouveau
+-- palier, le droptimizer decrit l'ancien, `EJ_SelectInstance` echoue en silence — aucune
+-- erreur, juste une table de butin vide. `Sim.LootLink` rend alors nil, l'infobulle
+-- retombe sur `SetItemByID` qui ne connait que le modele, et affiche « niveau 44 » sur une
+-- piece de raid. C'est le bug du 44, et il revient a chaque saison.
+local tierOfInstance = {}
+
+local function findTier(instanceID)
+    local cached = tierOfInstance[instanceID]
+    if cached then return cached end
+
+    if type(EJ_GetNumTiers) ~= "function" or type(EJ_SelectTier) ~= "function" then
+        return nil
     end
+
+    local ok, count = pcall(EJ_GetNumTiers)
+    if not ok or not count then return nil end
+
+    -- Du plus RECENT au plus ancien : la saison en cours est le cas courant, et une
+    -- recherche qui commence par le bon palier ne coute qu'une iteration.
+    for tier = count, 1, -1 do
+        pcall(EJ_SelectTier, tier)
+        local index = 1
+        while true do
+            local fine, id = pcall(EJ_GetInstanceByIndex, index, true)
+            if not fine or not id then break end
+            if id == instanceID then
+                tierOfInstance[instanceID] = tier
+                return tier
+            end
+            index = index + 1
+        end
+    end
+    return nil
+end
+
+local function selectInstance(instanceID)
+    if not instanceID or instanceID <= 0 then return end
+    if type(EJ_SelectInstance) ~= "function" then return end
+
+    -- Le palier D'ABORD, l'instance ensuite : dans l'autre ordre, la selection porte sur
+    -- un palier qui ne contient pas l'instance et ne fait rien.
+    local tier = findTier(instanceID)
+    if tier and type(EJ_SelectTier) == "function" then
+        pcall(EJ_SelectTier, tier)
+    end
+    pcall(EJ_SelectInstance, instanceID)
 end
 
 local function selectEncounter(encounterID)
