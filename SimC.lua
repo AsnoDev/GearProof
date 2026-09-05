@@ -17,7 +17,7 @@ local REGIONS = { [1] = "us", [2] = "kr", [3] = "eu", [4] = "tw", [5] = "cn" }
 
 -- Lignes de metier -> jetons SimulationCraft. On passe par l'identifiant et non par le
 -- nom affiche : le nom est traduit, l'identifiant non.
--- DONNEE DE PATCH : verifiee contre 12.0.7.
+-- DONNEE DE PATCH : verifiee contre 12.0.7, PAS ENCORE REVUE pour 12.1.0.
 local PROFESSIONS = {
     [171] = "alchemy",
     [164] = "blacksmithing",

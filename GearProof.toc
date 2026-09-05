@@ -1,4 +1,4 @@
-## Interface: 120007
+## Interface: 120100
 ## Title: GearProof
 ## Notes: Your gear, checked against what the top 20 of your spec actually wear.
 ## Notes-frFR: Ton equipement, confronte a ce que portent reellement les 20 meilleurs de ta spe.

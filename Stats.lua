@@ -17,7 +17,7 @@ Stats.LIST = {
 
 -- Seuils de rendement decroissant, en points de statistique.
 --
--- DONNEE DE PATCH : verifiee contre 12.0.7, a revoir a chaque extension. Aucune API ne
+-- DONNEE DE PATCH : verifiee contre 12.0.7, PAS ENCORE REVUE pour 12.1.0, a revoir a chaque extension. Aucune API ne
 -- les expose ; ils viennent de la table de courbes du client, lue hors du jeu. S'ils
 -- deviennent faux, le palier affiche dans l'infobulle devient faux avec eux — c'est un
 -- indicateur, jamais une entree de calcul.

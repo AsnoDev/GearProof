@@ -231,7 +231,7 @@ commentée : c'est une donnée de patch, pas une déduction possible depuis l'AP
 
 ## Conventions
 
-- Interface `120007` (12.0.7) — mettre à jour à chaque patch majeur.
+- Interface `120100` (12.1.0) — mettre à jour à chaque patch majeur.
 - Tout appel d'API susceptible de disparaître passe par `pcall`, y compris
   `RegisterEvent` : un événement retiré par Blizzard doit coûter sa fonctionnalité, pas
   le chargement du fichier entier.

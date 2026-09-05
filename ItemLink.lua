@@ -27,7 +27,7 @@ local LINK_BONUS_COUNT = 13
 local MAX_LIST = 32
 
 -- Modificateurs que SimulationCraft attend nommement.
--- DONNEE DE PATCH : verifiee contre 12.0.7, a revoir a chaque extension.
+-- DONNEE DE PATCH : verifiee contre 12.0.7, PAS ENCORE REVUE pour 12.1.0, a revoir a chaque extension.
 local MOD_CONTENT_TUNING = 28
 local MOD_CRAFTED_STAT_1, MOD_CRAFTED_STAT_2 = 29, 30
 local MOD_CRAFTING_QUALITY = 38
