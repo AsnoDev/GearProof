@@ -103,6 +103,31 @@ Les ~66 clés de locale encore orphelines sont d'anciens libellés de cet onglet
 repris par la reconstruction. `tools/check_locale.py` les signale : c'est attendu tant
 que la mise en page n'est pas figée.
 
+## Régénérer le relevé (changement de saison)
+
+```bash
+cd C:\Claude\python\projets\specanalyser
+set SPECANALYSER_ADDON_DIR=C:\Claude\lua\projets\GearProof
+.venv\Scripts\python -m specanalyser wcl zones          # trouver la zone du nouveau raid
+.venv\Scripts\python -m specanalyser wcl meta --zone <id> --fallback-zone <precedente> --all --with-stats --to-addon
+```
+
+**`SPECANALYSER_ADDON_DIR` n'est pas facultatif.** Sans lui, l'outil écrit dans le dossier
+de JEU — or `tools/deploy.cmd` copie dépôt → jeu. Le relevé neuf se ferait donc écraser au
+déploiement suivant, silencieusement. Un seul sens : on génère dans le dépôt, on déploie.
+
+`--fallback-zone` sert précisément au début de saison : trop peu de joueurs sont classés
+sur le nouveau raid, l'outil complète l'échantillon avec les dernières rencontres du palier
+précédent. Chaque bloc de spé porte `source` et `fights`, donc la provenance reste lisible.
+
+Compter ~80 points de quota API par spécialisation, soit ~3 200 pour les 40 — le quota
+Warcraft Logs est de 3 600 par heure. Une passe complète tient, deux non. `wcl status`
+donne le reste.
+
+Ce qu'un changement de saison touche aussi : `## Interface` du .toc (valeur relevée sur
+les `.toc` des autres addons installés, pas devinée) et les quatre tables marquées
+`DONNEE DE PATCH`.
+
 ## Validation
 
 ```bash
