@@ -224,6 +224,17 @@ local function widget(kind, template, label)
         end,
     }
 
+    -- TEXTE STOCKE. `SetText` posait dans le vide et `GetText` rendait le repli
+    -- numerique des accesseurs : impossible de verifier ce qu'un ecran DIT, seulement
+    -- qu'il ne leve pas. Or « ne leve pas » n'est pas « se lit ».
+    local shown = ""
+    handlers.SetText = function(_, value) shown = tostring(value or "") end
+    handlers.GetText = function() return shown end
+    handlers.SetFormattedText = function(_, fmt, ...)
+        local ok, out = pcall(string.format, fmt, ...)
+        shown = ok and out or tostring(fmt)
+    end
+
     -- ARGUMENTS VERIFIES sur les poseurs de geometrie.
     --
     -- Cote C, `SetSize(width, height)` exige deux nombres et leve « Usage: ... ». Un stub
