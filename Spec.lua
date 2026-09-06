@@ -145,6 +145,34 @@ function Spec.Selected()
     return Spec.Active()
 end
 
+--- Role de la specialisation REGARDEE : "TANK", "HEALER" ou "DAMAGER".
+---
+--- `Spec.List()` portait deja `role`, lu de `GetSpecializationInfoForClassID`, et
+--- personne ne s'en servait. Consequence : l'addon comparait un soigneur et un tank au
+--- meme etalon qu'un DPS, avec les memes unites.
+---
+--- Le role de la spe REGARDEE, pas de la spe active : l'apercu d'une autre spe doit dire
+--- ce que l'audit dirait pour elle, role compris.
+--- @return string|nil
+function Spec.Role(specID)
+    specID = specID or Spec.Selected()
+    if not specID then return nil end
+
+    local info = Spec.Info()
+    for _, entry in ipairs(info and info.list or {}) do
+        if entry.id == specID then return entry.role end
+    end
+    return nil
+end
+
+--- Le tank est le seul role dont l'affichage change : la colonne de droite lui ajoute
+--- endurance et armure. Un raccourci `IsHealer` a existe ici sans consommateur — le role
+--- soigneur se lit dans le RELEVE (`Meta.Role`), pas sur le client, parce que ce qui
+--- compte est la metrique sur laquelle le haut de tableau a ete classe.
+function Spec.IsTank(specID)
+    return Spec.Role(specID) == "TANK"
+end
+
 --- Regarde-t-on autre chose que sa propre specialisation ?
 function Spec.IsPreview()
     local selected = Spec.Selected()

@@ -261,6 +261,31 @@ function GearSide.Refresh(summary)
     -- `summary.setID` et `summary.setPieces` etaient calcules a CHAQUE scan et affiches
     -- nulle part. L'etat 2p/4p est la premiere question d'un joueur de raid, et la
     -- reponse etait deja en memoire.
+    -- Survie, avant l'ensemble de classe et seulement pour un tank. Aucune comparaison
+    -- au haut de tableau : le releve ne porte ni endurance ni armure, et les deux suivent
+    -- le niveau d'objet bien plus qu'un choix. Un chiffre brut, pas un verdict invente.
+    view.survival:ClearAllPoints()
+    view.survival:SetPoint("TOPLEFT", view, "TOPLEFT", 0, top - 6)
+    local survival = ns.Spec.IsTank() and ns.Stats.Survival() or nil
+    if survival then
+        local parts = {}
+        local function big(value)
+            return BreakUpLargeNumbers and BreakUpLargeNumbers(value) or tostring(value)
+        end
+        if survival.stamina then
+            table.insert(parts, string.format("%s%s|r %s%s|r", hex(COLORS.accent),
+                L["Stamina"], "|cffE8E8E8", big(math.floor(survival.stamina.value))))
+        end
+        if survival.armor then
+            table.insert(parts, string.format("%s%s|r %s%s|r", hex(COLORS.accent),
+                L["Armor"], "|cffE8E8E8", big(math.floor(survival.armor.value))))
+        end
+        view.survival:SetText(table.concat(parts, "\n"))
+        top = top - 6 - math.ceil(view.survival:GetStringHeight() or 14) - 8
+    else
+        view.survival:SetText("")
+    end
+
     view.setLine:ClearAllPoints()
     view.setLine:SetPoint("TOPLEFT", view, "TOPLEFT", 0, top - 6)
     local pieces = summary.setPieces or 0
@@ -313,6 +338,13 @@ function GearSide.Create(parent)
     view.priority:SetJustifyH("LEFT")
     view.priority:SetWidth(SIDE_WIDTH - 8)
     view.priority:SetSpacing(3)
+
+    -- Survie : affichee UNIQUEMENT pour un tank. La colonne montrait la meme
+    -- repartition secondaire a tout le monde sans jamais nommer ce qui maintient un
+    -- tank en vie.
+    view.survival = view:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    view.survival:SetJustifyH("LEFT")
+    view.survival:SetWidth(GearSide.WIDTH - 8)
 
     view.setLine = view:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     view.setLine:SetJustifyH("LEFT")

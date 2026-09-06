@@ -96,37 +96,81 @@ verdict.
 Aucun concurrent n'a l'équivalent, et pour cause : il faut le relevé brut pour le
 calculer. C'est le différenciant qu'il ne faut pas perdre une seconde fois.
 
-Reste non lu dans les données : `p25` / `p75` / `spread` — la dispersion. Une piste, pas
-une dette : ils diraient si le top 20 est resserré ou dispersé sur une statistique.
+`p25` / `p75` / `spread` sont désormais lus, par `Meta.StatRange` : la section
+**Statistiques** de l'onglet Recommandations dessine la fourchette interquartile en bande
+et te place dedans. C'est ce qui distingue une cible d'un intervalle — « critique 55 %,
+écart 8 points » veut dire vise, « écart 30 » veut dire que le haut de tableau ne
+s'accorde pas.
 
 Les ~66 clés de locale encore orphelines sont d'anciens libellés de cet onglet non
 repris par la reconstruction. `tools/check_locale.py` les signale : c'est attendu tant
 que la mise en page n'est pas figée.
 
-## Régénérer le relevé (changement de saison)
+## Régénérer le relevé
 
 ```bash
-cd C:\Claude\python\projets\specanalyser
-set SPECANALYSER_ADDON_DIR=C:\Claude\lua\projets\GearProof
-.venv\Scripts\python -m specanalyser wcl zones          # trouver la zone du nouveau raid
-.venv\Scripts\python -m specanalyser wcl meta --zone <id> --fallback-zone <precedente> --all --with-stats --to-addon
+tools\refresh_meta.cmd
 ```
 
-**`SPECANALYSER_ADDON_DIR` n'est pas facultatif.** Sans lui, l'outil écrit dans le dossier
-de JEU — or `tools/deploy.cmd` copie dépôt → jeu. Le relevé neuf se ferait donc écraser au
-déploiement suivant, silencieusement. Un seul sens : on génère dans le dépôt, on déploie.
+Régénère, valide, déploie. **Rien à taper, rien à décider** : `--zone latest` déduit de
+l'API le raid de la saison en cours et celui qui le précède, donc aucun numéro de zone
+n'est écrit nulle part — un numéro en dur redeviendrait une intervention manuelle à la
+première semaine du patch suivant.
 
-`--fallback-zone` sert précisément au début de saison : trop peu de joueurs sont classés
-sur le nouveau raid, l'outil complète l'échantillon avec les dernières rencontres du palier
-précédent. Chaque bloc de spé porte `source` et `fights`, donc la provenance reste lisible.
+Prévu pour une tâche planifiée hebdomadaire :
 
-Compter ~80 points de quota API par spécialisation, soit ~3 200 pour les 40 — le quota
-Warcraft Logs est de 3 600 par heure. Une passe complète tient, deux non. `wcl status`
-donne le reste.
+```
+schtasks /create /tn "GearProof - releve hebdo" /tr "C:\Claude\lua\projets\GearProof\tools\refresh_meta.cmd" /sc weekly /d WED /st 06:00
+```
+
+**Un addon WoW ne peut faire aucune requête réseau.** Le relevé ne peut donc pas se
+rafraîchir depuis le jeu : il voyage avec l'addon, et c'est ce script qui le met à jour.
+Le joueur, lui, ne lance jamais rien — ni pour le relevé, qui est livré, ni pour son
+droptimizer, qui se colle.
+
+`SPECANALYSER_ADDON_DIR` pointe le **dépôt**, jamais le dossier de jeu : `deploy.cmd`
+copie dépôt → jeu, donc un relevé écrit côté jeu se ferait écraser au déploiement suivant,
+en silence. Le script s'en charge.
+
+Coût : ~80 points de quota par spécialisation, ~3 200 pour les 40, sur 3 600 par heure.
+Une passe complète tient, deux non — d'où l'hebdomadaire. `wcl status` donne le reste.
 
 Ce qu'un changement de saison touche aussi : `## Interface` du .toc (valeur relevée sur
 les `.toc` des autres addons installés, pas devinée) et les quatre tables marquées
 `DONNEE DE PATCH`.
+
+## Rôles
+
+Le relevé porte `role` par spécialisation, et la métrique de classement en découle :
+**`hps` pour les sept spés de soin**, `dps` pour le reste. C'était `dps` pour tout le
+monde — le « top 20 » d'un soigneur était donc le top 20 par dégâts, une population qui ne
+décrit personne, sans que rien ne le signale.
+
+Les tanks restent classés en `dps` : Warcraft Logs n'a pas de classement de survie. Le
+choix est écrit dans `ROLES`, pas subi par défaut.
+
+Côté addon : `Spec.Role()` donne le rôle de la spé **regardée** (aperçu compris),
+`ns.Meta.Role()` celui du relevé. Le premier décide de l'affichage — la colonne de droite
+ajoute endurance et armure pour un tank ; le second dit sur quoi le haut de tableau a été
+classé, écrit en toutes lettres en tête de l'onglet Recommandations.
+
+## Builds
+
+Deux vues, parce qu'aucune ne suffit seule :
+
+| Donnée | Ce qu'elle dit | Faiblesse |
+|---|---|---|
+| `builds` | groupes d'arbres **identiques**, chacun avec sa répartition de stats | le haut de tableau ne partage presque jamais un arbre au point près : le groupe dominant plafonne vers 25 % |
+| `talents` | taux d'adoption **par talent** | ne dit pas quels ensembles cohérents existent |
+
+C'est `builds` qui donne enfin un sens à `modes` : il disait « la maîtrise se joue à 21 %
+ou à 38 % » sans dire quel build était derrière chaque valeur.
+
+Les noms de talents sont résolus **au conditionnel** : rien ne garantit que le `talentID`
+de Warcraft Logs vive dans le même espace que celui du client. `RecoView.talentName` tente
+la résolution et n'affiche que ce qui porte un nom — un « talent 112823 » n'apprend rien
+et fait passer une donnée vraie pour cassée. **À vérifier en jeu** : si la sous-section
+reste vide, la correspondance est fausse et il faudra passer par `C_Traits`.
 
 ## Validation
 

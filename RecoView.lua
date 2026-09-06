@@ -101,6 +101,68 @@ local function newGemRow()
     return row
 end
 
+--- Ligne de build : rang, part, et la repartition de stats de CE groupe.
+local function newBuildRow()
+    local row = CreateFrame("Button", nil, view.content, "BackdropTemplate")
+    row:SetHeight(38)
+    row:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+
+    row.rank = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.rank:SetPoint("LEFT", 10, 0)
+    row.rank:SetWidth(28)
+    row.rank:SetJustifyH("LEFT")
+
+    row.share = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.share:SetPoint("LEFT", 40, 0)
+    row.share:SetWidth(64)
+    row.share:SetJustifyH("LEFT")
+
+    row.stats = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.stats:SetPoint("LEFT", 110, 0)
+    row.stats:SetJustifyH("LEFT")
+    row.stats:SetWordWrap(false)
+
+    row.tag = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.tag:SetPoint("RIGHT", -10, 0)
+    row.tag:SetJustifyH("RIGHT")
+    row.tag:SetWordWrap(false)
+
+    return row
+end
+
+--- Ligne de statistique : nom, fourchette du haut de tableau, et TA position dedans.
+local function newStatRow()
+    local row = CreateFrame("Frame", nil, view.content)
+    row:SetHeight(ROW_HEIGHT)
+
+    row.label = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.label:SetPoint("LEFT", 8, 0)
+    row.label:SetWidth(96)
+    row.label:SetJustifyH("LEFT")
+
+    -- Piste = l'etendue affichee. Bande = la fourchette interquartile du haut de tableau.
+    -- Curseur = toi. Trois objets, trois sens, aucun ne code deux choses a la fois.
+    row.track = row:CreateTexture(nil, "BACKGROUND")
+    row.track:SetHeight(8)
+
+    row.band = row:CreateTexture(nil, "ARTWORK")
+    row.band:SetHeight(8)
+
+    row.marker = row:CreateTexture(nil, "OVERLAY")
+    row.marker:SetSize(2, 14)
+
+    row.value = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.value:SetPoint("RIGHT", -8, 0)
+    row.value:SetWidth(112)
+    row.value:SetJustifyH("RIGHT")
+
+    return row
+end
+
 local function newText()
     local text = view.content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     text:SetJustifyH("LEFT")
@@ -170,6 +232,262 @@ local function heading(top, width, label)
     return text(top, width, hex("link") .. label:upper() .. "|r") - 6
 end
 
+
+-- ------------------------------------------------------------------ builds
+
+--- Nom d'un talent, si le client sait le resoudre.
+---
+--- Warcraft Logs rend un `talentID` dont RIEN ne garantit qu'il vive dans le meme espace
+--- d'identifiants que celui du client. On tente donc la resolution, et on n'affiche que ce
+--- qui porte un nom : montrer « talent 112823 » a un joueur ne lui apprend rien et fait
+--- passer une donnee vraie pour une donnee cassee.
+---
+--- Si la resolution echoue pour toute la liste, la sous-section disparait entierement.
+--- C'est le comportement voulu tant que la correspondance n'est pas verifiee en jeu.
+local function talentName(id)
+    local getInfo = (C_Spell and C_Spell.GetSpellInfo) or GetSpellInfo
+    if type(getInfo) ~= "function" then return nil end
+
+    local ok, info = pcall(getInfo, id)
+    if not ok or not info then return nil end
+    -- `C_Spell.GetSpellInfo` rend une table, l'ancienne globale rendait le nom en premier.
+    if type(info) == "table" then return info.name end
+    return type(info) == "string" and info or nil
+end
+
+--- Les talents les plus pris, quand on sait les nommer.
+local function layoutTalents(top, width)
+    local list = ns.Meta.Talents()
+    if not list then return top end
+
+    local named = {}
+    for _, entry in ipairs(list) do
+        local name = talentName(entry.id)
+        if name then
+            table.insert(named, { name = name, share = entry.share })
+        end
+        if #named >= 8 then break end
+    end
+    if #named == 0 then return top end
+
+    top = top - 4
+    for _, entry in ipairs(named) do
+        local row = pools.enchant:Acquire()
+        row:SetParent(view.content)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, top)
+        row:SetWidth(width)
+
+        -- On reutilise la ligne d'enchantement : memes colonnes, meme barre de part, meme
+        -- lecture. Un second widget aurait duplique la mise en page pour la meme forme.
+        row.slot:SetWidth(96)
+        row.slot:SetText("")
+        row.state:SetText("")
+
+        row.name:ClearAllPoints()
+        row.name:SetPoint("LEFT", 30, 0)
+        row.name:SetWidth(math.max(60, width - 88 - 46 - 40))
+        row.name:SetText(hex("text") .. entry.name .. "|r")
+
+        row.track:ClearAllPoints()
+        row.track:SetPoint("RIGHT", row, "RIGHT", -58, 0)
+        row.track:SetWidth(88)
+
+        row.fill:ClearAllPoints()
+        row.fill:SetPoint("LEFT", row.track, "LEFT", 0, 0)
+        row.fill:SetWidth(math.max(1, 88 * math.min(1, entry.share or 0)))
+        row.fill:SetColorTexture(unpack(ns.Theme.RGB.link))
+
+        row.share:SetText(string.format("%d%%", (entry.share or 0) * 100 + 0.5))
+        row:Show()
+        top = top - ROW_HEIGHT
+    end
+
+    return top
+end
+
+--- Quel build te ressemble le plus, d'apres TA repartition de statistiques.
+---
+--- On ne compare pas les arbres de talents : rien ne garantit que l'identifiant rendu par
+--- Warcraft Logs vive dans le meme espace que celui du client. La repartition secondaire,
+--- elle, est mesuree des deux cotes avec la meme definition — c'est la seule comparaison
+--- qu'on puisse faire sans rien supposer.
+---
+--- @return number|nil rang du build le plus proche
+local function closestBuild(builds)
+    local mine = ns.Stats.Current()
+    if not mine then return nil end
+
+    local total = 0
+    for _, definition in ipairs(ns.Stats.LIST) do
+        total = total + ((mine[definition.key] or {}).rating or 0)
+    end
+    if total <= 0 then return nil end
+
+    local best, bestGap
+    for index, build in ipairs(builds) do
+        if type(build.stats) == "table" then
+            local gap = 0
+            for _, definition in ipairs(ns.Stats.LIST) do
+                local share = ((mine[definition.key] or {}).rating or 0) / total
+                gap = gap + math.abs(share - (build.stats[definition.key] or 0))
+            end
+            if not bestGap or gap < bestGap then best, bestGap = index, gap end
+        end
+    end
+    return best
+end
+
+--- Les ensembles de talents reellement joues, et la repartition de chacun.
+---
+--- C'est ce qui donne enfin un sens aux deux ecoles detectees par `Meta.Modes` : il disait
+--- « la maitrise se joue a 21 % ou a 38 % » sans dire quel build etait derriere chaque
+--- valeur. Ici chaque groupe porte SA repartition.
+local function layoutBuilds(top, width)
+    local builds = ns.Meta.Builds()
+    if not builds then return top end
+
+    top = heading(top, width, ns.L["Builds"])
+
+    local closest = closestBuild(builds)
+
+    for index, build in ipairs(builds) do
+        local row = pools.build:Acquire()
+        row:SetParent(view.content)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, top)
+        row:SetWidth(width)
+        ns.Theme.ApplyCard(row, index == closest and ns.Theme.RGB.link or nil)
+
+        row.rank:SetText(hex("muted") .. index .. "|r")
+        row.share:SetText(string.format("%s%d%%|r", index == 1 and hex("link") or hex("text"),
+            (build.share or 0) * 100 + 0.5))
+
+        -- La repartition DE CE GROUPE, dans l'ordre decroissant : c'est elle qui distingue
+        -- un build d'un autre pour qui doit choisir son equipement.
+        local parts = {}
+        if type(build.stats) == "table" then
+            local ordered = {}
+            for _, definition in ipairs(ns.Stats.LIST) do
+                local share = build.stats[definition.key]
+                if share and share > 0.02 then
+                    table.insert(ordered, { label = definition.label, share = share })
+                end
+            end
+            table.sort(ordered, function(a, b) return a.share > b.share end)
+            for _, entry in ipairs(ordered) do
+                table.insert(parts, string.format("%s %d%%", ns.L[entry.label],
+                    entry.share * 100 + 0.5))
+            end
+        end
+        row.stats:SetWidth(math.max(80, width - 230))
+        row.stats:SetText(#parts > 0
+            and (hex("text") .. table.concat(parts, "   ") .. "|r")
+            or (hex("muted") .. ns.L["stats not measured for this group"] .. "|r"))
+
+        -- « Toi » repose sur la repartition, pas sur les talents : on dit donc « le plus
+        -- proche », et jamais « c'est ton build ».
+        row.tag:SetText(index == closest
+            and (hex("link") .. ns.L["closest to yours"] .. "|r") or "")
+
+        row:Show()
+        top = top - 38 - 4
+    end
+
+    top = layoutTalents(top, width)
+
+    top = text(top - 2, width, hex("muted") .. string.format(
+        ns.L["%d players grouped by identical talent tree"], ns.Meta.Sample()) .. "|r")
+    return top
+end
+
+-- ------------------------------------------------------------------- stats
+
+--- Priorite des statistiques, avec la FOURCHETTE et non un seul chiffre.
+---
+--- `p25`, `p75` et `spread` etaient generes depuis toujours et jamais lus. C'est pourtant
+--- ce qui distingue une cible d'un intervalle : « critique 55 %, ecart 8 points » veut
+--- dire serre, donc vise ; « ecart 30 » veut dire que le haut de tableau ne s'accorde pas,
+--- donc ne t'en fais pas. Une priorite sans dispersion se lit comme un ordre alors que
+--- c'est parfois une fourchette.
+local function layoutStats(top, width)
+    local priority = ns.Meta.StatPriority()
+    if not priority then return top end
+
+    top = heading(top, width, ns.L["Secondary stats"])
+
+    local mine = ns.Stats.Current() or {}
+    local total = 0
+    for _, definition in ipairs(ns.Stats.LIST) do
+        total = total + ((mine[definition.key] or {}).rating or 0)
+    end
+
+    -- Echelle COMMUNE aux quatre lignes. Une echelle par ligne rendrait les barres
+    -- incomparables entre elles, ce qui est precisement ce qu'on vient lire.
+    local scale = 0.05
+    for _, entry in ipairs(priority) do
+        local _, p75 = ns.Meta.StatRange(entry.key)
+        scale = math.max(scale, entry.share or 0, p75 or 0,
+            total > 0 and (((mine[entry.key] or {}).rating or 0) / total) or 0)
+    end
+    scale = math.min(1, scale * 1.15)
+
+    local LABEL, VALUE = 96, 112
+    local trackWidth = math.max(80, width - LABEL - VALUE - 30)
+
+    for _, entry in ipairs(priority) do
+        local row = pools.stat:Acquire()
+        row:SetParent(view.content)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, top)
+        row:SetWidth(width)
+
+        row.label:SetText(hex("text") .. ns.L[entry.label] .. "|r")
+
+        row.track:ClearAllPoints()
+        row.track:SetPoint("LEFT", LABEL + 12, 0)
+        row.track:SetWidth(trackWidth)
+        row.track:SetColorTexture(0.14, 0.14, 0.16, 1)
+
+        local p25, p75, spread = ns.Meta.StatRange(entry.key)
+        local low = (p25 or entry.share or 0) / scale
+        local high = (p75 or entry.share or 0) / scale
+        row.band:ClearAllPoints()
+        row.band:SetPoint("LEFT", row.track, "LEFT", trackWidth * low, 0)
+        row.band:SetWidth(math.max(2, trackWidth * math.max(0, high - low)))
+        row.band:SetColorTexture(unpack(ns.Theme.RGB.link))
+
+        local share = total > 0 and (((mine[entry.key] or {}).rating or 0) / total) or nil
+        if share then
+            row.marker:ClearAllPoints()
+            row.marker:SetPoint("LEFT", row.track, "LEFT",
+                math.min(trackWidth, trackWidth * (share / scale)), 0)
+            row.marker:SetColorTexture(1, 1, 1, 0.95)
+            row.marker:Show()
+        else
+            row.marker:Hide()
+        end
+
+        -- La colonne de droite dit la MEME chose en chiffres : la fourchette relevee, et
+        -- toi. Un lecteur qui ne decode pas la barre lit la ligne.
+        if p25 and p75 then
+            row.value:SetText(string.format("%s%d–%d%%|r%s",
+                hex("muted"), p25 * 100 + 0.5, p75 * 100 + 0.5,
+                share and string.format("   %s%d%%|r", hex("text"), share * 100 + 0.5) or ""))
+        else
+            row.value:SetText(string.format("%s%d%%|r", hex("muted"),
+                (entry.share or 0) * 100 + 0.5))
+        end
+
+        row:Show()
+        top = top - ROW_HEIGHT
+    end
+
+    -- Une seule phrase de lecture, sous les quatre lignes, jamais repetee par ligne.
+    top = text(top - 4, width, hex("muted")
+        .. ns.L["The band is where the top players sit, the mark is you. A wide band means the choice is open."] .. "|r")
+    return top
+end
 
 -- ------------------------------------------------------------ enchantements
 
@@ -382,6 +700,8 @@ function RecoView.Create(parent)
     pools = {
         enchant = ns.Pool.New(newEnchantRow, resetRow),
         gem = ns.Pool.New(newGemRow, resetRow),
+        build = ns.Pool.New(newBuildRow, resetRow),
+        stat = ns.Pool.New(newStatRow),
         text = ns.Pool.New(newText),
     }
 
@@ -394,6 +714,20 @@ function RecoView.Refresh()
 
     view.intro:SetWidth(math.max(200, (view:GetWidth() or 600) - 8))
 
+    -- SUR QUOI le releve est classe, dit en toutes lettres.
+    --
+    -- Le classement etait pris en degats pour TOUT LE MONDE, y compris les sept
+    -- specialisations de soin : leur « top 20 » etait le top 20 par degats, une population
+    -- qui ne decrit personne, et rien ne le signalait. La metrique suit maintenant le role,
+    -- et la ligne le dit — un releve qui ne dit pas sur quoi il classe est un avis.
+    local role = ns.Meta.Role()
+    if role then
+        local measured = (role == "healer") and ns.L["ranked on healing"]
+            or ns.L["ranked on damage"]
+        view.intro:SetText(string.format("%s%s  ·  %s|r", hex("muted"),
+            string.format(ns.L["top %d of your spec"], ns.Meta.Sample()), measured))
+    end
+
     -- La colonne se limite a 620 px meme dans une fenetre large : une ligne de texte de
     -- 900 px de long ne se lit pas, elle se balaie.
     local available = math.max(360, (view.scroll:GetWidth() or 700) - 8)
@@ -405,6 +739,11 @@ function RecoView.Refresh()
         top = text(top, width, hex("muted")
             .. ns.L["no top-build reference for this spec yet"] .. "|r")
     else
+        -- L'ordre est celui dans lequel on decide : le build d'abord, les
+        -- statistiques qu'il implique ensuite, les consommables en dernier. L'onglet
+        -- s'appelait « Recommandations » et ne recommandait que des consommables.
+        top = layoutBuilds(top, width)
+        top = layoutStats(top, width)
         top = layoutEnchants(top, width)
         top = layoutGems(top, width)
     end

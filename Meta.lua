@@ -271,6 +271,56 @@ end
 --- en dessous, deux groupes proches ne racontent rien qu'une moyenne ne dise deja.
 ---
 --- @return table|nil { { key, label, low, lowN, high, highN, gap, side } }
+--- Role releve pour cette specialisation : "tank", "healer" ou "dps".
+---
+--- Celui du RELEVE, pas celui du client. Il dit sur quelle metrique le haut de tableau a
+--- ete classe — et donc si le releve decrit bien la population qu'on croit.
+--- @return string|nil
+function Meta.Role()
+    local data = block()
+    return data and data.role or nil
+end
+
+--- Taux d'adoption par TALENT, du plus pris au moins pris.
+---
+--- La vue robuste sur les builds. Le regroupement par arbre exact plafonne autour de 25 %
+--- — le haut de tableau ne partage presque jamais un arbre au point pres — alors que
+--- « 19 des 20 meilleurs prennent ce talent » se lit comme le releve d'enchantements que
+--- l'addon montre deja, et se compare a ce que le joueur a reellement pris.
+--- @return table|nil { { id, count, share }, ... }
+function Meta.Talents()
+    local data = block()
+    local list = data and data.talents
+    return (type(list) == "table" and #list > 0) and list or nil
+end
+
+--- Groupes de joueurs partageant un arbre de talents IDENTIQUE.
+---
+--- Complementaire du precedent : le tally dit quels CHOIX font consensus, les groupes
+--- disent quels ENSEMBLES existent reellement — et chacun porte sa propre repartition de
+--- statistiques. C'est ce qui manquait pour donner un sens a `Meta.Modes()` : il disait
+--- « la maitrise se joue a 21 % ou a 38 % » sans dire quel build etait derriere.
+--- @return table|nil { { n, share, differs, stats }, ... }
+function Meta.Builds()
+    local data = block()
+    local list = data and data.builds
+    return (type(list) == "table" and #list > 0) and list or nil
+end
+
+--- Fourchette interquartile d'une statistique : p25, p75, ecart.
+---
+--- Genere depuis toujours, jamais lu. C'est pourtant ce qui distingue une cible d'une
+--- fourchette : « critique 55 %, ecart 8 points » veut dire serre, donc vise ; « ecart 30 »
+--- veut dire que le haut de tableau ne s'accorde pas, donc ne t'inquiete pas. Une priorite
+--- sans dispersion se lit comme un ordre alors que c'est parfois un intervalle.
+--- @return number|nil p25, number|nil p75, number|nil spread
+function Meta.StatRange(key)
+    local profile = Meta.StatProfile()
+    local entry = profile and profile[key]
+    if type(entry) ~= "table" then return nil end
+    return entry.p25, entry.p75, entry.spread
+end
+
 ---   `side` dit de quel cote TU es, "low" ou "high".
 local MODE_MIN_GAP = 0.08
 local MODE_MIN_GROUP = 3

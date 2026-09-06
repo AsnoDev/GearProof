@@ -53,6 +53,22 @@ ns.translations.fr = {
     ["gem missing"] = "gemme manquante",
     ["Gear complete"] = "Equipement complet",
 
+    -- Onglet Recommandations : sections Builds et Statistiques.
+    ["Builds"] = "Builds",
+    ["ranked on damage"] = "classes sur les degats",
+    ["ranked on healing"] = "classes sur les soins",
+    ["top %d of your spec"] = "top %d de ta specialisation",
+    -- Survie, colonne de droite, tanks uniquement.
+    ["Stamina"] = "Endurance",
+    ["Armor"] = "Armure",
+    ["Secondary stats"] = "Statistiques secondaires",
+    ["closest to yours"] = "le plus proche de toi",
+    ["stats not measured for this group"] = "statistiques non mesurees pour ce groupe",
+    ["%d players grouped by identical talent tree"] =
+        "%d joueurs regroupes par arbre de talents identique",
+    ["The band is where the top players sit, the mark is you. A wide band means the choice is open."] =
+        "La bande est la ou se tient le haut de tableau, le repere c'est toi. Une bande large veut dire que le choix est ouvert.",
+
     -- Bloc gemmes de l'onglet Equipement. Il repond a « quelle gemme je pose » : le nom
     -- d'abord, puis combien de chasses et lesquelles. Il listait auparavant chaque chasse
     -- de chaque piece par rang, avec une legende de trois glyphes.
