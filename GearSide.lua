@@ -304,15 +304,11 @@ function GearSide.Refresh(summary)
     view.simc:ClearAllPoints()
     view.simc:SetPoint("TOPLEFT", view, "TOPLEFT", 0, top - 12)
 
-    view.simcCopy:ClearAllPoints()
-    view.simcCopy:SetPoint("TOPLEFT", view.simc, "BOTTOMLEFT", 0, -4)
 
-    view.paste:ClearAllPoints()
-    view.paste:SetPoint("TOPLEFT", view.simcCopy, "BOTTOMLEFT", 0, -4)
 
     local description, stale = ns.Weights.Describe()
     view.droptimizer:ClearAllPoints()
-    view.droptimizer:SetPoint("TOPLEFT", view.paste, "BOTTOMLEFT", 0, -6)
+    view.droptimizer:SetPoint("TOPLEFT", view.simc, "BOTTOMLEFT", 0, -6)
     view.droptimizer:SetText(string.format("%s%s|r\n|cff615c73raidbots.com/simbot/droptimizer|r",
         stale and hex(COLORS.major) or "|cff615c73", description))
 end
@@ -350,36 +346,30 @@ function GearSide.Create(parent)
     view.setLine:SetJustifyH("LEFT")
     view.setLine:SetWidth(SIDE_WIDTH - 8)
 
+    -- UN bouton pour tout le parcours droptimizer.
+    --
+    -- Il y en avait trois — « Lien droptimizer », « Copier pour droptimizer », « Coller le
+    -- lien droptimizer » — dont les libelles ne disaient pas l'ordre et qui ouvraient
+    -- chacun leur fenetre. Le joueur devait deviner la sequence et decouvrait l'etape du
+    -- fichier de donnees seulement apres avoir colle son lien.
     view.simc = CreateFrame("Button", nil, view, "UIPanelButtonTemplate")
     view.simc:SetSize(SIDE_WIDTH - 8, 24)
-    ns.Localize(view.simc, "Droptimizer link")
-    view.simc:SetScript("OnClick", function() ns.SimC.ShowDroptimizer() end)
+    ns.Localize(view.simc, "Droptimizer")
+    view.simc:SetScript("OnClick", function() ns.Droptimizer.Open() end)
+    view.simc:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine(L["Droptimizer"])
+        GameTooltip:AddLine(L["Optional. Without one the Raid tab compares item levels; with one it shows measured gain."],
+            0.8, 0.8, 0.9, true)
+        GameTooltip:Show()
+    end)
+    view.simc:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-    -- Bloc de simulation : la chaine part vers Raidbots, les poids reviennent a la main.
+    -- Etat du droptimizer sous le bouton : fraicheur, ou son absence. Il vivait entre
+    -- les trois anciens boutons et a suivi leur suppression.
     view.droptimizer = view:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     view.droptimizer:SetJustifyH("LEFT")
     view.droptimizer:SetWidth(SIDE_WIDTH - 8)
 
-    -- Copie de la chaine SimC : c'est ce qu'on colle DANS le droptimizer.
-    view.simcCopy = CreateFrame("Button", nil, view, "UIPanelButtonTemplate")
-    view.simcCopy:SetSize(SIDE_WIDTH - 8, 22)
-    ns.Localize(view.simcCopy, "Droptimizer Copy")
-    view.simcCopy:SetScript("OnClick", function() ns.SimC.Show() end)
-
-    view.paste = CreateFrame("Button", nil, view, "UIPanelButtonTemplate")
-    view.paste:SetSize(SIDE_WIDTH - 8, 22)
-    ns.Localize(view.paste, "Paste droptimizer link")
-    -- Le bouton accepte le lien OU les donnees du rapport, et l'infobulle dit la marche
-    -- a suivre : coller le lien rend l'adresse du CSV, coller le CSV importe pour de
-    -- bon. Un addon ne peut rien telecharger, mais un joueur peut ouvrir une adresse.
-    view.paste:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine(L["Paste droptimizer link"])
-        GameTooltip:AddLine(L["Paste the report link and GearProof gives you the address of its data. Open it, copy everything, paste it back here — no tool needed."],
-            0.8, 0.8, 0.9, true)
-        GameTooltip:Show()
-    end)
-    view.paste:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    view.paste:SetScript("OnClick", function() ns.SimC.PromptImport() end)
     return view
 end

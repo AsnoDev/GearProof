@@ -160,6 +160,18 @@ def main() -> int:
         end
     """)
 
+    # La fenetre Droptimizer est derriere un bouton, donc invisible d'un simple Show().
+    # Ses DEUX etats — attente du lien, puis attente du fichier de donnees — sont deux
+    # branches distinctes : la seconde pose une boite que la premiere cache.
+    step("droptimizer, ouverture", "GEARPROOF_NS.Droptimizer.Open()")
+    step("droptimizer, collage d'un lien",
+         'GEARPROOF_DROP = GEARPROOF_NS.Droptimizer')
+    lua.execute("""
+        GEARPROOF_NS.db.droptimizer = { id = "7HV5eabh1G1pAQ8n9RS3Pc", stamp = 1 }
+    """)
+    step("droptimizer, etape du fichier", "GEARPROOF_NS.Droptimizer.Refresh()")
+    step("droptimizer, reouverture", "GEARPROOF_NS.Droptimizer.Open()")
+
     lua.execute("GEARPROOF_GUILD = GEARPROOF_NS.GuildView.Create(nil)")
     for label, code in [
         ("guilde, ecran Butin", 'GEARPROOF_GUILD.modes[2]:Fire("OnClick")'),

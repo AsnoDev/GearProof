@@ -55,6 +55,23 @@ ns.translations.fr = {
 
     -- Onglet Recommandations : sections Builds et Statistiques.
     ["Builds"] = "Builds",
+
+    -- Fenetre Droptimizer : le parcours en trois etapes, dans une seule fenetre.
+    ["optional"] = "facultatif",
+    ["Validate"] = "Valider",
+    ["Copy this, then open Raidbots and paste it"] =
+        "Copie ceci, ouvre Raidbots et colle-le",
+    ["When the simulation is done, paste the report link below"] =
+        "Quand la simulation est finie, colle le lien du rapport ci-dessous",
+    ["GearProof then gives you one address to open, and you paste its content back"] =
+        "GearProof te rend alors une adresse a ouvrir, et tu recolles son contenu ici",
+    ["Report link received."] = "Lien du rapport recu.",
+    ["Open this address, select everything, copy — then paste below"] =
+        "Ouvre cette adresse, selectionne tout, copie — puis colle ci-dessous",
+    ["Without a droptimizer the Raid tab still works: it compares item levels. A droptimizer replaces that estimate with measured gain."] =
+        "Sans droptimizer, l'onglet Raid fonctionne : il compare les niveaux d'objet. Un droptimizer remplace cette estimation par du gain mesure.",
+    ["Optional. Without one the Raid tab compares item levels; with one it shows measured gain."] =
+        "Facultatif. Sans lui l'onglet Raid compare les niveaux d'objet ; avec lui il montre du gain mesure.",
     ["reference measured %d day(s) ago — update the addon to refresh it"] =
         "releve mesure il y a %d jour(s) — mets l'addon a jour pour le rafraichir",
     ["ranked on damage"] = "classes sur les degats",

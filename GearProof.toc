@@ -35,6 +35,7 @@ SimC.lua
 Guild.lua
 Armory.lua
 Gauge.lua
+Droptimizer.lua
 GearSide.lua
 GearView.lua
 RaidView.lua
