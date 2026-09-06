@@ -55,6 +55,8 @@ ns.translations.fr = {
 
     -- Onglet Recommandations : sections Builds et Statistiques.
     ["Builds"] = "Builds",
+    ["reference measured %d day(s) ago — update the addon to refresh it"] =
+        "releve mesure il y a %d jour(s) — mets l'addon a jour pour le rafraichir",
     ["ranked on damage"] = "classes sur les degats",
     ["ranked on healing"] = "classes sur les soins",
     ["top %d of your spec"] = "top %d de ta specialisation",
@@ -338,7 +340,6 @@ ns.translations.fr = {
     ["no meta reference loaded"] = "aucune reference chargee",
     ["the shipped reference is in format %d, this addon reads up to %d — update the addon"] =
         "la reference livree est au format %d, cet addon lit jusqu'au %d — mets l'addon a jour",
-    ["reference measured %d day(s) ago"] = "reference mesuree il y a %d jour(s)",
     ["weights: %s (%d days)"] = "poids : %s (%d j)",
     ["stat weights saved (%s)"] = "poids de stats enregistres (%s)",
     ["unreadable Pawn string"] = "chaine Pawn illisible",

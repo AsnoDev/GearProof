@@ -162,9 +162,16 @@ local function updateReferences()
         -- qui n'existe plus, et rien ne le signalait.
         local age = ns.Meta.AgeInDays()
         local suffix = ""
+        -- Passe ce seuil, on dit QUOI FAIRE.
+        --
+        -- La ligne annoncait « releve mesure il y a 40 jours » en orange, et s'arretait
+        -- la. Un joueur n'a aucun moyen de deviner que le correctif est « mets l'addon a
+        -- jour » : le releve voyage AVEC l'addon, il ne se telecharge pas — un addon WoW
+        -- ne peut faire aucune requete reseau. Un avertissement sans geste associe se lit
+        -- comme un defaut de l'addon.
         if age and age >= 14 then
             suffix = string.format("  %s%s|r", ns.Theme.C("bis"),
-                string.format(L["reference measured %d day(s) ago"], age))
+                string.format(L["reference measured %d day(s) ago — update the addon to refresh it"], age))
         end
 
         metaStatus:SetText(string.format("%s%s%s%s",
