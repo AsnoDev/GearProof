@@ -258,7 +258,24 @@ def main() -> int:
             # de la vue Guilde et, avec elle, la fenetre entiere. Lire une globale absente
             # ne leve rien en Lua : c'est l'API du client qui refuse, bien plus tard.
             for name in UPPER_READ.findall(line):
-                if name in locals_here or name in ALLOWED_GLOBALS or name in WOW_CONSTANTS:
+                if name in ALLOWED_GLOBALS or name in WOW_CONSTANTS:
+                    continue
+
+                # Declaree PLUS BAS dans le fichier : en Lua, un `local` ne couvre que ce
+                # qui le suit. Une lecture ecrite au-dessus touche une GLOBALE, donc nil,
+                # et l'erreur ne sort qu'a l'execution de la ligne. Le controle d'ordre
+                # existant ne regardait que les ECRITURES — c'est ainsi qu'un
+                # `TAB_PADDING` lu ligne 185 et declare ligne 213 est passe au vert.
+                declared = declared_at.get(name)
+                if declared is not None and declared > line_number:
+                    report.error(
+                        f"{where}:{line_number}",
+                        f"{name} est lu ici mais declare `local` ligne {declared} — "
+                        "cette lecture touche une GLOBALE, donc nil",
+                    )
+                    continue
+
+                if name in locals_here:
                     continue
                 report.error(f"{where}:{line_number}",
                              f"constante lue mais jamais declaree ici : {name}")

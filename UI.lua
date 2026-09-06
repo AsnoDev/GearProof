@@ -27,6 +27,20 @@ local WIDTH, HEIGHT = 1040, 660
 local MIN_WIDTH, MIN_HEIGHT = 900, 560
 local CONTENT_LEFT = 16
 
+-- Largeur d'onglet MESUREE, pas figee.
+--
+-- Elle valait 112 px pour tout le monde. « Recommendations » y tenait au pixel pres et
+-- touchait les deux bords, tandis que « Raid » et « Aide » nageaient dans la meme boite.
+-- En francais c'est pire : « Recommandations » est plus long encore, et « Equipement »
+-- aussi — le libelle le plus large change avec la langue, donc aucune constante ne peut
+-- etre juste dans les deux.
+--
+-- Chaque onglet prend donc la largeur de SON texte, plus une marge. Meme geste que pour
+-- les hauteurs partout ailleurs dans ce depot : on mesure, on ne devine pas.
+local TAB_GAP, TAB_HEIGHT = 4, 24
+local TAB_PADDING = 22
+local TAB_MIN = 72
+
 local L = ns.L
 
 local frame, hosts, tabButtons, characterLine, metaStatus, weightStatus, specButton, specMenu
@@ -177,6 +191,18 @@ function refresh()
     updateSpecButton()
     updateReferences()
 
+    -- Largeur et position posees ICI, pas a la creation : `GetStringWidth` est faux tant
+    -- que le libelle n'est pas rendu, et il change quand on bascule la langue a chaud.
+    local offset = CONTENT_LEFT
+    for _, button in ipairs(tabButtons) do
+        local width = math.max(TAB_MIN,
+            math.ceil((button.label:GetStringWidth() or 0) + TAB_PADDING))
+        button:SetWidth(width)
+        button:ClearAllPoints()
+        button:SetPoint("TOPLEFT", offset, -58)
+        offset = offset + width + TAB_GAP
+    end
+
     for _, button in ipairs(tabButtons) do
         local selected = button.key == activeTab
         button.background:SetColorTexture(1, 0.82, 0.31, selected and 0.12 or 0.03)
@@ -208,7 +234,6 @@ local function selectTab(key)
     refresh()
 end
 
-local TAB_WIDTH, TAB_GAP, TAB_HEIGHT = 112, 4, 24
 
 local function createTabButton(parent, index, definition)
     -- Rangee d'onglets ALIGNEE A GAUCHE, sur la marge de contenu.
@@ -218,8 +243,7 @@ local function createTabButton(parent, index, definition)
     -- au milieu, alignes sur rien, et un decalage qui bougeait avec le nombre d'onglets.
     -- La marge gauche est la meme que celle du contenu en dessous : les deux s'alignent.
     local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
-    button:SetSize(TAB_WIDTH, TAB_HEIGHT)
-    button:SetPoint("TOPLEFT", CONTENT_LEFT + (index - 1) * (TAB_WIDTH + TAB_GAP), -58)
+    button:SetHeight(TAB_HEIGHT)
     button.key = definition.key
 
     button.background = button:CreateTexture(nil, "BACKGROUND")
@@ -451,7 +475,18 @@ local function createFrame()
     refreshButton:SetSize(90, 20)
     refreshButton:SetPoint("RIGHT", optionsButton, "LEFT", -6, 0)
     ns.Localize(refreshButton, "Refresh")
-    refreshButton:SetScript("OnClick", function() refresh() end)
+    -- Le bouton FORCE un nouveau scan, il ne se contente pas de redessiner.
+    --
+    -- L'audit est memoise deux secondes et invalide par evenement — equipement change,
+    -- chasse fermee, spe changee. L'ENCHANTEMENT n'en declenche aucun : on clique sur
+    -- « Actualiser » precisement en revenant de chez l'enchanteur, et l'ecran repondait
+    -- avec l'audit d'avant. Un bouton qui ne fait pas ce que son nom annonce est pire
+    -- que pas de bouton.
+    refreshButton:SetScript("OnClick", function()
+        ns.Gear.Invalidate()
+        if ns.Bags and ns.Bags.Invalidate then ns.Bags.Invalidate() end
+        refresh()
+    end)
 
     ns.Theme.Apply(frame)
     tinsert(UISpecialFrames, "GearProofFrame")

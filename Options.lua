@@ -156,7 +156,13 @@ function Options.Create()
     if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory then
         local ok, category = pcall(Settings.RegisterCanvasLayoutCategory, panel, PANEL_NAME)
         if ok and category then
-            category.ID = PANEL_NAME
+            -- NE PAS ecraser `category.ID`.
+            --
+            -- Il y avait ici `category.ID = PANEL_NAME`, qui remplacait l'identifiant
+            -- attribue par l'API — un nombre — par la chaine « GearProof ».
+            -- `Settings.OpenToCategory` cherchait donc une categorie qui n'existe pas, et
+            -- le pcall avalait l'echec : le bouton « Reglages » ne faisait rien, sans le
+            -- moindre message.
             pcall(Settings.RegisterAddOnCategory, category)
             Options.category = category
         end
@@ -171,7 +177,11 @@ end
 function Options.Open()
     Options.Create()
     if Settings and Settings.OpenToCategory and Options.category then
-        pcall(Settings.OpenToCategory, Options.category.ID or Options.category:GetID())
+        -- L'identifiant vient de la categorie elle-meme. `GetID()` d'abord : c'est
+        -- l'accesseur officiel, et le champ `ID` n'existe pas sur toutes les versions.
+        local category = Options.category
+        local id = (type(category.GetID) == "function") and category:GetID() or category.ID
+        if id then pcall(Settings.OpenToCategory, id) end
     elseif InterfaceOptionsFrame_OpenToCategory then
         -- Deux fois : la premiere ouverture atterrissait sur la mauvaise categorie sur
         -- les anciens clients.
