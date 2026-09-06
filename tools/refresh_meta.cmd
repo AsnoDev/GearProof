@@ -54,6 +54,20 @@ if not "%ERRORLEVEL%"=="0" (
     exit /b 1
 )
 
+REM Le releve neuf vaut-il une PUBLICATION ?
+REM
+REM Deux releves different toujours, ne serait-ce que par leur date. Ce qui compte est de
+REM savoir si un JOUEUR verrait la difference : enchantement recommande, gemme, ordre de
+REM priorite des stats, paire d'armes, build. Au milieu d'un palier la meta converge et
+REM plus rien ne bouge — publier quand meme ferait telecharger 338 Ko a tout le monde pour
+REM un chiffre que personne ne lit.
+REM
+REM La comparaison se fait contre HEAD, donc contre le releve LIVRE : la regeneration a
+REM ecrit dans l'arbre de travail, pas dans l'historique.
+echo.>> "%LOG%"
+call "%~dp0meta_diff.cmd" --against-git HEAD>> "%LOG%" 2>&1
+call "%~dp0meta_diff.cmd" --against-git HEAD
+
 call "%~dp0deploy.cmd"
 echo [%date% %time%] OK>> "%LOG%"
 exit /b 0
