@@ -42,6 +42,7 @@ journal fichier reste la source de vérité de l'outil Python, pas de l'addon.
 | Fichier | Rôle |
 |---|---|
 | `Spec.lua` | Spés de la classe, spé active, spé regardée (aperçu) |
+| `Traits.lua` | **Seul** accès à `C_Traits` : arbre de la spé active, correspondance des identifiants du relevé, chaîne d'import et son garde-fou |
 | `Stats.lua` | Statistiques secondaires et paliers de rendement décroissant |
 | `Meta.lua` | Lecture du relevé + contrôle de version du format |
 | `Sim.lua` | Gains simulés, regroupement par rencontre, liens de butin |
@@ -69,7 +70,9 @@ journal fichier reste la source de vérité de l'outil Python, pas de l'addon.
 | `GearSide.lua` | Onglet Équipement, colonne droite : jauge, barres de stats, priorité, ensemble de classe, bloc droptimizer. Interface réduite à `Create(parent)` / `Refresh(summary)`, pool de lignes propre |
 | `RaidView.lua` | Onglet Raid : rencontres et table de butin |
 | `GuildView.lua` | Onglet Guilde : roster et sous-vue Raid |
-| `RecoView.lua` | Onglet Recommandations : ce qu'il faut POSER, par categorie |
+| `RecoView.lua` | Onglet Recommandations : ce qu'il faut POSER — stats, enchantements, gemmes, et 4 bijoux en raccourci |
+| `ItemsView.lua` | Onglet Objets : bijoux par PROVENANCE (raid / donjon), et artisanat |
+| `TalentView.lua` | Onglet Talents : l'arbre, avec choix Raid / Mythique+, et la chaîne d'import |
 | `HelpView.lua` | Onglet Aide : six cartes |
 | `UI.lua` | Coquille : entête, onglets, déroulant de spé, position/taille persistantes |
 | `Minimap.lua` | Icône de minicarte maison, sans librairie externe |
@@ -166,11 +169,20 @@ Deux vues, parce qu'aucune ne suffit seule :
 C'est `builds` qui donne enfin un sens à `modes` : il disait « la maîtrise se joue à 21 %
 ou à 38 % » sans dire quel build était derrière chaque valeur.
 
-Les noms de talents sont résolus **au conditionnel** : rien ne garantit que le `talentID`
-de Warcraft Logs vive dans le même espace que celui du client. `RecoView.talentName` tente
-la résolution et n'affiche que ce qui porte un nom — un « talent 112823 » n'apprend rien
-et fait passer une donnée vraie pour cassée. **À vérifier en jeu** : si la sous-section
-reste vide, la correspondance est fausse et il faudra passer par `C_Traits`.
+Les `talentID` de Warcraft Logs **ne sont pas des identifiants de sort**. Mesuré sur un
+relevé réel : ils vont de 96167 à 137635 avec des rangs 1 ou 2 — la signature d'un arbre
+`C_Traits`, nœuds ou entrées de nœud. `C_Spell.GetSpellInfo` rendait pourtant un nom, celui
+d'un sort sans rapport : l'onglet affichait des noms **faux mais plausibles**, ce qui est
+pire que pas de nom.
+
+Tout passe maintenant par `Traits.lua`, qui interroge `C_Traits`. **Quel espace exactement ?
+On ne suppose pas, on compte** : `Traits.Match` essaie les deux contre l'arbre du client et
+retient celui qui correspond le mieux ; en dessous de 80 %, la page refuse de dessiner et
+dit pourquoi. Une entrée est plus précise qu'un nœud — sur un nœud à choix, elle dit
+laquelle des deux branches a été prise.
+
+L'arbre dessiné est celui de la **spé active** : aucune API ne rend l'arbre d'une autre spé
+sans y basculer.
 
 ## Validation
 
@@ -227,8 +239,10 @@ quoi que ce soit si la validation échoue, si `LICENSE`/`CHANGELOG.md` manquent,
 
 ## Interface
 
-Fenêtre 1040×660 redimensionnable, cinq onglets : Équipement, Recommandations, Raid,
-Guilde, Aide.
+Fenêtre 1040×660 redimensionnable, sept onglets : Équipement, Recommandations, Talents,
+Objets, Raid, Guilde, Aide. L'ordre est celui d'une décision, de la plus fréquente à la
+plus rare : ce que je porte, ce que je pose dessus, ce que je joue, ce que je cherche à
+obtenir, où je vais le chercher, ce que fait ma guilde.
 
 `Armory` (191 de large) : `PlayerModel` de 236 px surmontant une grille de 4×4 cases de 44 px.
 La bordure de chaque case est une texture pleine sous l'icône : vert `ok`, orange `manque`,

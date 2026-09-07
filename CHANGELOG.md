@@ -16,10 +16,24 @@ Versionnement sémantique — `MAJEUR.MINEUR.CORRECTIF`.
   **provenance** — ce qui tombe en raid, ce qui tombe en donjon mythique+ — et
   l'**artisanat**, les recettes qu'il vaut la peine de commander. Rien, en jeu, ne
   distingue un objet crafté d'un butin sans ouvrir sa recette.
-- **Onglet Talents** : les builds et les taux d'adoption par talent, avec le choix
-  **Raid** ou **Mythique+**. Ce ne sont pas les mêmes arbres — sur un relevé réel, sept
-  talents n'apparaissent qu'en raid, sept autres qu'en donjon. Personne ne publie cette
-  comparaison.
+- **Onglet Talents** : l'**arbre**, dessiné aux positions du client, avec les nœuds du
+  build de tête allumés et leur rang. Choix **Raid** ou **Mythique+** — ce ne sont pas les
+  mêmes arbres : sur un relevé réel, neuf talents n'apparaissent qu'en raid, neuf autres
+  qu'en donjon. Personne ne publie cette comparaison.
+- **Chaîne d'import des talents**, à coller directement dans la fenêtre de talents du jeu.
+  Le bouton n'apparaît que si GearProof a pu **prouver** le format sur ton client : il
+  sérialise ta propre configuration et la compare à celle que le client produit lui-même.
+  Une chaîne fausse ferait coller un arbre qui n'est pas celui affiché.
+
+### Corrigé
+
+- **Les noms de talents étaient faux.** Ils étaient résolus par `C_Spell.GetSpellInfo`, en
+  supposant que l'identifiant venu de Warcraft Logs était un identifiant de sort. Il ne
+  l'est pas — c'est un nœud d'arbre de talents. `GetSpellInfo` rendait quand même un nom,
+  celui d'un sort sans aucun rapport : l'onglet affichait des noms plausibles et faux.
+  Tout passe désormais par `C_Traits`, la source du client lui-même.
+- **Le niveau d'objet des bijoux et des crafts** était celui du modèle, pas celui du drop —
+  « Item Level 28 » et « -274 ilvl contre l'équipé » sur un objet porté à 321.
 
 ### Modifié
 
