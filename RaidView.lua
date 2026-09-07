@@ -444,9 +444,30 @@ function RaidView.Refresh()
     view.empty:Hide()
     view.emptyAction:Hide()
 
-    view.intro:SetText(hex("muted") .. (groups[1].fromJournal
-        and L["Loot tables read from the adventure guide, filtered to your spec. Import a droptimizer to replace the estimates with measured gains."]
-        or L["Each boss shows the items your droptimizer actually simulated, best gain first."]) .. "|r")
+    if groups[1].fromJournal then
+        view.intro:SetText(hex("muted")
+            .. L["Loot tables read from the adventure guide, filtered to your spec. Import a droptimizer to replace the estimates with measured gains."] .. "|r")
+    else
+        -- DIRE D'OU VIENNENT LES CHIFFRES, ET DE QUAND.
+        --
+        -- Un rapport perime ne se voit pas : les boss ont l'air normaux, et l'onglet passe
+        -- pour casse quand un nouvel import ne change rien a l'ecran. C'est exactement ce
+        -- qui est arrive avec un `Data/Sim.lua` de la saison precedente. Le nom du raid et
+        -- la date repondent a la question sans qu'on ait a taper une commande.
+        local marks = {}
+        local raid = ns.Sim.InstanceName(groups[1].instance)
+        if raid then table.insert(marks, raid) end
+        local stamp = ns.Sim.NewestStamp()
+        if stamp then
+            table.insert(marks, string.format(L["simulated %d day(s) ago"],
+                math.max(0, math.floor((time() - stamp) / 86400))))
+        else
+            table.insert(marks, L["date unknown, generated file"])
+        end
+        view.intro:SetText(hex("muted")
+            .. L["Each boss shows the items your droptimizer actually simulated, best gain first."]
+            .. "|r  " .. hex("link") .. table.concat(marks, " · ") .. "|r")
+    end
 
     -- Selection persistante d'un affichage a l'autre, et repli sur la rencontre la plus
     -- payante quand la precedente a disparu du releve.

@@ -25,6 +25,16 @@ Versionnement sémantique — `MAJEUR.MINEUR.CORRECTIF`.
 
 ### Corrigé
 
+- **Les boss d'une saison finie restaient dans les onglets Raid et Guilde.** Un rapport ne
+  s'efface pas tout seul : `Data/Sim.lua`, écrit hors du jeu, n'a même pas de date et
+  survit au déploiement. Ses boss se mélangeaient donc aux nouveaux et passaient souvent
+  **au-dessus**, le tri se faisant sur le gain — un +15,6 % de la saison passée devance un
+  +4,3 % de celle en cours. Comme la rencontre sélectionnée est persistante, elle restait
+  collée sur un boss mort : l'onglet avait l'air de ne pas se mettre à jour. Deux
+  symptômes, une cause. L'onglet Raid se limite désormais au raid du droptimizer le plus
+  récent, et affiche son nom et sa date pour que ça ne puisse plus se deviner.
+- Les objets du seau « sans rencontre » de Raidbots (`-97`) ne produisent plus une ligne
+  de boss sans nom.
 - **Le collage du CSV répondait « nothing readable in that paste » sur une donnée
   valide.** La fenêtre Droptimizer posait des champs de saisie d''**une seule ligne**, là
   où les deux textes qui y transitent en font des dizaines : la chaîne SimulationCraft et

@@ -347,11 +347,65 @@ function Sim.InstanceName(instanceID)
     return (ok and type(name) == "string" and name ~= "") and name or nil
 end
 
+--- Le rapport le plus recent, et sa date.
+---
+--- A egalite de date, la simulation dont la BASE est la plus grosse : meme convention que
+--- `Sim.Percent`. Un rapport de fichier n'a aucune date — le generateur n'en ecrit pas —
+--- donc il compte pour 0 et se fait toujours devancer par un collage.
+--- @return table|nil rapport, number date (0 si inconnue)
+local function newestReport()
+    local newest, newestStamp, newestBaseline
+    for _, report in pairs(reports() or {}) do
+        local stamp, baseline = report.stamp or 0, report.baseline or 0
+        if not newest or stamp > newestStamp
+            or (stamp == newestStamp and baseline > newestBaseline) then
+            newest, newestStamp, newestBaseline = report, stamp, baseline
+        end
+    end
+    return newest, newestStamp or 0
+end
+
+--- Date du droptimizer le plus recent, ou nil quand aucun n'en porte.
+--- @return number|nil
+function Sim.NewestStamp()
+    local _, stamp = newestReport()
+    return stamp > 0 and stamp or nil
+end
+
+--- Instances du droptimizer le plus recent : le raid que le joueur fait EN CE MOMENT.
+---
+--- UN RAPPORT NE S'EFFACE PAS TOUT SEUL, et c'est ce qui a produit deux symptomes pour une
+--- seule cause. `Data/Sim.lua`, ecrit hors du jeu, n'a meme pas de date, et il survit au
+--- deploiement — par choix, c'est la donnee du joueur. Les boss d'une saison finie
+--- restaient donc dans l'onglet Raid, melanges aux nouveaux et souvent AU-DESSUS : le tri
+--- se fait sur le gain, et un gain de la saison passee peut etre plus gros. Comme la
+--- rencontre selectionnee est persistante, elle restait collee sur un boss mort et
+--- l'onglet avait l'air de ne pas se mettre a jour.
+---
+--- Ce qui filtre est l'INSTANCE, pas la date : un objet du raid courant simule dans un
+--- rapport plus ancien compte toujours. Seuls les raids d'une autre saison disparaissent.
+--- @return table|nil { [instanceID] = true }
+local function currentInstances()
+    local newest = newestReport()
+    if not newest then return nil end
+
+    local instances, found = {}, false
+    for _, entry in pairs(newest.items or {}) do
+        if entry.instance and entry.instance > 0 then
+            instances[entry.instance] = true
+            found = true
+        end
+    end
+    return found and instances or nil
+end
+
 --- Gains simules regroupes par rencontre, chaque groupe trie par gain decroissant.
 ---
 --- C'est la base de la vue « table de loot par boss » : l'ensemble des objets qu'un
 --- droptimizer a simules POUR une rencontre est sa table de butin, telle que Raidbots l'a
 --- vue. On ne fabrique donc aucune liste de butin, on lit celle qui a ete simulee.
+---
+--- Restreint au raid EN COURS — voir `currentInstances`.
 ---
 --- @return table|nil { { encounter, instance, name, items = { { id, percent, slot, ilvl } } } }
 function Sim.ByEncounter()
@@ -359,16 +413,23 @@ function Sim.ByEncounter()
 
     local groups, order = {}, {}
     local best = {}
+    local instances = currentInstances()
 
     for _, report in pairs(reports() or {}) do
         for itemID, entry in pairs(report.items or {}) do
+            local instance, encounter = entry.instance or 0, entry.encounter or 0
+            -- Une rencontre <= 0 est le seau « sans rencontre » de Raidbots : `-97` sur un
+            -- rapport reel, pour des objets qui ne s'apparient a aucun boss du journal.
+            -- Une ligne de boss sans nom n'apprend rien, et `Guild.LocalCard` les ecartait
+            -- deja de son cote.
+            local keep = encounter > 0 and (not instances or instances[instance])
             -- Un objet peut figurer dans plusieurs rapports : on garde le meilleur gain,
             -- comme ailleurs, plutot que le dernier lu.
             local kept = best[itemID]
-            if not kept or (entry.percent or 0) > (kept.percent or 0) then
+            if keep and (not kept or (entry.percent or 0) > (kept.percent or 0)) then
                 best[itemID] = { id = itemID, percent = entry.percent or 0,
                     slot = entry.slot, ilvl = entry.ilvl,
-                    encounter = entry.encounter or 0, instance = entry.instance or 0,
+                    encounter = encounter, instance = instance,
                     difficulty = entry.difficulty }
             end
         end

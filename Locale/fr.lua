@@ -62,6 +62,11 @@ ns.translations.fr = {
     -- L'ADRESSE d'abord, la chaine ensuite : c'est l'ordre des gestes. Le presse-papier
     -- ne garde qu'une chose a la fois, donc copier avant de savoir ou coller oblige a
     -- revenir chercher.
+    -- Onglet Raid : d'ou viennent les chiffres, et de quand. Un rapport de la saison
+    -- precedente ne se voit pas autrement — les boss ont l'air normaux.
+    ["simulated %d day(s) ago"] = "simule il y a %d jour(s)",
+    ["date unknown, generated file"] = "date inconnue, fichier genere",
+
     ["Open this address"] = "Ouvre cette adresse",
     ["Paste this string there, then run the simulation"] =
         "Colle cette chaine dedans, puis lance la simulation",

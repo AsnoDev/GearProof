@@ -333,6 +333,79 @@ def test_prune_reports(report: Report) -> None:
     suite.done()
 
 
+# ------------------------------------------- le raid en cours, et lui seul
+
+def test_by_encounter_season(report: Report) -> None:
+    """L'onglet Raid montre-t-il encore les boss d'une saison finie ?
+
+    La situation exacte rencontree en jeu : le dossier de jeu portait un `Data/Sim.lua`
+    ecrit hors du jeu la saison precedente — instances 1307/1308, sans aucune date, et
+    conserve au deploiement parce que c'est la donnee du joueur. Un nouveau droptimizer
+    colle ne le remplacait pas : `ByEncounter` fusionnait les deux, et le tri se faisant
+    sur le GAIN, un +15,6 % de l'an dernier passait devant les boss du raid courant. La
+    rencontre selectionnee etant persistante, elle restait collee sur un boss mort et
+    l'onglet avait l'air de ne pas se mettre a jour. Deux symptomes, une cause.
+
+    Le test verifie aussi le seau `-97` : la rencontre « sans boss » de Raidbots, presente
+    sur le rapport reel du joueur, qui produisait une ligne de boss sans nom.
+    """
+    suite = Suite(report, "Sim.ByEncounter/saison")
+    lua, ns, _ = new_runtime(["Spec.lua", "Sim.lua"])
+    lua.globals().GEARPROOF_NS = ns
+    lua.globals().GEARPROOF_TEST_TIME = 100000
+
+    lua.execute("""
+        -- Le fichier de la saison passee : AUCUNE date, comme le generateur l'ecrit.
+        GearProofSim = {
+            ["ancien"] = { baseline = 24059, player = "Testeur", items = {
+                [249966] = { percent = 15.62, ilvl = 272, slot = "wrist",
+                             encounter = 2733, instance = 1307 },
+                [249326] = { percent = 4.57, ilvl = 272, slot = "wrist",
+                             encounter = 2795, instance = 1308 },
+            } },
+        }
+        -- Le collage de cette semaine : le raid en cours, avec un gain PLUS PETIT que
+        -- celui de l'an dernier. C'est ce qui faisait remonter les vieux boss.
+        GEARPROOF_NS.db = { sim = {
+            ["7HV5eabh1G1pAQ8n9RS3Pc"] = {
+                baseline = 55672, player = "Testeur", stamp = 99000, items = {
+                    [268213] = { percent = 4.25, ilvl = 344, slot = "main_hand",
+                                 encounter = 2883, instance = 1320 },
+                    [270175] = { percent = 2.10, ilvl = 344, slot = "trinket1",
+                                 encounter = 2895, instance = 1320 },
+                    -- Le seau « sans rencontre » de Raidbots.
+                    [271444] = { percent = 0.92, ilvl = 318, slot = "shoulder",
+                                 encounter = -97, instance = 1320 },
+                },
+            },
+        } }
+    """)
+
+    groups = ns.Sim.ByEncounter()
+    suite.truthy("des groupes", groups is not None)
+    seen = sorted(int(groups[i]["encounter"]) for i in range(1, len(groups) + 1))
+    suite.equal("le raid en cours, et lui seul", seen, [2883, 2895])
+    suite.falsy("saison precedente ecartee", 2733 in seen or 2795 in seen)
+    suite.falsy("seau sans rencontre ecarte", -97 in seen)
+
+    # La date affichee vient du rapport le plus recent, pas du fichier sans date.
+    suite.equal("date du plus recent", ns.Sim.NewestStamp(), 99000)
+
+    # `Sim.Percent` n'est PAS filtre, et c'est voulu : la question qu'elle repond est
+    # « que vaut CET objet a CE niveau », qui ne depend pas du raid ou il tombe. Un objet
+    # de la saison passee garde donc son chiffre dans les sacs et les infobulles.
+    suite.equal("gain d'un objet ancien conserve", ns.Sim.Percent(249966, 272), 15.62)
+
+    # SANS collage, le fichier seul reste la seule source : il ne faut pas que le filtre
+    # vide l'onglet de qui n'a jamais rien colle.
+    lua.execute("GEARPROOF_NS.db = { sim = {} }")
+    groups = ns.Sim.ByEncounter()
+    seen = sorted(int(groups[i]["encounter"]) for i in range(1, len(groups) + 1))
+    suite.equal("fichier seul : rien n'est filtre", seen, [2733, 2795])
+
+    suite.done()
+
+
 # --------------------------------------------------- fraicheur du droptimizer
 
 def test_csv_freshness(report: Report) -> None:
@@ -555,7 +628,8 @@ def main() -> int:
     for test in (test_all_files_load,
                  test_item_link, test_weights, test_weapon_pair, test_chunk_payload,
                  test_guild_payload, test_simc_item_line, test_schema_migration,
-                 test_prune_reports, test_csv_freshness, test_roster_freshness):
+                 test_prune_reports, test_csv_freshness, test_roster_freshness,
+                 test_by_encounter_season):
         try:
             test(report)
         except Exception as error:  # noqa: BLE001 — un test qui casse est un constat
