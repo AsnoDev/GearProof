@@ -496,6 +496,12 @@ end
 --- On essaie le CSV EN PREMIER : c'est le seul qui apporte la donnee, et c'est aussi le
 --- plus reconnaissable. Un lien ne peut rien telecharger — WoW l'interdit — donc le
 --- reconnaitre sert uniquement a donner l'etape suivante.
+--- @return boolean accepte, string|nil nature : "csv", "link" ou "pawn"
+---
+--- La NATURE compte : l'appelant doit savoir ce qu'il vient de recevoir, pas le deduire
+--- d'un etat global. `Droptimizer.Submit` le deduisait de `Sim.Available()`, vrai des
+--- qu'un rapport existe — donc un joueur qui en avait deja un et collait un NOUVEAU lien
+--- voyait la fenetre se fermer sans jamais voir l'etape suivante.
 function SimC.HandlePaste(text)
     if type(text) ~= "string" or text == "" then
         ns.Print(ns.L["nothing readable in that paste"])
@@ -508,7 +514,7 @@ function SimC.HandlePaste(text)
         ns.Print("%s%s|r", ns.Theme.C("good"),
             string.format(ns.L["droptimizer imported: %d items"], result))
         if ns.UI and ns.UI.RefreshNow then ns.UI.RefreshNow() end
-        return true
+        return true, "csv"
     end
 
     local url = ns.Sim.ReportCSVURL(text)
@@ -523,13 +529,13 @@ function SimC.HandlePaste(text)
         ns.Copy.Prompt(ns.L["Droptimizer report"],
             ns.L["Open this address, select everything, copy — then replace this text with what you copied and validate"],
             SimC.HandlePaste, url)
-        return true
+        return true, "link"
     end
 
     if ns.Weights.SetFromPawn(text) then
         ns.Print(ns.L["stat weights saved (%s)"], "Pawn")
         if ns.UI and ns.UI.RefreshNow then ns.UI.RefreshNow() end
-        return true
+        return true, "pawn"
     end
 
     ns.Print(ns.L["nothing readable in that paste"])

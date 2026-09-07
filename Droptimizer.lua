@@ -202,14 +202,15 @@ function Droptimizer.Submit()
     frame.input:SetText("")
     frame.input:ClearFocus()
 
-    if ns.SimC.HandlePaste(text) then
-        -- Le CSV a-t-il ete importe, ou seulement le lien enregistre ? `Sim.Available`
-        -- ne devient vrai qu'apres un import reel.
-        stage = ns.Sim.Available() and "link" or "csv"
-        if stage == "link" then
-            frame:Hide()
-            return
-        end
+    -- La NATURE de ce qui a ete accepte, pas un etat global : `Sim.Available()` est vrai
+    -- des qu'un rapport existe, donc un joueur qui en avait deja un et collait un nouveau
+    -- lien voyait la fenetre se fermer sans jamais voir l'etape 3.
+    local ok, kind = ns.SimC.HandlePaste(text)
+    if ok and kind == "link" then
+        stage = "csv"
+    elseif ok and kind == "csv" then
+        frame:Hide()
+        return
     end
     Droptimizer.Refresh()
 end
