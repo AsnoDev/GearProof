@@ -79,6 +79,10 @@ ns.translations.fr = {
     ["No number ranks a trinket for a tank or a healer: a droptimizer measures damage, and Warcraft Logs has no survival ranking. This is what the top players wear."] =
         "Aucun chiffre ne classe un bijou de tank ou de soigneur : un droptimizer mesure les degats, et Warcraft Logs n'a pas de classement de survie. Voici ce que portent les meilleurs.",
     ["Drops in the raid"] = "Tombe en raid",
+    -- Le niveau vient du JOURNAL, a une difficulte precise, pas du mode observe
+    -- chez vingt joueurs qui melangent des pieces surclassees de plusieurs crans.
+    ["mythic raid"] = "raid mythique",
+    ["mythic dungeon"] = "donjon mythique",
     ["Drops in Mythic+ dungeons"] = "Tombe en donjon mythique+",
     ["Obtainable without setting foot in the raid."] =
         "Obtenables sans mettre un pied en raid.",
@@ -117,6 +121,8 @@ ns.translations.fr = {
     ["Copy import string"] = "Copier la chaine d'import",
     ["Talent import string"] = "Chaine d'import des talents",
     ["import string refused: %s"] = "chaine d'import refusee : %s",
+    ["This client's format is not the one GearProof writes. Send these two lines to the author."] =
+        "Le format de ce client n'est pas celui qu'ecrit GearProof. Envoie ces deux lignes a l'auteur.",
 
     -- Fenetre Droptimizer : le parcours en trois etapes, dans une seule fenetre.
     ["optional"] = "facultatif",

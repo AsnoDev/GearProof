@@ -176,7 +176,15 @@ end
 -- pas en cours de session.
 
 local raidCache, encounterCache, lootCache, portraitCache = nil, {}, {}, {}
-local dungeonCache, sourceCache, linkCache = nil, nil, nil
+local dungeonCache, sourceCache, linkCache, levelCache = nil, nil, nil, nil
+
+-- DIFFICULTE DE REFERENCE de chaque provenance.
+--
+-- DONNEE DE PATCH : verifiee contre 12.1.0. 16 = raid mythique, 23 = donjon mythique. Le
+-- mythique+ n'a pas d'identifiant de butin propre au journal — la cle fait monter le
+-- niveau au-dela — donc le donjon mythique est le PLANCHER de ce qu'une cle rend, et c'est
+-- le chiffre honnete a afficher : celui qu'on est sur d'obtenir.
+local RAID_REFERENCE, DUNGEON_REFERENCE = 16, 23
 
 --- Portrait d'un boss, comme le journal l'affiche.
 ---
@@ -419,15 +427,15 @@ function Journal.ItemSource(itemID)
     if not itemID then return nil end
 
     if not sourceCache then
-        local index, links, found = {}, {}, false
+        local index, links, levels, found = {}, {}, {}, false
 
         -- Le RAID d'abord : en cas de doublon, un objet qui tombe des deux cotes est
         -- annonce comme butin de donjon, qui est le contenu le plus accessible. Dire a un
         -- joueur qu'il doit raider pour un objet qu'une cle lui donne serait le seul sens
         -- ou l'erreur coute quelque chose.
-        local function absorb(instances, label)
+        local function absorb(instances, label, difficultyID)
             for _, instance in ipairs(instances) do
-                for _, loot in ipairs(Journal.InstanceLoot(instance.id, nil, nil, nil)) do
+                for _, loot in ipairs(Journal.InstanceLoot(instance.id, difficultyID, nil, nil)) do
                     if loot.id then
                         index[loot.id], found = label, true
                         -- Le LIEN du journal en meme temps que la provenance : il porte
@@ -435,17 +443,21 @@ function Journal.ItemSource(itemID)
                         -- statistiques. Sans lui, l'infobulle d'un bijou retombe sur
                         -- `SetItemByID`, qui ne connait que le modele — « niveau 28 » et
                         -- « +7 Agilite » sur un objet qui tombe a 321.
-                        if loot.link then links[loot.id] = loot.link end
+                        if loot.link then
+                            links[loot.id] = loot.link
+                            local level = ns.ItemInfo.Level(loot.link)
+                            if level and level > 0 then levels[loot.id] = level end
+                        end
                     end
                 end
             end
         end
 
-        absorb(Journal.Raids(), "raid")
-        absorb(Journal.Dungeons(), "dungeon")
+        absorb(Journal.Raids(), "raid", RAID_REFERENCE)
+        absorb(Journal.Dungeons(), "dungeon", DUNGEON_REFERENCE)
 
         if not found then return nil end
-        sourceCache, linkCache = index, links
+        sourceCache, linkCache, levelCache = index, links, levels
     end
 
     return sourceCache[itemID]
@@ -463,10 +475,31 @@ function Journal.ItemLink(itemID)
     return linkCache and linkCache[itemID] or nil
 end
 
+--- Niveau de l'objet A LA DIFFICULTE DE REFERENCE de sa provenance.
+---
+--- Le relevé porte le niveau LE PLUS VU chez les vingt meilleurs. C'est un fait, mais ce
+--- n'est pas la reponse a « a quel niveau cet objet tombe-t-il pour moi » : le haut de
+--- tableau melange des pieces surclassees de plusieurs crans, et le mode d'un echantillon
+--- de vingt saute d'une semaine a l'autre. Le journal, lui, donne le niveau exact d'une
+--- difficulte precise.
+---
+--- On lit donc chaque provenance a SA reference : le raid en mythique, le donjon en
+--- mythique. Deux chiffres comparables, chacun etiquete, plutot qu'un chiffre observe dont
+--- personne ne sait a quelle difficulte il correspond.
+--- @return number|nil niveau, string|nil libelle de la difficulte
+function Journal.ItemLevel(itemID)
+    if not itemID then return nil end
+    local source = Journal.ItemSource(itemID)
+    if not source then return nil end
+    local level = levelCache and levelCache[itemID]
+    if not level then return nil end
+    return level, source
+end
+
 --- Oublie tout ce qui a ete lu. Le butin depend de la difficulte et de la spe.
 function Journal.Invalidate()
     raidCache, encounterCache, lootCache = nil, {}, {}
-    dungeonCache, sourceCache, linkCache = nil, nil, nil
+    dungeonCache, sourceCache, linkCache, levelCache = nil, nil, nil, nil
 end
 
 ns.On("ACTIVE_TALENT_GROUP_CHANGED", Journal.Invalidate)

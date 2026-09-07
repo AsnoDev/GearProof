@@ -521,6 +521,48 @@ def test_traits_selfcheck(report: Report) -> None:
 
     lua.globals().GEARPROOF_REF = reference
     lua.execute("C_Traits.GenerateImportString = function() return GEARPROOF_REF end")
+
+    # LA VOIE DE SECOURS, ET LE PIEGE QUI LA RENDAIT MORTE.
+    #
+    # Le client n'expose pas toujours le meme exportateur. La liste etait ecrite comme une
+    # table de FONCTIONS — `{ C_Traits.GenerateInspectImportString, C_Traits.GenerateImportString }` —
+    # et quand la premiere n'existe pas, la table a un TROU : `ipairs` s'arrete des le
+    # premier nil et la seconde n'est jamais essayee. Le controle de format echouait donc
+    # avec « pas de chaine de reference » sur un client qui en avait pourtant une, et le
+    # bouton d'export restait masque sans que rien ne dise pourquoi.
+    lua.execute("""
+        C_Traits.GenerateInspectImportString = nil
+        C_Traits.GenerateImportString = function() return GEARPROOF_REF end
+        GEARPROOF_NS.Traits.Invalidate()
+        GEARPROOF_FOUND = GEARPROOF_NS.Traits.PlayerImportString()
+    """)
+    suite.equal("second exportateur atteint malgre le premier absent",
+                str(lua.globals().GEARPROOF_FOUND), str(reference))
+
+    # Et l'inverse : le PREMIER doit gagner quand il existe.
+    lua.execute("""
+        C_Traits.GenerateInspectImportString = function() return GEARPROOF_REF .. "AA" end
+        GEARPROOF_FOUND = GEARPROOF_NS.Traits.PlayerImportString()
+    """)
+    suite.equal("premier exportateur prioritaire",
+                str(lua.globals().GEARPROOF_FOUND), str(reference) + "AA")
+
+    # Aucun des deux, mais la fenetre de talents de Blizzard est ouverte : elle fabrique la
+    # chaine en Lua, et c'est le dernier recours.
+    lua.execute("""
+        C_Traits.GenerateInspectImportString = nil
+        C_Traits.GenerateImportString = nil
+        PlayerSpellsFrame = { TalentsFrame = {
+            GetLoadoutExportString = function() return GEARPROOF_REF end,
+        } }
+        GEARPROOF_FOUND = GEARPROOF_NS.Traits.PlayerImportString()
+    """)
+    suite.equal("repli sur l'interface de Blizzard",
+                str(lua.globals().GEARPROOF_FOUND), str(reference))
+    lua.execute("PlayerSpellsFrame = nil")
+    lua.execute("C_Traits.GenerateImportString = function() return GEARPROOF_REF end")
+
+    lua.execute("GEARPROOF_NS.Traits.Invalidate()")
     lua.execute("GEARPROOF_OK, GEARPROOF_WHY = GEARPROOF_NS.Traits.SelfCheck()")
     suite.equal("format reconnu", lua.globals().GEARPROOF_OK, True)
 

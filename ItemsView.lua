@@ -178,7 +178,19 @@ local function layoutItems(top, width, rows, showSlot)
             local label = key and _G[key]
             if type(label) == "string" and label ~= "" then table.insert(parts, label) end
         end
-        if item.ilvl and item.ilvl > 0 then
+        -- LE NIVEAU DU JOURNAL D'ABORD, a la difficulte de reference de la provenance.
+        --
+        -- Le relevé porte le niveau le plus VU chez les vingt meilleurs : un melange de
+        -- pieces surclassees de plusieurs crans, dont le mode saute d'une semaine a
+        -- l'autre. Le journal donne le niveau exact d'une difficulte precise — le raid en
+        -- mythique, le donjon en mythique — donc deux chiffres comparables, chacun
+        -- etiquete. Le niveau observe reste dans l'infobulle, ou il repond a une autre
+        -- question : « a quel niveau le portent-ils ».
+        local level, from = ns.Journal.ItemLevel(item.id)
+        if level then
+            table.insert(parts, string.format(L["ilvl %d"], level) .. " " .. (
+                from == "raid" and L["mythic raid"] or L["mythic dungeon"]))
+        elseif item.ilvl and item.ilvl > 0 then
             table.insert(parts, string.format(L["ilvl %d"], item.ilvl))
         end
         row.sub:SetWidth(math.max(60, width - 150))

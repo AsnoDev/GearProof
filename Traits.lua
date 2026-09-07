@@ -62,11 +62,75 @@ end
 --- dans l'ordre exact de `C_Traits.GetTreeNodes`, sans les nommer. Un ordre different
 --- produit une chaine syntaxiquement valide et semantiquement fausse.
 --- @return table|nil
+--- Identifiant de la configuration de talents active.
+---
+--- `C_ClassTalents` a CHANGE DE NOM plusieurs fois : on essaie chaque voie connue plutot
+--- que de dependre d'une seule. Cette recherche vivait en double, ici et dans `SimC.lua` —
+--- deux lecteurs de la meme donnee divergeant sur un detail invisible, c'est la
+--- duplication qui a coute le plus cher dans ce depot. `Traits.lua` est le seul
+--- proprietaire de `C_Traits` ; `SimC` passe par lui.
+--- @return number|nil
+--- ON ITERE SUR DES NOMS, PAS SUR DES FONCTIONS. Une table Lua construite avec un trou —
+--- `{ nil, f }` quand la premiere API n'existe pas sur ce client — arrete `ipairs` des le
+--- premier nil : la voie de secours n'etait jamais essayee. C'est exactement ce qui rendait
+--- le controle de format inoperant, et le bug etait deja present dans la copie de `SimC`.
+local CONFIG_GETTERS = {
+    { "C_ClassTalents", "GetActiveConfigID" },
+    { "C_Traits", "GetActiveConfigID" },
+    { "C_SpecializationInfo", "GetActiveConfigID" },
+}
+
+function Traits.ConfigID()
+    if not C_Traits then return nil end
+    for _, path in ipairs(CONFIG_GETTERS) do
+        local namespace = _G[path[1]]
+        local value = type(namespace) == "table" and safe(namespace[path[2]]) or nil
+        if value then return value end
+    end
+    return nil
+end
+
+--- La chaine d'import que LE CLIENT produit pour la configuration du joueur.
+---
+--- C'EST ELLE QUI MANQUAIT. `Traits.SelfCheck` n'essayait que
+--- `C_Traits.GenerateImportString`, qui n'existe pas partout : le controle echouait donc
+--- avec « pas de chaine de reference » et le bouton d'export restait masque sans que rien
+--- ne dise pourquoi. `SimC.lua` connaissait deja la voie de secours et personne ne l'avait
+--- rapprochee.
+--- @return string|nil
+function Traits.PlayerImportString()
+    local configID = Traits.ConfigID()
+    if not configID then return nil end
+
+    for _, name in ipairs({ "GenerateInspectImportString", "GenerateImportString" }) do
+        local value = safe(C_Traits[name], configID)
+        if type(value) == "string" and #value > 20 then return value end
+    end
+
+    -- Dernier recours : l'interface de talents de Blizzard fabrique la chaine EN LUA, pas
+    -- par une API C. Elle a demenage d'une extension a l'autre, d'ou les deux chemins. On
+    -- ne charge rien : si le joueur n'a jamais ouvert sa fenetre de talents, on repond nil
+    -- plutot que d'ouvrir une interface qu'il n'a pas demandee.
+    for _, path in ipairs({
+        { "PlayerSpellsFrame", "TalentsFrame" },
+        { "ClassTalentFrame", "TalentsTab" },
+    }) do
+        local root = _G[path[1]]
+        local frame = type(root) == "table" and root[path[2]] or nil
+        if type(frame) == "table" and type(frame.GetLoadoutExportString) == "function" then
+            local value = safe(frame.GetLoadoutExportString, frame)
+            if type(value) == "string" and #value > 20 then return value end
+        end
+    end
+
+    return nil
+end
+
 function Traits.Snapshot()
     if snapshot then return snapshot end
-    if not C_Traits or not C_ClassTalents then return nil end
+    if not C_Traits then return nil end
 
-    local configID = safe(C_ClassTalents.GetActiveConfigID)
+    local configID = Traits.ConfigID()
     if not configID then return nil end
 
     local config = safe(C_Traits.GetConfigInfo, configID)
@@ -254,7 +318,7 @@ function Traits.SelfCheck()
     local shot = Traits.Snapshot()
     if not shot then return false, "no tree" end
 
-    local expected = safe(C_Traits.GenerateImportString, shot.configID)
+    local expected = Traits.PlayerImportString()
     if type(expected) ~= "string" or expected == "" then
         return false, "no reference string"
     end
@@ -275,8 +339,19 @@ function Traits.SelfCheck()
         return node.ranksPurchased, node.activeEntry and node.activeEntry.entryID
     end)
 
-    if ours ~= expected then return false, "format mismatch" end
+    if ours ~= expected then return false, "format mismatch", version, ours, expected end
     return true, nil, version
+end
+
+--- Les deux chaines, cote a cote, quand elles ne coincident pas.
+---
+--- Un « format non reconnu » sans les chaines est un cul-de-sac : personne ne peut le
+--- corriger sans voir en quoi elles different. Celle du client est la verite, la notre est
+--- ce que ce code a produit — les deux ensemble suffisent a trouver le bit qui bouge.
+--- @return string|nil client, string|nil notre
+function Traits.Diagnose()
+    local _, _, _, ours, expected = Traits.SelfCheck()
+    return expected, ours
 end
 
 --- Chaine d'import pour une selection venue du relevé, ou nil.

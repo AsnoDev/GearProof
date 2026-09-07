@@ -22,8 +22,11 @@ local L = ns.L
 -- sans y basculer. Quand la spe regardee n'est pas la spe jouee, on le dit et on retombe
 -- sur la liste, qui reste vraie.
 --
--- L'EXPORT ne s'affiche que si `Traits.SelfCheck` a confirme le format sur ce client :
--- une chaine fausse ferait coller au joueur un arbre qui n'est pas celui qu'il regarde.
+-- L'EXPORT est toujours propose, et le controle se fait au CLIC. Il etait masque tant que
+-- le format n'etait pas verifie : le joueur ne voyait donc rien et n'avait aucun moyen de
+-- savoir qu'une fonctionnalite existait. Quand le format ne correspond pas, la fenetre
+-- rend les DEUX chaines — celle du client et la notre — parce qu'un « format non reconnu »
+-- sans elles est un cul-de-sac que personne ne peut reparer.
 
 local NODE = 30
 local NODE_GAP = 6
@@ -397,22 +400,51 @@ end
 -- ------------------------------------------------------------------- public
 
 --- Ouvre la fenetre de copie avec la chaine d'import du build de tete.
+---
+--- LE BOUTON RESTE VISIBLE MEME QUAND IL NE PEUT PAS. Il etait masque tant que le format
+--- n'etait pas verifie : le joueur ne voyait donc rien, et n'avait aucun moyen de savoir
+--- qu'une fonctionnalite existait ni pourquoi elle manquait. Un bouton qui explique vaut
+--- mieux qu'une absence qui se devine.
 local function exportBuild()
     local builds = ns.Meta.Builds(content)
     local build = builds and builds[1]
-    local match = build and build.nodes and ns.Traits.Match(build.nodes)
+    local nodes = build and build.nodes
+    if not nodes then
+        ns.Print("%s%s|r", hex("bis"),
+            L["The reference does not carry a full tree for this content."])
+        return
+    end
+
+    local match = ns.Traits.Match(nodes)
     if not match then
-        ns.Print(ns.L["nothing readable in that paste"])
+        ns.Print("%s%s|r", hex("bis"),
+            L["The reference talent ids do not match this client's tree."])
         return
     end
 
     local text, reason = ns.Traits.Export(match)
-    if not text then
-        ns.Print("%s%s|r", hex("critical"),
-            string.format(L["import string refused: %s"], tostring(reason)))
+    if text then
+        ns.Copy.Show(L["Talent import string"], text)
         return
     end
-    ns.Copy.Show(L["Talent import string"], text)
+
+    -- « FORMAT NON RECONNU » SANS LES CHAINES EST UN CUL-DE-SAC. Personne ne peut corriger
+    -- un serialiseur sans voir en quoi sa sortie differe de celle du client. On ouvre donc
+    -- les deux cote a cote : celle du jeu est la verite, la notre est ce que ce code a
+    -- produit, et l'ecart entre les deux est exactement ce qu'il faut pour le reparer.
+    if reason == "format mismatch" then
+        local client, ours = ns.Traits.Diagnose()
+        ns.Copy.Show(L["Talent import string"], table.concat({
+            L["This client's format is not the one GearProof writes. Send these two lines to the author."],
+            "",
+            "client: " .. tostring(client),
+            "gearproof: " .. tostring(ours),
+        }, "\n"))
+        return
+    end
+
+    ns.Print("%s%s|r", hex("bis"),
+        string.format(L["import string refused: %s"], tostring(reason)))
 end
 
 function TalentView.Create(parent)
@@ -486,11 +518,10 @@ function TalentView.Refresh()
         button.text:SetText((active and hex("link") or hex("muted")) .. L[button.label] .. "|r")
     end
 
-    -- L'EXPORT NE S'AFFICHE QUE S'IL EST SUR. `SelfCheck` compare notre serialiseur a celui
-    -- du client sur la configuration du joueur : tant qu'ils ne coincident pas au caractere
-    -- pres, un bouton d'export ne ferait que produire une chaine que le jeu refusera — ou,
-    -- pire, acceptera de travers.
-    view.export:SetShown(ns.Traits.SelfCheck() and true or false)
+    -- LE BOUTON NE FAIT PAS DE CONTROLE ICI. `SelfCheck` serialise l'arbre entier ; le
+    -- faire a chaque rafraichissement d'onglet coute pour rien, et le masquer quand il
+    -- echoue laissait le joueur devant une absence inexplicable. Le controle se fait au
+    -- CLIC, et son echec s'explique.
 
     view.intro:SetWidth(math.max(120, (view:GetWidth() or 600) - 410))
     view.intro:SetText(hex("muted") .. (content == "mythic"

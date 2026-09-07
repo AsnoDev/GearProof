@@ -96,37 +96,14 @@ end
 --- un facteur huit, avec un equipement pourtant correctement lu. Un export sans talents ne
 --- doit donc jamais partir silencieusement.
 ---
---- `C_ClassTalents` a change de nom plusieurs fois : on essaie chaque voie connue plutot que
---- de dependre d'une seule.
+--- La chaine de talents du joueur, telle que le client la produit.
+---
+--- Passe par `Traits.lua`, seul proprietaire de `C_Traits`. Ce fichier en avait sa propre
+--- copie — meme recherche de configuration, meme liste d'exportateurs — et les deux ont
+--- divergé : `Traits` ne connaissait pas la voie `GenerateInspectImportString` que
+--- celle-ci utilisait, ce qui a fait echouer le controle de format de l'onglet Talents.
 local function talentString()
-    if not C_Traits then return nil end
-
-    local configID
-    for _, getter in ipairs({
-        C_ClassTalents and C_ClassTalents.GetActiveConfigID,
-        C_Traits.GetActiveConfigID,
-        C_SpecializationInfo and C_SpecializationInfo.GetActiveConfigID,
-    }) do
-        if type(getter) == "function" then
-            local ok, value = pcall(getter)
-            if ok and value then
-                configID = value
-                break
-            end
-        end
-    end
-    if not configID then return nil end
-
-    for _, exporter in ipairs({
-        C_Traits.GenerateInspectImportString,
-        C_Traits.GenerateImportString,
-    }) do
-        if type(exporter) == "function" then
-            local ok, value = pcall(exporter, configID)
-            if ok and type(value) == "string" and #value > 20 then return value end
-        end
-    end
-    return nil
+    return ns.Traits.PlayerImportString()
 end
 
 --- Une ligne d'objet. `parsed` vient de `ItemLink.Parse` ou d'une entree de `Gear.Scan`.

@@ -206,15 +206,29 @@ def main() -> int:
     # est un etat REEL, celui de la premiere ouverture d'onglet, et il emprunte une
     # branche entierement differente — la liste non separee, avec son avertissement. Un
     # onglet ne se teste pas sur un seul jeu de donnees.
+    # `Journal.ItemLevel` est override en meme temps que `ItemSource` : les deux vues
+    # affichent le niveau lu au journal QUAND il existe, et retombent sur le niveau observe
+    # du relevé sinon. Sans le second cas, la branche de repli — la seule qui tourne tant
+    # que le journal n'a pas repondu — ne serait jamais exercee.
     SOURCES = {
-        "provenances connues":
+        "provenances connues, niveaux connus":
             'GEARPROOF_NS.Journal.ItemSource = function(id) '
             'if id == 270175 then return "raid" end '
-            'if id == 270165 then return "dungeon" end return nil end',
+            'if id == 270165 then return "dungeon" end return nil end '
+            'GEARPROOF_NS.Journal.ItemLevel = function(id) '
+            'if id == 270175 then return 340, "raid" end '
+            'if id == 270165 then return 320, "dungeon" end return nil end',
+        "provenances connues, niveaux inconnus":
+            'GEARPROOF_NS.Journal.ItemSource = function(id) '
+            'if id == 270175 then return "raid" end '
+            'if id == 270165 then return "dungeon" end return nil end '
+            'GEARPROOF_NS.Journal.ItemLevel = function() return nil end',
         "que du raid":
-            'GEARPROOF_NS.Journal.ItemSource = function() return "raid" end',
+            'GEARPROOF_NS.Journal.ItemSource = function() return "raid" end '
+            'GEARPROOF_NS.Journal.ItemLevel = function() return 340, "raid" end',
         "journal muet":
-            'GEARPROOF_NS.Journal.ItemSource = function() return nil end',
+            'GEARPROOF_NS.Journal.ItemSource = function() return nil end '
+            'GEARPROOF_NS.Journal.ItemLevel = function() return nil end',
     }
 
     for label, setup in SOURCES.items():
@@ -357,7 +371,7 @@ def main() -> int:
     # Un [ok] sur un ecran VIDE ne prouve rien : on verifie que la separation par
     # provenance rend DEUX listes quand le journal repond, et que l'inconnu n'est range
     # nulle part.
-    lua.execute(SOURCES["provenances connues"])
+    lua.execute(SOURCES["provenances connues, niveaux connus"])
     # `select(1, a, b)` rend a ET b : lupa en fait un tuple de deux, et `len()` mesurait
     # le nombre de valeurs de retour au lieu du contenu de la liste. On passe donc par des
     # globales, ou chaque table reste une table.

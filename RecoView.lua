@@ -597,8 +597,10 @@ local function layoutTrinkets(top, width)
             -- La PROVENANCE plutot que l'emplacement : un bijou se porte toujours au meme
             -- endroit, et c'est justement d'ou il tombe qui decide si le joueur peut
             -- l'avoir.
+            local level = ns.Journal.ItemLevel(item.id)
             row.sub:SetWidth(math.max(60, width - 150))
-            row.sub:SetText(hex("muted") .. label .. "|r")
+            row.sub:SetText(hex("muted") .. label
+                .. (level and ("  ·  " .. string.format(ns.L["ilvl %d"], level)) or "") .. "|r")
 
             row.share:SetText(string.format("%s%d%%|r",
                 hex(index == 1 and "link" or "muted"), (item.share or 0) * 100 + 0.5))
