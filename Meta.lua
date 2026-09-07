@@ -307,6 +307,37 @@ function Meta.Builds()
     return (type(list) == "table" and #list > 0) and list or nil
 end
 
+--- Objets FABRIQUES portes par le haut de tableau — donc les recettes qui valent la peine.
+---
+--- Rien, en jeu, ne distingue un objet crafte d'un butin sans ouvrir sa recette. C'est le
+--- seul bloc du releve qui dise quoi faire HORS du combat, et il ne se devine pas.
+--- @return table|nil { { id, name, slot, ilvl, count, share }, ... }
+function Meta.Crafts()
+    local data = block()
+    local list = data and data.crafts
+    return (type(list) == "table" and #list > 0) and list or nil
+end
+
+--- Bijoux portes par le haut de tableau.
+---
+--- POURQUOI CE BLOC EXISTE. Un droptimizer ne mesure QUE des degats : les colonnes du CSV
+--- de Raidbots ne portent rien d'autre. Warcraft Logs, de son cote, n'a pas de classement
+--- de survie — c'est pour ca que les tanks y sont classes sur les degats. Aucun chiffre
+--- disponible ne dit donc si un bijou defensif vaut mieux qu'un autre, et un tank qui lit
+--- « +3,56 % » sur un bijou lit une mesure de degats qui ne repond pas a sa question.
+---
+--- Ce que le releve peut dire, en revanche, c'est ce que les meilleurs PORTENT. Ce n'est
+--- pas une mesure, c'est un usage — et c'est la seule reponse honnete a portee.
+---
+--- @param mythicOnly boolean|nil ne rendre que le mythique+ : un joueur qui ne raide pas
+---        n'apprend rien d'une liste dominee par des bijoux qu'il ne peut pas obtenir.
+--- @return table|nil { { id, name, slot, ilvl, count, share }, ... }
+function Meta.Trinkets(mythicOnly)
+    local data = block()
+    local list = data and (mythicOnly and data.trinketsMythic or data.trinkets)
+    return (type(list) == "table" and #list > 0) and list or nil
+end
+
 --- Fourchette interquartile d'une statistique : p25, p75, ecart.
 ---
 --- Genere depuis toujours, jamais lu. C'est pourtant ce qui distingue une cible d'une

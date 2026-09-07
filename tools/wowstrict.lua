@@ -320,6 +320,15 @@ local function widget(kind, template, label)
             if key:find("^Get") then
                 return function() return 100 end
             end
+            -- Un COMPTEUR rend un nombre, comme cote client. `NumLines` rendait nil, et
+            -- `for i = 1, tooltip:NumLines()` levait « 'for' limit must be a number » —
+            -- une panne du stub, pas de l'addon. Zero est un etat legitime : c'est ce que
+            -- le client rend pour une infobulle qu'il n'a pas encore remplie. Le balayage
+            -- d'infobulle ne trouve donc rien, ce qui est le cas a couvrir : l'addon doit
+            -- survivre a une infobulle vide, il l'a deja fait planter une fois.
+            if key:find("^Num") then
+                return function() return 0 end
+            end
             return function() return nil end
         end,
         __newindex = rawset,

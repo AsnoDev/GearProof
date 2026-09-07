@@ -56,6 +56,26 @@ ns.translations.fr = {
     -- Onglet Recommandations : sections Builds et Statistiques.
     ["Builds"] = "Builds",
 
+    -- Section CRAFTS. Rien en jeu ne distingue un objet fabrique d'un butin sans ouvrir
+    -- sa recette : c'est le seul bloc qui dise quoi faire hors du combat.
+    ["Crafted"] = "Artisanat",
+    ["Made, not dropped. These are the recipes worth ordering."] =
+        "Fabrique, pas ramasse. Voici les recettes qui valent la commande.",
+    ["ilvl %d"] = "ilvl %d",
+    ["worn at ilvl"] = "porte au niveau",
+
+    -- Section BIJOUX, tanks et soigneurs uniquement. Aucun chiffre ne classe un bijou de
+    -- tank : le droptimizer mesure des degats, Warcraft Logs n'a pas de classement de
+    -- survie. On dit ce que les meilleurs PORTENT, et on dit que c'est un usage.
+    ["No number ranks a tank trinket: a droptimizer measures damage, and Warcraft Logs has no survival ranking. This is what the top players wear."] =
+        "Aucun chiffre ne classe un bijou de tank : un droptimizer mesure les degats, et Warcraft Logs n'a pas de classement de survie. Voici ce que portent les meilleurs.",
+    ["No number ranks a healer trinket by throughput under pressure. This is what the top players wear."] =
+        "Aucun chiffre ne classe un bijou de soigneur sur ce qui compte vraiment. Voici ce que portent les meilleurs.",
+    ["Raid and Mythic+"] = "Raid et Mythique+",
+    ["Mythic+ only"] = "Mythique+ uniquement",
+    ["Obtainable without setting foot in the raid."] =
+        "Obtenables sans mettre un pied en raid.",
+
     -- Fenetre Droptimizer : le parcours en trois etapes, dans une seule fenetre.
     ["optional"] = "facultatif",
     ["Validate"] = "Valider",

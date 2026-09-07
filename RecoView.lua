@@ -25,6 +25,7 @@ ns.RecoView = RecoView
 local ROW_HEIGHT = 26
 local SECTION_GAP = 18
 local GEM_ROW_HEIGHT = 34
+local ITEM_ROW_HEIGHT = 34
 
 local view, pools
 
@@ -163,6 +164,45 @@ local function newStatRow()
     return row
 end
 
+--- Ligne d'objet : icone, nom, une ligne de detail dessous, part a droite.
+---
+--- Distincte de la ligne de gemme, qui n'a pas de place pour un detail : un objet doit
+--- dire OU il se porte et a quel niveau, sans quoi « Spellbreaker's Bracers » ne se
+--- rattache a rien de ce que le joueur a sur lui.
+local function newItemRow()
+    local row = CreateFrame("Button", nil, view.content, "BackdropTemplate")
+    row:SetHeight(ITEM_ROW_HEIGHT)
+    row:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+
+    row.icon = row:CreateTexture(nil, "ARTWORK")
+    row.icon:SetSize(24, 24)
+    row.icon:SetPoint("LEFT", 8, 0)
+    row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.name:SetPoint("TOPLEFT", row.icon, "TOPRIGHT", 8, -1)
+    row.name:SetJustifyH("LEFT")
+    row.name:SetWordWrap(false)
+
+    -- `sub` et non `detail` : `resetRow` met `row.detail` a nil pour les lignes de build,
+    -- ou c'est une DONNEE. Un widget portant le meme nom disparaitrait au recyclage.
+    row.sub = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    row.sub:SetPoint("BOTTOMLEFT", row.icon, "BOTTOMRIGHT", 8, 1)
+    row.sub:SetJustifyH("LEFT")
+    row.sub:SetWordWrap(false)
+
+    row.share = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.share:SetPoint("RIGHT", -10, 0)
+    row.share:SetWidth(56)
+    row.share:SetJustifyH("RIGHT")
+
+    return row
+end
+
 local function newText()
     local text = view.content:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     text:SetJustifyH("LEFT")
@@ -171,6 +211,7 @@ end
 
 local function resetRow(row)
     row.detail, row.gemID = nil, nil
+    row.itemID, row.itemLevel = nil, nil
     row:SetScript("OnEnter", nil)
     row:SetScript("OnLeave", nil)
     row:SetScript("OnClick", nil)
@@ -200,6 +241,23 @@ local function enchantOnEnter(self)
     end
     if points > 0 then
         GameTooltip:AddLine(string.format(ns.L["%d stat points"], points), 0.54, 0.54, 0.54)
+    end
+    GameTooltip:Show()
+end
+
+local function itemOnEnter(self)
+    if not self.itemID then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:ClearLines()
+    if not pcall(GameTooltip.SetItemByID, GameTooltip, self.itemID) then
+        GameTooltip:AddLine("item:" .. self.itemID)
+    end
+    -- Le niveau du releve, pas celui du modele : le second vaut 44 sur une piece de raid,
+    -- et pour un craft il ne dit pas a quelle qualite il faut le monter.
+    if self.itemLevel and self.itemLevel > 0 then
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddDoubleLine(ns.L["worn at ilvl"], tostring(self.itemLevel),
+            0.54, 0.54, 0.54, 0.91, 0.91, 0.91)
     end
     GameTooltip:Show()
 end
@@ -674,6 +732,133 @@ local function layoutGems(top, width)
     return top
 end
 
+-- ------------------------------------------------------------- objets
+
+--- Nom d'un emplacement d'equipement, dans la langue du client.
+---
+--- Le releve porte le nom d'emplacement de Warcraft Logs (`WristSlot`), qui est de
+--- l'anglais technique. Le client, lui, a le libelle traduit sous une globale.
+local SLOT_GLOBALS = {
+    HeadSlot = "HEADSLOT", NeckSlot = "NECKSLOT", ShoulderSlot = "SHOULDERSLOT",
+    ChestSlot = "CHESTSLOT", WaistSlot = "WAISTSLOT", LegsSlot = "LEGSSLOT",
+    FeetSlot = "FEETSLOT", WristSlot = "WRISTSLOT", HandsSlot = "HANDSSLOT",
+    Finger0Slot = "FINGER0SLOT", Finger1Slot = "FINGER0SLOT",
+    Trinket0Slot = "TRINKET0SLOT", Trinket1Slot = "TRINKET0SLOT",
+    BackSlot = "BACKSLOT", MainHandSlot = "MAINHANDSLOT",
+    SecondaryHandSlot = "SECONDARYHANDSLOT",
+}
+
+local function slotLabel(slot)
+    local key = SLOT_GLOBALS[slot or ""]
+    local label = key and _G[key]
+    return (type(label) == "string" and label ~= "") and label or nil
+end
+
+--- Pose une liste d'objets releves. Rend le nouveau haut.
+---
+--- @param rows table { { id, name, slot, ilvl, share }, ... }
+--- @param showSlot boolean|nil ecrire l'emplacement : utile pour les crafts, qui touchent
+---        toute la panoplie ; inutile pour les bijoux, qui n'en occupent qu'un.
+local function layoutItems(top, width, rows, showSlot)
+    for index = 1, #rows do
+        local item = rows[index]
+        local row = pools.item:Acquire()
+        row:SetParent(view.content)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, top)
+        row:SetWidth(width)
+        ns.Theme.ApplyCard(row, index == 1 and ns.Theme.RGB.link or nil)
+
+        local icon
+        local getIcon = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
+        if getIcon then
+            local ok, value = pcall(getIcon, item.id)
+            if ok then icon = value end
+        end
+        row.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+
+        -- Le nom du CLIENT quand il le connait : traduit, et a jour. Celui du releve est
+        -- de l'anglais fige au moment de la generation — il ne sert que de repli.
+        local name = ns.Meta.GemName(item.id) or item.name
+        row.name:SetWidth(math.max(80, width - 150))
+        row.name:SetText(hex("text") .. (name or ("#" .. tostring(item.id))) .. "|r")
+
+        local parts = {}
+        if showSlot then
+            local label = slotLabel(item.slot)
+            if label then table.insert(parts, label) end
+        end
+        if item.ilvl and item.ilvl > 0 then
+            table.insert(parts, string.format(ns.L["ilvl %d"], item.ilvl))
+        end
+        row.sub:SetWidth(math.max(60, width - 150))
+        row.sub:SetText(hex("muted") .. table.concat(parts, "  ·  ") .. "|r")
+
+        row.share:SetText(string.format("%s%d%%|r", hex(index == 1 and "link" or "muted"),
+            (item.share or 0) * 100 + 0.5))
+
+        row.itemID, row.itemLevel = item.id, item.ilvl
+        row:SetScript("OnEnter", itemOnEnter)
+        row:SetScript("OnLeave", hideTooltip)
+
+        top = top - ITEM_ROW_HEIGHT - 4
+    end
+    return top
+end
+
+--- CRAFTS : les recettes que le haut de tableau a fait faire.
+---
+--- C'est le seul bloc de l'onglet qui dise quoi faire HORS du combat, et il ne se devine
+--- pas : rien en jeu ne distingue un objet fabrique d'un butin sans ouvrir sa recette.
+local function layoutCrafts(top, width)
+    local crafts = ns.Meta.Crafts()
+    if not crafts then return top end
+
+    top = heading(top, width, ns.L["Crafted"])
+    top = text(top, width, hex("muted")
+        .. ns.L["Made, not dropped. These are the recipes worth ordering."] .. "|r")
+    top = layoutItems(top - 2, width, crafts, true)
+    return text(top - 2, width, hex("muted")
+        .. string.format(ns.L["measured on %d top players"], ns.Meta.Sample()) .. "|r")
+end
+
+--- BIJOUX : la section qui n'existe que pour les tanks et les soigneurs.
+---
+--- POURQUOI ELLE EXISTE. Un droptimizer ne mesure QUE des degats — les colonnes du CSV de
+--- Raidbots ne portent rien d'autre — et Warcraft Logs n'a pas de classement de survie.
+--- Aucun chiffre disponible ne dit donc si un bijou defensif vaut mieux qu'un autre, et un
+--- tank qui lit « +3,56 % » sur un bijou lit une mesure de degats qui ne repond pas a sa
+--- question. Ce que les meilleurs PORTENT n'est pas une mesure, c'est un usage — et c'est
+--- la seule reponse honnete a portee. La section le dit en toutes lettres plutot que de
+--- laisser croire a un classement.
+---
+--- DEUX LISTES, parce qu'une liste dominee par des bijoux de raid n'apprend rien a qui ne
+--- raide pas : elle nomme des objets qu'il ne peut pas obtenir.
+local function layoutTrinkets(top, width)
+    local role = ns.Spec.Role()
+    if role ~= "TANK" and role ~= "HEALER" then return top end
+
+    local all, mythic = ns.Meta.Trinkets(false), ns.Meta.Trinkets(true)
+    if not all and not mythic then return top end
+
+    top = heading(top, width, ns.L["Trinkets"])
+    top = text(top, width, hex("muted") .. (role == "TANK"
+        and ns.L["No number ranks a tank trinket: a droptimizer measures damage, and Warcraft Logs has no survival ranking. This is what the top players wear."]
+        or ns.L["No number ranks a healer trinket by throughput under pressure. This is what the top players wear."]) .. "|r")
+
+    if all then
+        top = text(top - 4, width, hex("text") .. ns.L["Raid and Mythic+"] .. "|r")
+        top = layoutItems(top - 2, width, all, false)
+    end
+    if mythic then
+        top = text(top - 4, width, hex("text") .. ns.L["Mythic+ only"] .. "|r")
+        top = text(top, width, hex("muted")
+            .. ns.L["Obtainable without setting foot in the raid."] .. "|r")
+        top = layoutItems(top - 2, width, mythic, false)
+    end
+    return top
+end
+
 -- ------------------------------------------------------------------- public
 
 function RecoView.Create(parent)
@@ -702,6 +887,7 @@ function RecoView.Create(parent)
         gem = ns.Pool.New(newGemRow, resetRow),
         build = ns.Pool.New(newBuildRow, resetRow),
         stat = ns.Pool.New(newStatRow),
+        item = ns.Pool.New(newItemRow, resetRow),
         text = ns.Pool.New(newText),
     }
 
@@ -744,8 +930,10 @@ function RecoView.Refresh()
         -- s'appelait « Recommandations » et ne recommandait que des consommables.
         top = layoutBuilds(top, width)
         top = layoutStats(top, width)
+        top = layoutTrinkets(top, width)
         top = layoutEnchants(top, width)
         top = layoutGems(top, width)
+        top = layoutCrafts(top, width)
     end
 
     view.content:SetHeight(math.max(1, -top + 12))

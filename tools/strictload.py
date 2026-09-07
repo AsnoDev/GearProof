@@ -79,12 +79,49 @@ def main() -> int:
             report.error(label, first_line(error))
             return False
 
+    # UNE SPECIALISATION REELLE, ET C'EST INDISPENSABLE.
+    #
+    # Sans elle, `Spec.Selected()` rend nil, donc `Meta.Available()` rend faux, donc
+    # l'onglet Recommandations rendait UNIQUEMENT son etat vide — « pas de releve pour
+    # cette specialisation ». Toutes ses sections — builds, statistiques, enchantements,
+    # gemmes — n'avaient donc jamais tourne sous test, et l'onglet signalait [ok] a chaque
+    # passe. Un onglet qui affiche son message d'absence ne prouve rien du code qui affiche
+    # ses donnees.
+    #
+    # Chasseur de demons Havoc : `UnitClass` du stub rend deja la classe 12, et cette spe
+    # figure dans le releve livre.
+    lua.execute("""
+        UnitClass = function() return "Demon Hunter", "DEMONHUNTER", 12 end
+        GetNumSpecializationsForClassID = function() return 3 end
+        GetSpecializationInfoForClassID = function(_, index)
+            local rows = {
+                [1] = { 577, "Havoc", "", "icon", "DAMAGER" },
+                [2] = { 581, "Vengeance", "", "icon", "TANK" },
+                [3] = { 1456, "Devourer", "", "icon", "DAMAGER" },
+            }
+            local row = rows[index]
+            if not row then return nil end
+            return row[1], row[2], row[3], row[4], row[5]
+        end
+        C_SpecializationInfo = C_SpecializationInfo or {}
+        C_SpecializationInfo.GetSpecialization = function() return 1 end
+        GetSpecialization = C_SpecializationInfo.GetSpecialization
+    """)
+
     # Le vrai demarrage : les evenements du client, dans l'ordre.
     step("ADDON_LOADED", 'GEARPROOF_NS.events:Fire("OnEvent", "ADDON_LOADED", "GearProof")')
     if ns.db is None:
         report.error("ADDON_LOADED", "ns.db non pose — la suite ne prouverait rien")
         return report.finish()
     step("PLAYER_LOGIN", 'GEARPROOF_NS.events:Fire("OnEvent", "PLAYER_LOGIN")')
+
+    # L'INVARIANT qui empeche la zone aveugle de revenir. Si un jour la spe simulee ne se
+    # resout plus, l'onglet Recommandations retombera sur son etat vide en silence — et
+    # tout ce qui suit repassera au vert sans rien avoir teste.
+    ns.Spec.Invalidate()
+    if not ns.Meta.Available():
+        report.error("releve", "aucun releve pour la spe simulee — "
+                     "l'onglet Recommandations ne rendrait que son etat vide")
 
     # DEUX etats d'equipement, et c'est indispensable.
     #
@@ -135,6 +172,44 @@ def main() -> int:
                      f"GEARPROOF_NS.UI.Show('{tab}')")
 
     step("RefreshNow", "GEARPROOF_NS.UI.RefreshNow()")
+
+    # LES SECTIONS QUI DEPENDENT DU RELEVE LIVRE NE SE RENDENT PAS TOUTES SEULES.
+    #
+    # `Data/Meta.lua` ne porte pas encore `crafts` ni `trinkets` pour la spe simulee, et la
+    # section Bijoux ne s'affiche que pour un TANK ou un SOIGNEUR. Sans forcer les deux,
+    # l'onglet Recommandations rendait ses anciennes sections et signalait [ok] — un [ok]
+    # sur un ecran ou le code neuf n'a jamais tourne.
+    lua.execute("""
+        GEARPROOF_NS.Meta.Crafts = function()
+            return {
+                { id = 237834, slot = "WristSlot", ilvl = 331, count = 11, share = 0.55,
+                  name = "Spellbreaker's Bracers" },
+                { id = 237846, slot = "MainHandSlot", ilvl = 331, count = 11, share = 0.55,
+                  name = "Blood Knight's Warblade" },
+            }
+        end
+        GEARPROOF_NS.Meta.Trinkets = function(mythicOnly)
+            if mythicOnly then
+                return { { id = 270165, slot = "Trinket1Slot", ilvl = 321, count = 7,
+                           share = 0.35, name = "Seething Core" } }
+            end
+            return { { id = 270175, slot = "Trinket0Slot", ilvl = 334, count = 22,
+                       share = 0.55, name = "Voracious Heart" } }
+        end
+    """)
+
+    # Les TROIS roles, parce que la section Bijoux existe pour deux d'entre eux et pas pour
+    # le troisieme : une branche qui ne pose rien est une branche a part entiere.
+    for role in ("TANK", "HEALER", "DAMAGER"):
+        lua.execute(f'GEARPROOF_NS.Spec.Role = function() return "{role}" end')
+        for pass_number in (1, 2):
+            step(f"recommandations {role}, passe {pass_number}",
+                 "GEARPROOF_NS.UI.Show('reco')")
+
+    # L'ecran doit DIRE quelque chose, pas seulement ne pas lever.
+    shown = lua.eval("GEARPROOF_NS.RecoView ~= nil")
+    if not shown:
+        report.error("recommandations", "la vue n'existe pas")
 
     # L'onglet Guilde a DEUX ecrans et une section repliable, tous derriere des boutons.
     # `UI.Show('guild')` n'en montre qu'un : le defaut. La derniere panne en date venait

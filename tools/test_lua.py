@@ -333,6 +333,85 @@ def test_prune_reports(report: Report) -> None:
     suite.done()
 
 
+# --------------------------------------------- crafts et bijoux du releve
+
+def test_crafts_and_trinkets(report: Report) -> None:
+    """Deux relevés neufs, et deux questions auxquelles rien ne repondait.
+
+    « Quelles recettes faire ? » — rien en jeu ne distingue un objet fabrique d'un butin
+    sans ouvrir sa recette.
+
+    « Quel bijou porter quand on tank ? » — un droptimizer ne mesure QUE des degats, et
+    Warcraft Logs n'a pas de classement de survie. Aucun chiffre ne repond, donc l'addon
+    ne montre pas un classement : il montre ce que les meilleurs PORTENT.
+
+    Les deux listes de bijoux sont distinctes, et c'est tout l'interet : une liste dominee
+    par des bijoux de raid ne nomme, pour qui ne raide pas, que des objets hors d'atteinte.
+    """
+    suite = Suite(report, "Meta.Crafts/Trinkets")
+    lua, ns, _ = new_runtime(["Spec.lua", "Meta.lua"])
+
+    # Fixture calquee sur ce que le generateur ecrit reellement — verifie en executant sa
+    # sortie : `_stamp.format` a la racine, bloc indexe par « Classe/Spe ».
+    lua.execute("""
+        GearProofMeta = {
+            _stamp = { format = 2, generatedAt = "2026-09-07", specs = 1 },
+            ["DeathKnight/Blood"] = {
+                specID = 250, class = "DeathKnight", spec = "Blood",
+                role = "tank", sample = 20,
+                crafts = {
+                    { id = 237834, slot = "WristSlot", ilvl = 331, count = 11,
+                      share = 0.55, name = "Spellbreaker's Bracers" },
+                    { id = 237846, slot = "MainHandSlot", ilvl = 331, count = 11,
+                      share = 0.55, name = "Blood Knight's Warblade" },
+                },
+                trinkets = {
+                    { id = 270175, slot = "Trinket0Slot", ilvl = 334, count = 22,
+                      share = 0.55, name = "Voracious Heart" },
+                },
+                trinketsMythic = {
+                    { id = 270165, slot = "Trinket1Slot", ilvl = 321, count = 7,
+                      share = 0.35, name = "Seething Core" },
+                },
+            },
+        }
+    """)
+    ns.Spec.Selected = lua.eval("function() return 250 end")
+
+    crafts = ns.Meta.Crafts()
+    suite.truthy("crafts lus", crafts is not None)
+    suite.equal("deux recettes", len(crafts), 2)
+    suite.equal("la plus portee en tete", int(crafts[1]["id"]), 237834)
+    # Le NIVEAU compte autant que l'objet : un craft se monte a une qualite choisie, et
+    # sans le niveau la ligne ne dit pas jusqu'ou aller.
+    suite.equal("niveau publie", int(crafts[1]["ilvl"]), 331)
+    suite.equal("emplacement publie", str(crafts[1]["slot"]), "WristSlot")
+
+    everywhere = ns.Meta.Trinkets(False)
+    mythic = ns.Meta.Trinkets(True)
+    suite.equal("bijoux tout contenu", int(everywhere[1]["id"]), 270175)
+    suite.equal("bijoux mythique+", int(mythic[1]["id"]), 270165)
+    # Les deux listes ne sont pas la meme : c'est la raison d'etre de la seconde.
+    suite.falsy("listes distinctes", int(everywhere[1]["id"]) == int(mythic[1]["id"]))
+
+    # Une spe sans ces blocs — toutes celles qui ne sont ni tank ni soigneur pour les
+    # bijoux — doit rendre nil, pas une table vide : l'appelant saute la section.
+    lua.execute("""
+        GearProofMeta["DeathKnight/Blood"].crafts = nil
+        GearProofMeta["DeathKnight/Blood"].trinkets = nil
+        GearProofMeta["DeathKnight/Blood"].trinketsMythic = nil
+    """)
+    suite.equal("sans crafts, nil", ns.Meta.Crafts(), None)
+    suite.equal("sans bijoux, nil", ns.Meta.Trinkets(False), None)
+    suite.equal("sans bijoux mythique+, nil", ns.Meta.Trinkets(True), None)
+
+    # Une liste VIDE n'est pas une liste : elle poserait un titre de section sur rien.
+    lua.execute('GearProofMeta["DeathKnight/Blood"].crafts = {}')
+    suite.equal("liste vide traitee comme absente", ns.Meta.Crafts(), None)
+
+    suite.done()
+
+
 # ------------------------------------------- le niveau reel d'une piece de butin
 
 def test_known_level(report: Report) -> None:
@@ -702,7 +781,8 @@ def main() -> int:
                  test_item_link, test_weights, test_weapon_pair, test_chunk_payload,
                  test_guild_payload, test_simc_item_line, test_schema_migration,
                  test_prune_reports, test_csv_freshness, test_roster_freshness,
-                 test_by_encounter_season, test_known_level):
+                 test_by_encounter_season, test_known_level,
+                 test_crafts_and_trinkets):
         try:
             test(report)
         except Exception as error:  # noqa: BLE001 — un test qui casse est un constat
