@@ -176,7 +176,7 @@ end
 -- pas en cours de session.
 
 local raidCache, encounterCache, lootCache, portraitCache = nil, {}, {}, {}
-local dungeonCache, sourceCache = nil, nil
+local dungeonCache, sourceCache, linkCache = nil, nil, nil
 
 --- Portrait d'un boss, comme le journal l'affiche.
 ---
@@ -419,34 +419,54 @@ function Journal.ItemSource(itemID)
     if not itemID then return nil end
 
     if not sourceCache then
-        local index, found = {}, false
+        local index, links, found = {}, {}, false
 
         -- Le RAID d'abord : en cas de doublon, un objet qui tombe des deux cotes est
         -- annonce comme butin de donjon, qui est le contenu le plus accessible. Dire a un
         -- joueur qu'il doit raider pour un objet qu'une cle lui donne serait le seul sens
         -- ou l'erreur coute quelque chose.
-        for _, raid in ipairs(Journal.Raids()) do
-            for _, loot in ipairs(Journal.InstanceLoot(raid.id, nil, nil, nil)) do
-                if loot.id then index[loot.id], found = "raid", true end
-            end
-        end
-        for _, dungeon in ipairs(Journal.Dungeons()) do
-            for _, loot in ipairs(Journal.InstanceLoot(dungeon.id, nil, nil, nil)) do
-                if loot.id then index[loot.id], found = "dungeon", true end
+        local function absorb(instances, label)
+            for _, instance in ipairs(instances) do
+                for _, loot in ipairs(Journal.InstanceLoot(instance.id, nil, nil, nil)) do
+                    if loot.id then
+                        index[loot.id], found = label, true
+                        -- Le LIEN du journal en meme temps que la provenance : il porte
+                        -- les identifiants de bonus, donc le vrai niveau et les vraies
+                        -- statistiques. Sans lui, l'infobulle d'un bijou retombe sur
+                        -- `SetItemByID`, qui ne connait que le modele — « niveau 28 » et
+                        -- « +7 Agilite » sur un objet qui tombe a 321.
+                        if loot.link then links[loot.id] = loot.link end
+                    end
+                end
             end
         end
 
+        absorb(Journal.Raids(), "raid")
+        absorb(Journal.Dungeons(), "dungeon")
+
         if not found then return nil end
-        sourceCache = index
+        sourceCache, linkCache = index, links
     end
 
     return sourceCache[itemID]
 end
 
+--- Lien complet d'un objet, s'il figure dans une table de butin du palier courant.
+---
+--- Meme index que `Journal.ItemSource`, et donc meme prudence : construit a la demande,
+--- jamais mis en cache tant qu'il est vide.
+--- @return string|nil
+function Journal.ItemLink(itemID)
+    if not itemID then return nil end
+    -- Force la construction de l'index si elle n'a pas encore eu lieu.
+    Journal.ItemSource(itemID)
+    return linkCache and linkCache[itemID] or nil
+end
+
 --- Oublie tout ce qui a ete lu. Le butin depend de la difficulte et de la spe.
 function Journal.Invalidate()
     raidCache, encounterCache, lootCache = nil, {}, {}
-    dungeonCache, sourceCache = nil, nil
+    dungeonCache, sourceCache, linkCache = nil, nil, nil
 end
 
 ns.On("ACTIVE_TALENT_GROUP_CHANGED", Journal.Invalidate)

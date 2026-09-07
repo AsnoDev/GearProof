@@ -223,17 +223,35 @@ local function itemOnEnter(self)
     if not self.itemID then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:ClearLines()
-    if not pcall(GameTooltip.SetItemByID, GameTooltip, self.itemID) then
+
+    -- LE NIVEAU DU RELEVE FAIT AUTORITE SUR CELUI DU MODELE.
+    --
+    -- Vu en jeu sur un bijou : l'infobulle annoncait « Item Level 28 », « +7 Agilite » et
+    -- « -274 ilvl contre l'equipe » sur un objet que le haut de tableau porte a 321.
+    -- `SetItemByID` ne connait que le MODELE, et le crochet d'infobulle lisait ce modele.
+    ns.Tooltip.SetKnownLevel(self.itemID, self.itemLevel)
+
+    -- Le lien du JOURNAL d'abord : il porte les identifiants de bonus, donc le vrai niveau
+    -- ET les vraies statistiques. Le modele n'est qu'un repli.
+    local link = ns.Journal.ItemLink(self.itemID)
+    local shown = link and pcall(GameTooltip.SetHyperlink, GameTooltip, link)
+    if not shown and not pcall(GameTooltip.SetItemByID, GameTooltip, self.itemID) then
         GameTooltip:AddLine("item:" .. self.itemID)
     end
-    -- Le niveau du releve, pas celui du modele : le second vaut 44 sur une piece de raid,
-    -- et pour un craft il ne dit pas a quelle qualite il faut le monter.
+
     if self.itemLevel and self.itemLevel > 0 then
         GameTooltip:AddLine(" ")
         GameTooltip:AddDoubleLine(ns.L["worn at ilvl"], tostring(self.itemLevel),
             0.54, 0.54, 0.54, 0.91, 0.91, 0.91)
+        -- L'avertissement ne sert que si l'on a du retomber sur le modele : les chiffres
+        -- au-dessus decrivent alors un autre objet que celui de la ligne.
+        if not shown then
+            GameTooltip:AddLine(ns.L["the item level above is the base template, not the drop"],
+                0.54, 0.54, 0.54, true)
+        end
     end
     GameTooltip:Show()
+    ns.Tooltip.SetKnownLevel(nil, nil)
 end
 
 local function gemOnEnter(self)
