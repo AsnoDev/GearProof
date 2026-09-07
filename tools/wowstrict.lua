@@ -228,7 +228,30 @@ local function widget(kind, template, label)
     -- numerique des accesseurs : impossible de verifier ce qu'un ecran DIT, seulement
     -- qu'il ne leve pas. Or « ne leve pas » n'est pas « se lit ».
     local shown = ""
-    handlers.SetText = function(_, value) shown = tostring(value or "") end
+
+    -- UNE LIGNE OU PLUSIEURS : un `EditBox` qui n'a pas recu `SetMultiLine(true)` ne
+    -- porte QU'UNE ligne cote client. Un texte a retours a la ligne pose dedans y perd
+    -- ses retours — c'est exactement la panne qui a fait repondre « nothing readable in
+    -- that paste » sur un CSV parfaitement valide : neuf kilo-octets arrivaient en un
+    -- seul bloc, sans ligne de reference.
+    --
+    -- Le stub LEVE plutot que d'imiter la troncature. La question n'est pas de savoir ce
+    -- que le client fait exactement d'un `\n` de trop, c'est qu'un texte multi-ligne dans
+    -- un champ d'une ligne est une erreur de conception dans les deux cas.
+    local multiLine = false
+    handlers.SetMultiLine = function(_, value) multiLine = value ~= false end
+    handlers.IsMultiLine = function() return multiLine end
+
+    handlers.SetText = function(_, value)
+        local text = tostring(value or "")
+        if definition.name == "EditBox" and not multiLine and text:find("\n", 1, true) then
+            error(string.format(
+                "%s: SetText d'un texte multi-ligne (%d lignes) dans un EditBox d'une "
+                .. "seule ligne — appeler SetMultiLine(true), sinon le client perd les "
+                .. "retours a la ligne", label or "?", select(2, text:gsub("\n", "")) + 1), 3)
+        end
+        shown = text
+    end
     handlers.GetText = function() return shown end
     handlers.SetFormattedText = function(_, fmt, ...)
         local ok, out = pcall(string.format, fmt, ...)

@@ -21,15 +21,17 @@ local L = ns.L
 -- devine pas ». Elle se devine. Raidbots documente que tout fichier d'un rapport s'obtient
 -- en ajoutant son nom a l'adresse du rapport, et la page du rapport porte un menu
 -- « ... > Raw Files > data.csv » qui y mene en un clic. Le joueur n'a donc pas a revenir
--- chercher une adresse : il repart de Raidbots avec le CSV deja en main. Cette phrase
--- fausse coutait une etape et un aller-retour a tout le monde.
+-- chercher une adresse : il repart de Raidbots avec le CSV deja en main.
 --
 -- Le collage d'un LIEN reste accepte, en repli : GearProof rend alors l'adresse du CSV.
--- C'est la seule raison d'etre de l'etape 2 ci-dessous.
 --
--- CE QUI NE L'ETAIT PAS : la sequence est ecrite d'avance, numerotee, et tient dans une
--- seule fenetre qui suit l'avancement. Le joueur voit les trois etapes AVANT de partir,
--- au lieu d'en decouvrir une a chaque retour.
+-- DEUX ZONES MULTI-LIGNES, ET C'EST LA TOUTE LA DIFFERENCE. La premiere version posait des
+-- `EditBox` d'UNE SEULE LIGNE. Or les deux textes qui transitent ici en font des dizaines :
+-- la chaine SimulationCraft (un profil complet) et le CSV du rapport (neuf kilo-octets).
+-- Un champ d'une ligne perd les retours a la ligne au collage — le CSV arrivait donc en UN
+-- bloc, `Sim.ImportCSV` n'y trouvait plus la ligne de reference, et l'addon repondait
+-- « nothing readable in that paste » sur une donnee parfaitement valide. C'est le montage
+-- de `Copy.lua` — `ScrollFrame` + `EditBox` multi-ligne — qui, lui, a toujours marche.
 --
 -- Et le mot qui manquait le plus : FACULTATIF. Sans droptimizer, l'onglet Raid fonctionne
 -- — il compare les niveaux d'objet lus dans le journal des aventures. Le droptimizer
@@ -37,6 +39,13 @@ local L = ns.L
 -- ne fera jamais ces etapes n'a pas un addon amoindri.
 
 local WIDTH, PADDING = 560, 16
+local STEPS = 4
+
+-- Largeur mangee par l'ascenseur d'un `UIPanelScrollFrameTemplate`. Mesuree sur
+-- `Copy.lua`, qui rend une chaine SimC sans la tronquer.
+local SCROLLBAR = 28
+
+local DROPTIMIZER_URL = "https://www.raidbots.com/simbot/droptimizer"
 
 local frame, steps, stage
 
@@ -44,10 +53,13 @@ local function hex(key)
     return ns.Theme.C(key)
 end
 
---- Un EditBox de lecture : pre-selectionne, pour un Ctrl+C immediat.
+--- Un EditBox de lecture, d'une seule ligne : pre-selectionne, pour un Ctrl+C immediat.
 ---
 --- WoW n'accede pas au presse-papier : aucune « copie » n'est possible depuis l'addon.
 --- Tout ce qu'on peut faire est presenter le texte deja selectionne.
+---
+--- Reserve aux ADRESSES, qui tiennent sur une ligne. Tout ce qui en fait plusieurs passe
+--- par `scrollBox`.
 local function readBox(parent)
     local box = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
     box:SetHeight(22)
@@ -63,6 +75,36 @@ local function readBox(parent)
         end
     end)
     return box
+end
+
+--- Une zone multi-ligne avec ascenseur, pour les textes qui font des dizaines de lignes.
+--- @return table scroll, table edit, table well
+local function scrollBox(parent)
+    local scroll = CreateFrame("ScrollFrame", nil, parent, "UIPanelScrollFrameTemplate")
+
+    -- L'habillage masque les textures du modele. Sans ce cadre, la zone se poserait a plat
+    -- sur le fond, sans aucune delimitation — le joueur ne verrait pas ou coller.
+    local well = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    well:SetPoint("TOPLEFT", scroll, "TOPLEFT", -6, 6)
+    well:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", 6, -6)
+    well:SetFrameLevel(math.max(0, scroll:GetFrameLevel() - 1))
+    well:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+
+    local edit = CreateFrame("EditBox", nil, scroll)
+    edit:SetMultiLine(true)
+    edit:SetFontObject(ChatFontNormal)
+    edit:SetAutoFocus(false)
+    -- 0 = sans limite. Le CSV d'un droptimizer fait neuf kilo-octets, et un champ qui
+    -- tronque en silence rendrait exactement la meme panne que celle d'avant.
+    edit:SetMaxLetters(0)
+    edit:SetScript("OnEscapePressed", edit.ClearFocus)
+    scroll:SetScrollChild(edit)
+
+    return scroll, edit, well
 end
 
 local function stepLabel(parent, number)
@@ -81,7 +123,7 @@ function Droptimizer.Create()
     if frame then return frame end
 
     frame = CreateFrame("Frame", "GearProofDroptimizer", UIParent, "BackdropTemplate")
-    frame:SetSize(WIDTH, 300)
+    frame:SetSize(WIDTH, 420)
     frame:SetPoint("CENTER")
     frame:SetFrameStrata("DIALOG")
     frame:SetMovable(true)
@@ -104,28 +146,33 @@ function Droptimizer.Create()
     ns.Localize(frame.optional, "optional")
 
     steps = {}
-    for index = 1, 3 do
+    for index = 1, STEPS do
         local badge, text = stepLabel(frame, index)
         steps[index] = { badge = badge, text = text }
     end
 
-    -- Etape 1 : la chaine a simuler, et l'adresse ou la coller.
-    frame.simc = readBox(frame)
+    -- L'ADRESSE D'ABORD, la chaine ensuite. C'est l'ordre des gestes : on ouvre la page,
+    -- puis on colle dedans. L'inverse faisait copier une chaine avant de savoir ou la
+    -- mettre, et le presse-papier ne garde qu'une chose a la fois.
     frame.url = readBox(frame)
-    -- Troisieme boite, propre a l'etape 3 : reutiliser celle de la chaine SimC
-    -- l'ecraserait, et le joueur perdrait ce qu'il doit encore pouvoir recopier.
+    -- Boite propre a l'etape de repli : l'adresse du CSV quand un lien a ete colle.
+    -- Reutiliser celle du droptimizer l'ecraserait.
     frame.csvUrl = readBox(frame)
 
-    -- Etapes 2 et 3 : une seule zone de saisie, dont le sens change avec l'avancement.
-    frame.input = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
-    frame.input:SetHeight(22)
-    frame.input:SetAutoFocus(false)
-    frame.input:SetFontObject("GameFontHighlightSmall")
-    frame.input:SetScript("OnEscapePressed", frame.input.ClearFocus)
-    frame.input:SetScript("OnEnterPressed", function() Droptimizer.Submit() end)
+    frame.simcScroll, frame.simc, frame.simcWell = scrollBox(frame)
+    frame.simc:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+    -- Lecture seule : le joueur la copie, il ne la modifie pas.
+    frame.simc:SetScript("OnTextChanged", function(self, byUser)
+        if byUser and self.locked then
+            self:SetText(self.locked)
+            self:HighlightText()
+        end
+    end)
+
+    frame.inputScroll, frame.input, frame.inputWell = scrollBox(frame)
 
     frame.submit = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    frame.submit:SetSize(96, 22)
+    frame.submit:SetSize(120, 22)
     ns.Localize(frame.submit, "Validate")
     frame.submit:SetScript("OnClick", function() Droptimizer.Submit() end)
 
@@ -133,12 +180,13 @@ function Droptimizer.Create()
     frame.note:SetJustifyH("LEFT")
     frame.note:SetSpacing(2)
 
+    frame.themeCards = { frame.simcWell, frame.inputWell }
     ns.Theme.Apply(frame)
     tinsert(UISpecialFrames, "GearProofDroptimizer")
     return frame
 end
 
---- Pose la fenetre. `stage` decide de ce que l'etape 2 demande.
+--- Pose la fenetre. `stage` decide de ce que l'etape 3 montre.
 function Droptimizer.Refresh()
     if not frame then return end
 
@@ -156,7 +204,7 @@ function Droptimizer.Refresh()
         top = top - 20
     end
 
-    local function box(widget, value, locked)
+    local function line(widget, value, locked)
         widget:ClearAllPoints()
         widget:SetPoint("TOPLEFT", PADDING + 26, top)
         widget:SetWidth(inner - 30)
@@ -166,31 +214,43 @@ function Droptimizer.Refresh()
         top = top - 30
     end
 
-    -- 1. La chaine, et l'adresse. Les deux ensemble : le joueur copie, ouvre, colle.
-    place(1, hex("text") .. L["Copy this, then open Raidbots and paste it"] .. "|r")
-    local simc = ns.SimC.FromOfficial() or ns.SimC.Build()
-    box(frame.simc, simc, true)
-    box(frame.url, "https://www.raidbots.com/simbot/droptimizer", true)
-
-    top = top - 6
-
-    -- 2 et 3. La meme zone, deux sens.
-    if stage == "csv" then
-        local url = ns.Sim.ReportCSVURL((ns.db.droptimizer and ns.db.droptimizer.id) or "")
-        place(2, hex("muted") .. L["Report link received."] .. "|r")
-        place(3, hex("text") .. L["Open this address, select everything, copy — then paste below"] .. "|r")
-        box(frame.csvUrl, url, true)
-    else
-        frame.csvUrl:Hide()
-        place(2, hex("text") .. L["On the report page: ... menu > Raw Files > data.csv (or add /data.csv to its address)"] .. "|r")
-        place(3, hex("text") .. L["Select everything on that page, copy, and paste it below"] .. "|r")
+    local function area(scroll, edit, height, value, locked)
+        local width = inner - 30
+        scroll:ClearAllPoints()
+        scroll:SetPoint("TOPLEFT", PADDING + 26, top)
+        scroll:SetSize(width, height)
+        edit:SetWidth(width - SCROLLBAR)
+        if value ~= nil then
+            edit:SetText(value)
+            edit.locked = locked and value or nil
+        end
+        scroll:Show()
+        top = top - height - 10
     end
 
-    frame.input:ClearAllPoints()
-    frame.input:SetPoint("TOPLEFT", PADDING + 26, top - 4)
-    frame.input:SetWidth(inner - 140)
+    -- 1. Ou aller. 2. Quoi y coller.
+    place(1, hex("text") .. L["Open this address"] .. "|r")
+    line(frame.url, DROPTIMIZER_URL, true)
+
+    place(2, hex("text") .. L["Paste this string there, then run the simulation"] .. "|r")
+    area(frame.simcScroll, frame.simc, 56, ns.SimC.FromOfficial() or ns.SimC.Build(), true)
+
+    -- 3. Le fichier de resultats. Deux chemins vers la meme chose.
+    if stage == "csv" then
+        local url = ns.Sim.ReportCSVURL((ns.db.droptimizer and ns.db.droptimizer.id) or "")
+        place(3, hex("text") .. L["Report link received. Open this address:"] .. "|r")
+        line(frame.csvUrl, url, true)
+    else
+        frame.csvUrl:Hide()
+        place(3, hex("text") .. L["On the report page: ... menu > Raw Files > data.csv (or add /data.csv to its address)"] .. "|r")
+    end
+
+    -- 4. Le retour.
+    place(4, hex("text") .. L["Select everything there (Ctrl+A), copy, and paste it below"] .. "|r")
+    area(frame.inputScroll, frame.input, 90)
+
     frame.submit:ClearAllPoints()
-    frame.submit:SetPoint("LEFT", frame.input, "RIGHT", 12, 0)
+    frame.submit:SetPoint("TOPRIGHT", frame.inputScroll, "BOTTOMRIGHT", 0, -8)
     top = top - 34
 
     frame.note:ClearAllPoints()
@@ -200,7 +260,7 @@ function Droptimizer.Refresh()
         .. L["A report link pasted here works too: GearProof then gives you the address."] .. "\n"
         .. L["Without a droptimizer the Raid tab still works: it compares item levels. A droptimizer replaces that estimate with measured gain."] .. "|r")
 
-    frame:SetHeight(math.max(200, -top + math.ceil(frame.note:GetStringHeight() or 14) + 24))
+    frame:SetHeight(math.max(240, -top + math.ceil(frame.note:GetStringHeight() or 14) + 24))
 end
 
 --- Traite ce que le joueur a colle. Meme detection que l'ancien bouton unique.
@@ -213,7 +273,7 @@ function Droptimizer.Submit()
 
     -- La NATURE de ce qui a ete accepte, pas un etat global : `Sim.Available()` est vrai
     -- des qu'un rapport existe, donc un joueur qui en avait deja un et collait un nouveau
-    -- lien voyait la fenetre se fermer sans jamais voir l'etape 3.
+    -- lien voyait la fenetre se fermer sans jamais voir l'etape suivante.
     local ok, kind = ns.SimC.HandlePaste(text)
     if ok and kind == "link" then
         stage = "csv"

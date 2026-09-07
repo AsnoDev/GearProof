@@ -59,20 +59,23 @@ ns.translations.fr = {
     -- Fenetre Droptimizer : le parcours en trois etapes, dans une seule fenetre.
     ["optional"] = "facultatif",
     ["Validate"] = "Valider",
-    ["Copy this, then open Raidbots and paste it"] =
-        "Copie ceci, ouvre Raidbots et colle-le",
+    -- L'ADRESSE d'abord, la chaine ensuite : c'est l'ordre des gestes. Le presse-papier
+    -- ne garde qu'une chose a la fois, donc copier avant de savoir ou coller oblige a
+    -- revenir chercher.
+    ["Open this address"] = "Ouvre cette adresse",
+    ["Paste this string there, then run the simulation"] =
+        "Colle cette chaine dedans, puis lance la simulation",
+    ["Select everything there (Ctrl+A), copy, and paste it below"] =
+        "Selectionne tout la-bas (Ctrl+A), copie, et colle ci-dessous",
+    ["Report link received. Open this address:"] =
+        "Lien du rapport recu. Ouvre cette adresse :",
     -- Le parcours par defaut : le joueur repart de Raidbots avec le CSV. L'adresse du
     -- fichier se DEVINE (adresse du rapport + /data.csv) et la page la donne en un clic,
     -- donc rien ne justifie de le faire revenir chercher une adresse.
     ["On the report page: ... menu > Raw Files > data.csv (or add /data.csv to its address)"] =
         "Sur la page du rapport : menu ... > Raw Files > data.csv (ou ajoute /data.csv a l'adresse)",
-    ["Select everything on that page, copy, and paste it below"] =
-        "Selectionne tout sur cette page, copie, et colle ci-dessous",
     ["A report link pasted here works too: GearProof then gives you the address."] =
         "Un lien de rapport colle ici marche aussi : GearProof te rend alors l'adresse.",
-    ["Report link received."] = "Lien du rapport recu.",
-    ["Open this address, select everything, copy — then paste below"] =
-        "Ouvre cette adresse, selectionne tout, copie — puis colle ci-dessous",
     ["Without a droptimizer the Raid tab still works: it compares item levels. A droptimizer replaces that estimate with measured gain."] =
         "Sans droptimizer, l'onglet Raid fonctionne : il compare les niveaux d'objet. Un droptimizer remplace cette estimation par du gain mesure.",
     ["Optional. Without one the Raid tab compares item levels; with one it shows measured gain."] =

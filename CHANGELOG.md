@@ -17,11 +17,20 @@ Versionnement sémantique — `MAJEUR.MINEUR.CORRECTIF`.
   et la page du rapport y mène en un clic par son menu `⋯ Raw Files`. L'addon affirmait le
   contraire et faisait donc revenir le joueur une fois pour rien : la fenêtre le dit
   maintenant **avant** qu'il ne parte. Coller le lien du rapport reste accepté, en repli.
+- **L'adresse Raidbots vient avant la chaîne à copier.** C'est l'ordre des gestes : on
+  ouvre la page, puis on colle dedans. Le presse-papier ne garde qu'une chose à la fois,
+  donc copier avant de savoir où coller obligeait à revenir chercher.
 - L'adresse du CSV utilise la forme documentée `raidbots.com/simbot/report/<id>/data.csv`
   au lieu d'une forme que le site ne construit jamais lui-même.
 
 ### Corrigé
 
+- **Le collage du CSV répondait « nothing readable in that paste » sur une donnée
+  valide.** La fenêtre Droptimizer posait des champs de saisie d''**une seule ligne**, là
+  où les deux textes qui y transitent en font des dizaines : la chaîne SimulationCraft et
+  le CSV du rapport. Un champ d''une ligne perd les retours à la ligne, le CSV arrivait
+  donc en un bloc, et l''analyseur n''y trouvait plus sa ligne de référence. Les deux
+  zones sont maintenant multi-lignes avec ascenseur, comme la fenêtre de copie.
 - **Un droptimizer importé en collant directement le CSV comptait comme absent** dans
   l'appel de guilde et n'avait aucune date de fraîcheur : seul le collage d'un *lien*
   enregistrait quelque chose. Les gains, eux, s'affichaient — rien ne signalait l'écart.
