@@ -10,6 +10,19 @@ Versionnement sémantique — `MAJEUR.MINEUR.CORRECTIF`.
 
 ## [Non publié]
 
+### Ajouté
+
+- **Section Artisanat** dans l'onglet Recommandations : les objets **fabriqués** que porte
+  le haut de tableau, avec l'emplacement, le niveau à monter et le taux de port. Rien, en
+  jeu, ne distingue un objet crafté d'un butin sans ouvrir sa recette — c'est le seul bloc
+  qui dise quoi faire *hors* du combat.
+- **Section Bijoux**, visible uniquement en spé **tank ou soigneur**. Un droptimizer ne
+  mesure que des dégâts et Warcraft Logs n'a pas de classement de survie : aucun chiffre
+  ne dit si un bijou défensif vaut mieux qu'un autre. La section montre donc ce que les
+  meilleurs **portent** — et le dit en toutes lettres plutôt que de laisser croire à un
+  classement. Deux listes : **raid et mythique+**, puis **mythique+ uniquement**, pour qui
+  ne met pas les pieds en raid et à qui une liste de bijoux de raid n'apprend rien.
+
 ### Modifié
 
 - **Import d'un droptimizer : un aller-retour au lieu de deux.** L'adresse du fichier de

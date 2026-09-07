@@ -66,6 +66,13 @@ def load_reference(source: str) -> dict:
             "weapons": _first_ids(block["weapons"]),
             "priority": _priority(block["stats"]),
             "build": _first_ids(block["builds"], field="differs"),
+            # Deux sections de plus sur lesquelles un joueur AGIT : la recette qu'il fait
+            # faire, et le bijou qu'il porte. Sans elles, ce script pouvait conclure « rien
+            # n'a bouge » alors que la recette a commander avait change — exactement le
+            # genre de decision qu'il est cense proteger.
+            "craft": _first_id(block["crafts"]),
+            "trinket": _first_id(block["trinkets"]),
+            "trinketMythic": _first_id(block["trinketsMythic"]),
         }
     return specs
 
@@ -118,6 +125,9 @@ FIELDS = [
     ("weapons", "paire d'armes"),
     ("priority", "ordre de priorite des stats"),
     ("build", "build le plus joue"),
+    ("craft", "recette recommandee"),
+    ("trinket", "bijou le plus porte"),
+    ("trinketMythic", "bijou mythique+ le plus porte"),
 ]
 
 
