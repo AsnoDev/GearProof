@@ -333,6 +333,79 @@ def test_prune_reports(report: Report) -> None:
     suite.done()
 
 
+# ------------------------------------------- le niveau reel d'une piece de butin
+
+def test_known_level(report: Report) -> None:
+    """L'infobulle d'un butin dit-elle la verite quand le journal n'a pas rendu le lien ?
+
+    Vu en jeu sur une piece d'ensemble mythique : le journal des aventures ne rend pas
+    toujours le lien complet d'une piece de CLASSE sous son boss, l'onglet retombe donc
+    sur `SetItemByID` — qui ne connait que le MODELE, niveau 219 pour un objet qui tombe
+    a 344. Le crochet d'infobulle lisait ce 219 et en tirait deux mensonges dans la meme
+    infobulle : « -73 ilvl contre l'equipe » sur un objet reellement a +52, et AUCUN gain
+    simule, parce que `Sim.Percent(id, 219)` refuse a juste titre de repondre pour un
+    niveau qui n'est pas celui simule. La liste juste derriere affichait +3,56 %.
+
+    Le droptimizer, lui, sait le niveau. Le test verifie qu'il fait autorite.
+    """
+    suite = Suite(report, "Tooltip.SetKnownLevel")
+    lua, ns, _ = new_runtime(["ItemLink.lua", "ItemInfo.lua", "Spec.lua", "Sim.lua",
+                              "Tooltip.lua"])
+    lua.globals().GEARPROOF_NS = ns
+    lua.globals().GEARPROOF_TEST_TIME = 1
+
+    # Le strict necessaire autour de `LinesFor` : l'equipement porte, la resolution
+    # d'emplacement, et de quoi ne rien conseiller cote enchantements.
+    lua.execute("""
+        GEARPROOF_NS.db = { sim = { ["r"] = {
+            baseline = 55672, player = "Testeur", stamp = 1, items = {
+                [268222] = { percent = 3.56, ilvl = 344, slot = "chest",
+                             encounter = 2883, instance = 1320 },
+            },
+        } } }
+        GEARPROOF_NS.Bags = { SLOTS_FOR = function() return { "ChestSlot" } end }
+        GEARPROOF_NS.Gear = { Scan = function()
+            return {}, { bySlot = { ChestSlot = { itemLevel = 292 } } }
+        end }
+        GEARPROOF_NS.Meta = { ExpectsEnchant = function() return nil, false end }
+        GEARPROOF_NS.Weights = { Current = function() return nil end }
+
+        -- Le MODELE : c'est ce que rend `SetItemByID`, et c'est ce que le crochet lit.
+        GEARPROOF_TEMPLATE = "|cffa335ee|Hitem:268222::::::::80:250::::|h[Plastron]|h|r"
+        GetItemInfo = function()
+            return "Plastron", GEARPROOF_TEMPLATE, 4, 219, 80, "", "", 1,
+                "INVTYPE_CHEST", "", 0, 4, 1, nil, nil, nil, nil
+        end
+        C_Item.GetDetailedItemLevelInfo = function() return 219, false, 219 end
+    """)
+
+    def lines_for():
+        out = ns.Tooltip.LinesFor(lua.globals().GEARPROOF_TEMPLATE)
+        return [str(out[i]["text"]) for i in range(1, len(out) + 1)] if out else []
+
+    # SANS contexte : le modele decide, et il a tort sur les deux lignes.
+    ns.Tooltip.SetKnownLevel(None, None)
+    plain = lines_for()
+    suite.truthy("sans contexte, ecart negatif", any("-73" in text for text in plain))
+    suite.falsy("sans contexte, aucun gain simule",
+                any("%" in text and "3.56" in text for text in plain))
+
+    # AVEC le niveau du droptimizer : le signe s'inverse et le gain apparait.
+    ns.Tooltip.SetKnownLevel(268222, 344)
+    fixed = lines_for()
+    suite.truthy("ecart calcule sur le vrai niveau", any("+52" in text for text in fixed))
+    suite.falsy("plus d'ecart negatif", any("-73" in text for text in fixed))
+    suite.truthy("gain simule affiche", any("3.56" in text for text in fixed))
+
+    # Le contexte ne vaut QUE pour l'objet annonce : un autre objet garde son modele.
+    ns.Tooltip.SetKnownLevel(999999, 344)
+    other = lines_for()
+    suite.truthy("contexte limite a son objet", any("-73" in text for text in other))
+
+    ns.Tooltip.SetKnownLevel(None, None)
+    suite.done()
+
+
 # ------------------------------------------- le raid en cours, et lui seul
 
 def test_by_encounter_season(report: Report) -> None:
@@ -629,7 +702,7 @@ def main() -> int:
                  test_item_link, test_weights, test_weapon_pair, test_chunk_payload,
                  test_guild_payload, test_simc_item_line, test_schema_migration,
                  test_prune_reports, test_csv_freshness, test_roster_freshness,
-                 test_by_encounter_season):
+                 test_by_encounter_season, test_known_level):
         try:
             test(report)
         except Exception as error:  # noqa: BLE001 — un test qui casse est un constat

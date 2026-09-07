@@ -41,11 +41,36 @@ local function itemFacts(link)
     }
 end
 
+-- Niveau REEL d'un objet, quand l'appelant le sait mieux que la chaine d'objet.
+--
+-- Les onglets Raid et Guilde montrent du butin. Quand le journal des aventures ne rend
+-- pas le lien complet, ils retombent sur `GameTooltip:SetItemByID`, qui ne connait que le
+-- MODELE de l'objet : niveau 219 pour une piece de raid mythique qui tombe a 344.
+--
+-- Ce crochet-ci lisait ce 219 et en tirait DEUX mensonges dans la meme infobulle :
+-- « -73 ilvl contre l'equipe » sur un objet qui est en realite +52, et AUCUN gain simule
+-- — parce que `Sim.Percent(id, 219)` refuse a juste titre de repondre pour un niveau qui
+-- n'est pas celui qui a ete simule. La liste, juste derriere, affichait +3,56 %.
+--
+-- Le droptimizer, lui, sait le niveau. L'appelant le pose avant de construire son
+-- infobulle et l'efface en sortant. On ne corrige que le NIVEAU : tout le reste de la
+-- chaine d'objet reste ce que le client en dit.
+local known
+
+--- @param itemID number|nil
+--- @param itemLevel number|nil niveau reel du butin ; nil efface le contexte
+function Tooltip.SetKnownLevel(itemID, itemLevel)
+    known = (itemID and itemLevel and itemLevel > 0)
+        and { id = itemID, level = itemLevel } or nil
+end
+
 --- Lignes que GearProof ajoute pour un objet donne.
 --- @return table|nil { { text, r, g, b }, ... }
 function Tooltip.LinesFor(link)
     local facts = itemFacts(link)
     if not facts or not facts.equipLoc or facts.equipLoc == "" then return nil end
+
+    if known and facts.itemID == known.id then facts.itemLevel = known.level end
 
     local targets = slotsFor(facts.equipLoc)
     if not targets or #targets == 0 then return nil end

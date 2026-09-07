@@ -115,8 +115,10 @@ local function restore(state)
     if state.filterClass and type(EJ_SetLootFilter) == "function" then
         pcall(EJ_SetLootFilter, state.filterClass, state.filterSpec)
     end
-    setDifficulty(state.difficulty)
+    -- Meme ordre qu'a la pose, et pour la meme raison : l'instance porte la difficulte.
+    -- Dans l'autre sens on rendait au joueur son instance avec la difficulte par defaut.
     selectInstance(state.instance)
+    setDifficulty(state.difficulty)
 end
 
 --- Le joueur a-t-il le journal sous les yeux ?
@@ -139,8 +141,16 @@ function Journal.Read(instanceID, difficultyID, encounterID, reader)
 
     local previous = capture()
 
-    setDifficulty(difficultyID)
+    -- L'ORDRE : palier, instance, difficulte, rencontre.
+    --
+    -- `EJ_SetDifficulty` porte sur l'instance SELECTIONNEE, et selectionner une instance
+    -- remet sa difficulte par defaut. Regler la difficulte d'abord la posait donc sur
+    -- l'instance precedente, et la selection suivante l'effacait : on lisait la table de
+    -- butin de la difficulte par defaut en croyant lire celle du droptimizer. C'est la
+    -- meme lecon qu'un cran plus haut dans ce fichier — « le palier D'ABORD, l'instance
+    -- ensuite » — appliquee un cran plus bas.
     selectInstance(instanceID)
+    setDifficulty(difficultyID)
     selectEncounter(encounterID)
 
     local ok, result = pcall(reader)

@@ -78,6 +78,11 @@ local function lootOnEnter(self)
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:ClearLines()
 
+    -- Le niveau que le droptimizer a SIMULE fait autorite sur celui du modele : sans ce
+    -- contexte, le crochet d'infobulle lisait 219 sur une piece mythique de 344 et en
+    -- tirait « -73 ilvl contre l'equipe » — l'inverse du signe reel.
+    ns.Tooltip.SetKnownLevel(item.id, item.ilvl)
+
     -- Le lien du journal d'abord : il porte les identifiants de bonus, donc le VRAI niveau.
     -- `SetItemByID` ne connait que le modele et affichait 44 sur une piece de raid — c'est
     -- pour ca que l'Adventure Guide, lui, avait juste.
@@ -108,6 +113,7 @@ local function lootOnEnter(self)
         end
     end
     GameTooltip:Show()
+    ns.Tooltip.SetKnownLevel(nil, nil)
 end
 
 
