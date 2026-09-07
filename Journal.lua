@@ -317,6 +317,64 @@ function Journal.Loot(instanceID, encounterID, difficultyID, classID, specID)
     return found or {}
 end
 
+--- Butin de tout un RAID, sans passer par une rencontre.
+---
+--- Le journal a deux niveaux de table de butin : celle d'un boss, et celle de l'instance
+--- entiere — l'onglet « Butin » du journal, quand aucune rencontre n'est ouverte. Les
+--- deux ne contiennent pas la meme chose : une piece d'ensemble de CLASSE peut ne pas
+--- etre rattachee a un boss, et n'apparaitre que dans la table de l'instance. C'est la
+--- piste qui restait apres avoir corrige l'ordre de selection : une piece mythique
+--- retombait sur son modele — niveau 219 pour un objet qui tombe a 344 — parce qu'aucun
+--- lien ne sortait de la table du boss.
+---
+--- MEME PRUDENCE que `Journal.Loot` : un resultat vide n'est pas mis en cache, le journal
+--- chargeant son butin de facon asynchrone.
+--- @return table { { id, link, slot, armorType }, ... }
+function Journal.InstanceLoot(instanceID, difficultyID, classID, specID)
+    if not instanceID or instanceID <= 0 then return {} end
+
+    local key = table.concat({ "i", instanceID, difficultyID or 0, classID or 0, specID or 0 }, ":")
+    if lootCache[key] then return lootCache[key] end
+
+    local found = Journal.Read(instanceID, difficultyID, nil, function()
+        if classID and type(EJ_SetLootFilter) == "function" then
+            pcall(EJ_SetLootFilter, classID, specID or 0)
+            -- Le filtre ne s'applique qu'a la prochaine selection : on repose l'instance.
+            if type(EJ_SelectInstance) == "function" then
+                pcall(EJ_SelectInstance, instanceID)
+            end
+        end
+
+        local count = 0
+        local getNum = (C_EncounterJournal and C_EncounterJournal.GetNumLoot) or EJ_GetNumLoot
+        if type(getNum) == "function" then
+            local ok, value = pcall(getNum)
+            if ok then count = value or 0 end
+        end
+
+        local getLoot = (C_EncounterJournal and C_EncounterJournal.GetLootInfoByIndex)
+            or EJ_GetLootInfoByIndex
+        if type(getLoot) ~= "function" then return {} end
+
+        local list = {}
+        for index = 1, count do
+            local ok, info = pcall(getLoot, index)
+            if ok and type(info) == "table" and info.itemID then
+                table.insert(list, {
+                    id = info.itemID,
+                    link = info.itemLink or info.link,
+                    slot = info.slot,
+                    armorType = info.armorType,
+                })
+            end
+        end
+        return list
+    end)
+
+    if found and next(found) then lootCache[key] = found end
+    return found or {}
+end
+
 --- Oublie tout ce qui a ete lu. Le butin depend de la difficulte et de la spe.
 function Journal.Invalidate()
     raidCache, encounterCache, lootCache = nil, {}, {}

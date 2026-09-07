@@ -318,14 +318,30 @@ function Sim.LootLink(encounterID, itemID, difficulty, instanceID)
         return nil
     end
 
+    local classID, specID = ns.Spec.ClassID(), ns.Spec.Selected()
+
     -- Filtre sur la classe d'abord : c'est le seul moyen de voir les pieces d'ensemble.
-    local link = find(ns.Spec.ClassID(), ns.Spec.Selected())
+    local link = find(classID, specID)
     if link then return link end
 
     -- Puis SANS filtre. Un droptimizer peut couvrir un objet que le journal ne montre
     -- pas a cette specialisation ; retomber sur la liste complete evite de perdre un
     -- lien qu'on avait avant d'ajouter le filtre.
-    return find(nil, nil)
+    link = find(nil, nil)
+    if link then return link end
+
+    -- Enfin la table de butin de l'INSTANCE ENTIERE. Le journal a deux niveaux, et une
+    -- piece d'ensemble de classe peut ne pas etre rattachee a un boss : elle n'apparait
+    -- alors que la. Sans cette derniere chance, la piece retombait sur son modele et
+    -- l'infobulle annoncait 219 sur un objet qui tombe a 344.
+    local function findInInstance(class, spec)
+        for _, loot in ipairs(ns.Journal.InstanceLoot(instanceID, difficultyID, class, spec)) do
+            if loot.id == itemID then return loot.link end
+        end
+        return nil
+    end
+
+    return findInInstance(classID, specID) or findInInstance(nil, nil)
 end
 
 --- Nom d'une rencontre depuis son identifiant de journal, ou nil.
