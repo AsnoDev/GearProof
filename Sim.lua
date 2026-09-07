@@ -137,8 +137,19 @@ end
 
 -- ------------------------------------------------------------ import par collage
 --
--- Raidbots sert le tableau de resultats en CSV a une adresse publique :
---   https://www.raidbots.com/reports/<id>/data.csv
+-- Raidbots sert le tableau de resultats en CSV a une adresse publique, et cette adresse
+-- est simplement CELLE DU RAPPORT plus le nom du fichier :
+--   https://www.raidbots.com/simbot/report/<id>/data.csv
+--
+-- Ce fichier a longtemps ecrit https://www.raidbots.com/reports/<id>/data.csv — une forme
+-- qui n'est documentee nulle part et que le site ne construit jamais lui-meme. La forme
+-- ci-dessus est celle que Raidbots documente, et celle que son propre menu « Raw Files »
+-- fabrique sur la page du rapport. On prend donc la forme que personne ne conteste plutot
+-- que celle qu'il faudrait mesurer pour defendre.
+--
+-- Consequence directe sur l'interface : le joueur n'a plus a revenir chercher une adresse.
+-- Celle qu'il a deja dans sa barre d'adresse, plus /data.csv, suffit — voir
+-- `Droptimizer.lua`, dont l'etape 2 le dit maintenant AVANT qu'il ne parte.
 --
 -- Neuf kilo-octets pour un droptimizer complet — un `EditBox` les avale sans broncher,
 -- la ou le `data.json` du meme rapport en fait 873. Un addon ne peut RIEN telecharger,
@@ -159,7 +170,7 @@ function Sim.ReportCSVURL(reference)
     if type(reference) ~= "string" then return nil end
     local id = reference:match("reports?/([%w%-]+)") or reference:match("^%s*([%w%-]+)%s*$")
     if not id or #id < 6 then return nil end
-    return "https://www.raidbots.com/reports/" .. id .. "/data.csv", id
+    return "https://www.raidbots.com/simbot/report/" .. id .. "/data.csv", id
 end
 
 -- Positions dans le nom de profileset. Nommees, jamais comptees a la main : c'est
@@ -229,6 +240,14 @@ function Sim.ImportCSV(text, reference)
         items = items,
     }
     pruneReports()
+
+    -- La FRAICHEUR d'un droptimizer ne depend pas du lien. Depuis que l'adresse du CSV se
+    -- devine, le parcours par defaut ne fait plus coller de lien du tout : `ns.db.droptimizer`
+    -- restait donc nil, `SimC.DroptimizerAge()` rendait nil, et l'appel de guilde comptait
+    -- « aucun droptimizer » chez un joueur qui venait d'en importer un.
+    ns.db.droptimizer = ns.db.droptimizer or {}
+    if id then ns.db.droptimizer.id = id end
+    ns.db.droptimizer.stamp = time()
 
     return true, count
 end

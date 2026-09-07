@@ -420,8 +420,12 @@ function Guild.RosterState()
     for _, card in pairs(roster) do
         state.total = state.total + 1
 
+        -- La colonne DROPTIMIZER mesure une FRAICHEUR, pas la possession d'un lien. Un
+        -- joueur qui colle directement le CSV n'a aucun identifiant de rapport a diffuser :
+        -- le compter « aucun droptimizer » dirait le contraire de ce qu'il vient de faire.
+        -- Le lien ne decide plus que du chevron, qui ouvre le rapport quand il existe.
         local simState
-        if card.sim == "" or (card.simAge or -1) < 0 then
+        if (card.simAge or -1) < 0 then
             simState = "missing"
         elseif card.simAge >= STALE_DAYS then
             simState = "stale"

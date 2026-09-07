@@ -307,8 +307,15 @@ end
 CLASSES.FontStringRegion = FontString
 CLASSES.TextureRegion = Texture
 
+-- Un cadre NOMME devient une globale, comme dans le client. L'addon en depend : il pose
+-- "GearProofDroptimizer" dans `UISpecialFrames`, une table de NOMS que le client resout
+-- par _G. Sans ca, le stub s'ecartait du client sur un point que le test ne pouvait pas
+-- voir — et aucun test ne pouvait atteindre la zone de saisie d'une fenetre dont le cadre
+-- est un local de portee fichier.
 function CreateFrame(kind, name, parent, template)
-    return widget(kind, template, name or ("<" .. tostring(kind) .. " anonyme>"))
+    local w = widget(kind, template, name or ("<" .. tostring(kind) .. " anonyme>"))
+    if name then _G[name] = w end
+    return w
 end
 
 GEARPROOF_STRICT_NOTES = GEARPROOF_CALLS

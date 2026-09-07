@@ -33,6 +33,15 @@ TABS = ["gear", "reco", "raid", "guild", "help"]
 COMMANDS = ["", "gear", "bags", "reco", "guild", "simc", "simcdiag", "droptimizer",
             "theme", "options", "help", "minimap", "lang", "weights", "alerts", "debug"]
 
+# Un droptimizer minimal au format reel : la ligne sans separateur est le personnage nu,
+# les suivantes sont des profilesets zone/rencontre/difficulte/objet/ilvl/enchant/emplacement.
+CSV_FIXTURE = "\n".join([
+    "name,dps_mean,dps_min,dps_max,dps_std_dev,dps_mean_std_dev",
+    "Testeur,100000.00,0,0,0,0",
+    "1273/2607/raid-heroic/212014/639/0/finger1///,104250.00,0,0,0,0",
+    "1273/2607/raid-heroic/212020/626/0/finger2///,101100.00,0,0,0,0",
+])
+
 
 def toc_files() -> list[str]:
     toc = (ADDON_ROOT / "GearProof.toc").read_text(encoding="utf-8")
@@ -161,16 +170,42 @@ def main() -> int:
     """)
 
     # La fenetre Droptimizer est derriere un bouton, donc invisible d'un simple Show().
-    # Ses DEUX etats — attente du lien, puis attente du fichier de donnees — sont deux
-    # branches distinctes : la seconde pose une boite que la premiere cache.
+    # Ses DEUX branches se PILOTENT, elles ne se posent pas a la main : poser
+    # `db.droptimizer` puis appeler `Refresh()` prouvait que la mise en page tenait, pas
+    # que le bouton y menait. C'est exactement ce qui a laisse passer un `Submit` qui
+    # fermait la fenetre au lieu de montrer l'etape suivante. Le cadre nomme est une
+    # globale, comme dans le client, donc sa zone de saisie est atteignable.
     step("droptimizer, ouverture", "GEARPROOF_NS.Droptimizer.Open()")
-    step("droptimizer, collage d'un lien",
-         'GEARPROOF_DROP = GEARPROOF_NS.Droptimizer')
-    lua.execute("""
-        GEARPROOF_NS.db.droptimizer = { id = "7HV5eabh1G1pAQ8n9RS3Pc", stamp = 1 }
+
+    # PARCOURS PAR DEFAUT : le joueur revient de Raidbots avec le CSV, sans avoir jamais
+    # colle de lien. L'adresse du fichier se devine, donc plus rien ne l'oblige a revenir.
+    lua.globals().GEARPROOF_CSV = CSV_FIXTURE
+    step("droptimizer, collage direct du CSV", """
+        GearProofDroptimizer.input:SetText(GEARPROOF_CSV)
+        GearProofDroptimizer.submit:Fire("OnClick")
     """)
-    step("droptimizer, etape du fichier", "GEARPROOF_NS.Droptimizer.Refresh()")
+    if not (ns.db.droptimizer and ns.db.droptimizer.stamp):
+        report.error("droptimizer, fraicheur",
+                     "un CSV importe sans lien ne laisse aucune date")
+
+    # REPLI : le joueur colle un LIEN. La fenetre passe alors a l'etape de l'adresse, une
+    # branche qui pose une boite que la premiere cache.
     step("droptimizer, reouverture", "GEARPROOF_NS.Droptimizer.Open()")
+    step("droptimizer, collage d'un lien", """
+        GearProofDroptimizer.input:SetText(
+            "https://www.raidbots.com/simbot/report/7HV5eabh1G1pAQ8n9RS3Pc")
+        GearProofDroptimizer.submit:Fire("OnClick")
+    """)
+
+    # Un [ok] ne prouve que l'absence d'erreur. Ce qu'on veut savoir est si la fenetre
+    # AFFICHE l'adresse du fichier apres un lien : la panne precedente ne levait rien, elle
+    # fermait simplement la fenetre sans jamais montrer cette etape.
+    shown = lua.eval("GearProofDroptimizer.csvUrl:GetText()") or ""
+    if "data.csv" not in shown:
+        report.error("droptimizer, etape du fichier",
+                     f"apres un lien, l'adresse n'est pas affichee ({shown!r})")
+
+    step("droptimizer, reouverture apres lien", "GEARPROOF_NS.Droptimizer.Open()")
 
     lua.execute("GEARPROOF_GUILD = GEARPROOF_NS.GuildView.Create(nil)")
     for label, code in [

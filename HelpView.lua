@@ -190,7 +190,7 @@ function HelpView.Refresh()
         freshness,
         "",
         hex(COLORS.accent) .. L["What you add yourself"] .. "|r",
-        L["Your own droptimizer, from raidbots.com. Copy your SimulationCraft string in the Equipment tab, run it, paste the report link back."],
+        L["Your own droptimizer, from raidbots.com. The Droptimizer button carries the whole sequence: copy, simulate, paste the results back."],
         "",
         L["That is the only step that needs you. Without it the audit still works — it simply refuses to put a number on what it cannot measure."],
     }, "\n"))

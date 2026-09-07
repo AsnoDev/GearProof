@@ -10,6 +10,23 @@ Versionnement sémantique — `MAJEUR.MINEUR.CORRECTIF`.
 
 ## [Non publié]
 
+### Modifié
+
+- **Import d'un droptimizer : un aller-retour au lieu de deux.** L'adresse du fichier de
+  résultats est simplement celle du rapport suivie de `/data.csv` — Raidbots le documente,
+  et la page du rapport y mène en un clic par son menu `⋯ Raw Files`. L'addon affirmait le
+  contraire et faisait donc revenir le joueur une fois pour rien : la fenêtre le dit
+  maintenant **avant** qu'il ne parte. Coller le lien du rapport reste accepté, en repli.
+- L'adresse du CSV utilise la forme documentée `raidbots.com/simbot/report/<id>/data.csv`
+  au lieu d'une forme que le site ne construit jamais lui-même.
+
+### Corrigé
+
+- **Un droptimizer importé en collant directement le CSV comptait comme absent** dans
+  l'appel de guilde et n'avait aucune date de fraîcheur : seul le collage d'un *lien*
+  enregistrait quelque chose. Les gains, eux, s'affichaient — rien ne signalait l'écart.
+  La colonne Droptimizer mesure désormais une fraîcheur, pas la possession d'un lien.
+
 ## [0.5.0] — 2026-08-10
 
 Première version sous le nom GearProof. L'addon s'appelait SpecAnalyser, un nom qui

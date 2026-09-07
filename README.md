@@ -180,14 +180,14 @@ passe verte, orange ou rouge selon l'état, sans avoir à ouvrir la fenêtre.
 Et si tu veux du gain **mesuré** plutôt qu'un écart de niveau d'objet :
 
 ```
-4.  "Copier pour droptimizer" → coller sur raidbots.com/simbot/droptimizer
-5.  "Coller le lien droptimizer" → coller le lien du rapport
-6.  GearProof te rend l'adresse de ses données : l'ouvrir, tout copier, recoller
+4.  Bouton "Droptimizer"      → copier la chaîne, la coller sur raidbots.com
+5.  Sur le rapport            → ⋯ Raw Files > data.csv (ou /data.csv au bout de l'adresse)
+6.  Tout copier, recoller dans la même fenêtre
 ```
 
-Neuf kilo-octets de texte, aucun outil à installer, pas de `/reload`. Les étapes 4 à 6
-sont facultatives : sans elles l'audit fonctionne entièrement — il se contente de ne pas
-chiffrer ce qu'il ne peut pas mesurer.
+Neuf kilo-octets de texte, aucun outil à installer, pas de `/reload`, **un seul
+aller-retour** par le navigateur. Les étapes 4 à 6 sont facultatives : sans elles l'audit
+fonctionne entièrement — il se contente de ne pas chiffrer ce qu'il ne peut pas mesurer.
 
 ---
 

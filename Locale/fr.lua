@@ -61,10 +61,15 @@ ns.translations.fr = {
     ["Validate"] = "Valider",
     ["Copy this, then open Raidbots and paste it"] =
         "Copie ceci, ouvre Raidbots et colle-le",
-    ["When the simulation is done, paste the report link below"] =
-        "Quand la simulation est finie, colle le lien du rapport ci-dessous",
-    ["GearProof then gives you one address to open, and you paste its content back"] =
-        "GearProof te rend alors une adresse a ouvrir, et tu recolles son contenu ici",
+    -- Le parcours par defaut : le joueur repart de Raidbots avec le CSV. L'adresse du
+    -- fichier se DEVINE (adresse du rapport + /data.csv) et la page la donne en un clic,
+    -- donc rien ne justifie de le faire revenir chercher une adresse.
+    ["On the report page: ... menu > Raw Files > data.csv (or add /data.csv to its address)"] =
+        "Sur la page du rapport : menu ... > Raw Files > data.csv (ou ajoute /data.csv a l'adresse)",
+    ["Select everything on that page, copy, and paste it below"] =
+        "Selectionne tout sur cette page, copie, et colle ci-dessous",
+    ["A report link pasted here works too: GearProof then gives you the address."] =
+        "Un lien de rapport colle ici marche aussi : GearProof te rend alors l'adresse.",
     ["Report link received."] = "Lien du rapport recu.",
     ["Open this address, select everything, copy — then paste below"] =
         "Ouvre cette adresse, selectionne tout, copie — puis colle ci-dessous",
@@ -276,8 +281,8 @@ ns.translations.fr = {
         "Mesuree il y a %d jour(s). Une nouvelle arrive a chaque version.",
     ["A new one ships with each release."] = "Une nouvelle arrive a chaque version.",
     ["What you add yourself"] = "Ce que tu ajoutes toi-meme",
-    ["Your own droptimizer, from raidbots.com. Copy your SimulationCraft string in the Equipment tab, run it, paste the report link back."] =
-        "Ton propre droptimizer, depuis raidbots.com. Copie ta chaine SimulationCraft dans l'onglet Equipement, lance-le, recolle le lien du rapport.",
+    ["Your own droptimizer, from raidbots.com. The Droptimizer button carries the whole sequence: copy, simulate, paste the results back."] =
+        "Ton propre droptimizer, depuis raidbots.com. Le bouton Droptimizer porte toute la sequence : copier, simuler, recoller les resultats.",
     ["That is the only step that needs you. Without it the audit still works — it simply refuses to put a number on what it cannot measure."] =
         "C'est la seule etape qui demande quelque chose. Sans elle l'audit fonctionne quand meme — il refuse simplement de chiffrer ce qu'il ne peut pas mesurer.",
     ["Reading the equipment tab"] = "Lire l'onglet Equipement",

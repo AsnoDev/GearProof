@@ -15,9 +15,17 @@ local L = ns.L
 --
 -- CE QUI EST IRREDUCTIBLE, et qu'il vaut mieux dire que masquer : un addon WoW ne peut
 -- faire aucune requete reseau. Les gains simules ne peuvent donc arriver que par le
--- presse-papier, et l'adresse du fichier de donnees ne se devine pas — le chemin passe de
--- /simbot/report/<id> a /reports/<id>/data.csv. Deux allers-retours par le navigateur : ce
--- plancher ne descend pas.
+-- presse-papier. UN aller-retour par le navigateur : ce plancher ne descend pas.
+--
+-- CE QUI ETAIT ECRIT ICI ET QUI ETAIT FAUX : « l'adresse du fichier de donnees ne se
+-- devine pas ». Elle se devine. Raidbots documente que tout fichier d'un rapport s'obtient
+-- en ajoutant son nom a l'adresse du rapport, et la page du rapport porte un menu
+-- « ... > Raw Files > data.csv » qui y mene en un clic. Le joueur n'a donc pas a revenir
+-- chercher une adresse : il repart de Raidbots avec le CSV deja en main. Cette phrase
+-- fausse coutait une etape et un aller-retour a tout le monde.
+--
+-- Le collage d'un LIEN reste accepte, en repli : GearProof rend alors l'adresse du CSV.
+-- C'est la seule raison d'etre de l'etape 2 ci-dessous.
 --
 -- CE QUI NE L'ETAIT PAS : la sequence est ecrite d'avance, numerotee, et tient dans une
 -- seule fenetre qui suit l'avancement. Le joueur voit les trois etapes AVANT de partir,
@@ -174,8 +182,8 @@ function Droptimizer.Refresh()
         box(frame.csvUrl, url, true)
     else
         frame.csvUrl:Hide()
-        place(2, hex("text") .. L["When the simulation is done, paste the report link below"] .. "|r")
-        place(3, hex("muted") .. L["GearProof then gives you one address to open, and you paste its content back"] .. "|r")
+        place(2, hex("text") .. L["On the report page: ... menu > Raw Files > data.csv (or add /data.csv to its address)"] .. "|r")
+        place(3, hex("text") .. L["Select everything on that page, copy, and paste it below"] .. "|r")
     end
 
     frame.input:ClearAllPoints()
@@ -189,6 +197,7 @@ function Droptimizer.Refresh()
     frame.note:SetPoint("TOPLEFT", PADDING, top - 6)
     frame.note:SetWidth(inner)
     frame.note:SetText(hex("muted")
+        .. L["A report link pasted here works too: GearProof then gives you the address."] .. "\n"
         .. L["Without a droptimizer the Raid tab still works: it compares item levels. A droptimizer replaces that estimate with measured gain."] .. "|r")
 
     frame:SetHeight(math.max(200, -top + math.ceil(frame.note:GetStringHeight() or 14) + 24))

@@ -333,6 +333,111 @@ def test_prune_reports(report: Report) -> None:
     suite.done()
 
 
+# --------------------------------------------------- fraicheur du droptimizer
+
+def test_csv_freshness(report: Report) -> None:
+    """Un CSV colle SANS lien laisse-t-il quand meme une trace de fraicheur ?
+
+    Depuis que l'adresse du fichier de donnees se devine — adresse du rapport + /data.csv,
+    documente par Raidbots — le parcours par defaut ne fait plus coller de LIEN du tout.
+    Or c'etait le collage du lien, et lui seul, qui posait `ns.db.droptimizer`. Un joueur
+    qui suivait le parcours court importait donc ses gains correctement et se voyait
+    compter « aucun droptimizer » par l'appel de guilde, sans que rien ne le signale : les
+    gains, eux, s'affichaient.
+
+    Le test tient sur l'invariant qui compte : importer des gains AVANCE la fraicheur,
+    qu'un lien ait ete colle ou non.
+    """
+    suite = Suite(report, "Sim.ImportCSV/fraicheur")
+    lua, ns, _ = new_runtime(["Sim.lua"])
+    lua.globals().GEARPROOF_NS = ns
+    lua.globals().GEARPROOF_TEST_TIME = 5000
+
+    # Le format reel : une ligne sans separateur (le personnage nu, la baseline), puis
+    # des profilesets zone/rencontre/difficulte/objet/ilvl/enchant/emplacement.
+    # L'adresse du CSV est celle du RAPPORT plus le nom du fichier — la forme documentee
+    # par Raidbots, celle que son menu « Raw Files » fabrique, et celle que l'etape 2 de la
+    # fenetre dit au joueur de composer lui-meme. Les trois doivent coincider au caractere
+    # pres, sinon l'interface enseigne une adresse et en affiche une autre.
+    REPORT = "https://www.raidbots.com/simbot/report/7HV5eabh1G1pAQ8n9RS3Pc"
+    url, ident = ns.Sim.ReportCSVURL(REPORT)
+    suite.equal("adresse documentee", url, REPORT + "/data.csv")
+    suite.equal("identifiant extrait", ident, "7HV5eabh1G1pAQ8n9RS3Pc")
+    # Elle doit se relire elle-meme : le joueur recolle souvent l'adresse, pas le lien.
+    suite.equal("stable par aller-retour", ns.Sim.ReportCSVURL(url)[0], url)
+    suite.equal("identifiant seul accepte",
+                ns.Sim.ReportCSVURL("7HV5eabh1G1pAQ8n9RS3Pc")[0], REPORT + "/data.csv")
+
+    csv = "\n".join([
+        "name,dps_mean,dps_min,dps_max,dps_std_dev,dps_mean_std_dev",
+        "Testeur,100000.00,0,0,0,0",
+        "1273/2607/raid-heroic/212014/639/0/finger1///,104250.00,0,0,0,0",
+        "1273/2607/raid-heroic/212020/626/0/finger2///,101100.00,0,0,0,0",
+    ])
+
+    # 1. Collage DIRECT : aucun lien n'a jamais ete pose, `reference` est vide.
+    lua.execute("GEARPROOF_NS.db = { sim = {} }")
+    ok, count = ns.Sim.ImportCSV(csv, "")
+    suite.equal("import accepte", ok, True)
+    suite.equal("deux objets", count, 2)
+    stored = ns.db.droptimizer
+    suite.truthy("droptimizer pose", stored is not None)
+    suite.equal("date posee", stored and stored.stamp, 5000)
+    suite.falsy("aucun identifiant invente", stored and stored.id)
+
+    # 2. Avec un lien de rapport : l'identifiant est conserve, la date avance.
+    lua.execute("GEARPROOF_NS.db = { sim = {} }")
+    lua.globals().GEARPROOF_TEST_TIME = 6000
+    ns.Sim.ImportCSV(csv, "https://www.raidbots.com/simbot/report/7HV5eabh1G1pAQ8n9RS3Pc")
+    stored = ns.db.droptimizer
+    suite.equal("identifiant conserve", stored and stored.id, "7HV5eabh1G1pAQ8n9RS3Pc")
+    suite.equal("date avancee", stored and stored.stamp, 6000)
+    suite.truthy("rapport classe sous l'identifiant",
+                 ns.db.sim["7HV5eabh1G1pAQ8n9RS3Pc"] is not None)
+
+    suite.done()
+
+
+def test_roster_freshness(report: Report) -> None:
+    """La colonne DROPTIMIZER compte-t-elle une fraicheur, ou la possession d'un lien ?
+
+    Un membre qui a colle son CSV sans jamais coller de lien n'a AUCUN identifiant a
+    diffuser. Le classer « aucun droptimizer » dirait le contraire de ce qu'il vient de
+    faire — et l'invariant des partitions rendait l'erreur invisible : les comptes
+    sommaient toujours juste, ils comptaient simplement la mauvaise chose.
+    """
+    suite = Suite(report, "Guild.RosterState/fraicheur")
+    lua, ns, locals_ = new_runtime(["Spec.lua", "Sim.lua", "Guild.lua"],
+                                   expose={"Guild.lua": ["roster"]})
+    lua.globals().GEARPROOF_NS = ns
+    lua.globals().GEARPROOF_ROSTER = locals_["roster"]
+    lua.execute("""
+        GEARPROOF_NS.db = { sim = {} }
+        local people = {
+            -- CSV colle sans lien : pas d'identifiant, mais une simulation d'hier.
+            { name = "Sanslien", spec = "Givre", ilvl = 660, fixes = 0, sim = "",    simAge = 1 },
+            -- Lien colle il y a longtemps : identifiant present, simulation perimee.
+            { name = "Vieux",    spec = "Ombre", ilvl = 660, fixes = 0, sim = "abc", simAge = 30 },
+            -- Rien du tout.
+            { name = "Rien",     spec = "Feu",   ilvl = 660, fixes = 0, sim = "",    simAge = -1 },
+        }
+        for _, card in ipairs(people) do
+            card.encounters, card.gains = {}, {}
+            GEARPROOF_ROSTER[card.name] = card
+        end
+    """)
+
+    state = ns.Guild.RosterState()
+    suite.equal("trois membres", state.total, 3)
+    suite.equal("frais sans lien", state.sim.fresh, 1)
+    suite.equal("perime", state.sim.stale, 1)
+    suite.equal("absent", state.sim.missing, 1)
+    suite.equal("partition complete",
+                state.sim.fresh + state.sim.stale + state.sim.missing, state.total)
+
+    suite.done()
+
+
 # ------------------------------------------------------------ format du canal guilde
 
 def test_guild_payload(report: Report) -> None:
@@ -450,7 +555,7 @@ def main() -> int:
     for test in (test_all_files_load,
                  test_item_link, test_weights, test_weapon_pair, test_chunk_payload,
                  test_guild_payload, test_simc_item_line, test_schema_migration,
-                 test_prune_reports):
+                 test_prune_reports, test_csv_freshness, test_roster_freshness):
         try:
             test(report)
         except Exception as error:  # noqa: BLE001 — un test qui casse est un constat
