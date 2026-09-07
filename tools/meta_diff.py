@@ -72,7 +72,9 @@ def load_reference(source: str) -> dict:
             # genre de decision qu'il est cense proteger.
             "craft": _first_id(block["crafts"]),
             "trinket": _first_id(block["trinkets"]),
-            "trinketMythic": _first_id(block["trinketsMythic"]),
+            # Le build de DONJON separement : c'est une decision distincte de celle du
+            # raid, et un joueur qui fait des cles la prend chaque semaine.
+            "buildMythic": _first_ids(block["buildsMythic"], field="differs"),
         }
     return specs
 
@@ -127,7 +129,7 @@ FIELDS = [
     ("build", "build le plus joue"),
     ("craft", "recette recommandee"),
     ("trinket", "bijou le plus porte"),
-    ("trinketMythic", "bijou mythique+ le plus porte"),
+    ("buildMythic", "build de donjon le plus joue"),
 ]
 
 
