@@ -13,12 +13,17 @@ local COLORS = {
     reset  = "|r",
 }
 
+-- L'ordre est celui d'une decision, de la plus frequente a la plus rare : ce que je porte,
+-- ce que je pose dessus, ce que je joue, ce que je cherche a obtenir, ou je vais le
+-- chercher, ce que fait ma guilde.
 local TABS = {
-    { key = "gear",  label = "Equipment" },
-    { key = "reco",  label = "Recommendations" },
-    { key = "raid",  label = "Raid" },
-    { key = "guild", label = "Guild" },
-    { key = "help",  label = "Help" },
+    { key = "gear",   label = "Equipment" },
+    { key = "reco",   label = "Recommendations" },
+    { key = "talent", label = "Talents" },
+    { key = "items",  label = "Items" },
+    { key = "raid",   label = "Raid" },
+    { key = "guild",  label = "Guild" },
+    { key = "help",   label = "Help" },
 }
 
 local WIDTH, HEIGHT = 1040, 660
@@ -225,6 +230,10 @@ function refresh()
         ns.GearView.Refresh()
     elseif activeTab == "reco" then
         ns.RecoView.Refresh()
+    elseif activeTab == "talent" then
+        ns.TalentView.Refresh()
+    elseif activeTab == "items" then
+        ns.ItemsView.Refresh()
     elseif activeTab == "raid" then
         ns.RaidView.Refresh()
     elseif activeTab == "guild" then
@@ -437,6 +446,8 @@ local function createFrame()
     hosts = {}
     ns.GearView.Create(createHost("gear"))
     ns.RecoView.Create(createHost("reco"))
+    ns.TalentView.Create(createHost("talent"))
+    ns.ItemsView.Create(createHost("items"))
     ns.RaidView.Create(createHost("raid"))
     ns.GuildView.Create(createHost("guild"))
     ns.HelpView.Create(createHost("help"))

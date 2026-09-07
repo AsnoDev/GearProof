@@ -288,9 +288,10 @@ end
 --- « 19 des 20 meilleurs prennent ce talent » se lit comme le releve d'enchantements que
 --- l'addon montre deja, et se compare a ce que le joueur a reellement pris.
 --- @return table|nil { { id, count, share }, ... }
-function Meta.Talents()
+--- @param content string|nil "mythic" pour les donjons, sinon le raid.
+function Meta.Talents(content)
     local data = block()
-    local list = data and data.talents
+    local list = data and (content == "mythic" and data.talentsMythic or data.talents)
     return (type(list) == "table" and #list > 0) and list or nil
 end
 
@@ -301,9 +302,13 @@ end
 --- statistiques. C'est ce qui manquait pour donner un sens a `Meta.Modes()` : il disait
 --- « la maitrise se joue a 21 % ou a 38 % » sans dire quel build etait derriere.
 --- @return table|nil { { n, share, differs, stats }, ... }
-function Meta.Builds()
+--- Groupes d'arbres identiques. Le CONTENU compte : un haut de tableau ne joue pas le
+--- meme arbre sur un boss de raid et sur une cle mythique+ — cible unique contre paquets,
+--- duree de combat, couloirs. C'est une comparaison que personne d'autre ne publie.
+--- @param content string|nil "mythic" pour les donjons, sinon le raid.
+function Meta.Builds(content)
     local data = block()
-    local list = data and data.builds
+    local list = data and (content == "mythic" and data.buildsMythic or data.builds)
     return (type(list) == "table" and #list > 0) and list or nil
 end
 
@@ -318,7 +323,7 @@ function Meta.Crafts()
     return (type(list) == "table" and #list > 0) and list or nil
 end
 
---- Bijoux portes par le haut de tableau.
+--- Bijoux portes par le haut de tableau, dans l'ordre d'adoption.
 ---
 --- POURQUOI CE BLOC EXISTE. Un droptimizer ne mesure QUE des degats : les colonnes du CSV
 --- de Raidbots ne portent rien d'autre. Warcraft Logs, de son cote, n'a pas de classement
@@ -326,16 +331,42 @@ end
 --- disponible ne dit donc si un bijou defensif vaut mieux qu'un autre, et un tank qui lit
 --- « +3,56 % » sur un bijou lit une mesure de degats qui ne repond pas a sa question.
 ---
---- Ce que le releve peut dire, en revanche, c'est ce que les meilleurs PORTENT. Ce n'est
---- pas une mesure, c'est un usage — et c'est la seule reponse honnete a portee.
----
---- @param mythicOnly boolean|nil ne rendre que le mythique+ : un joueur qui ne raide pas
----        n'apprend rien d'une liste dominee par des bijoux qu'il ne peut pas obtenir.
+--- Ce que le releve peut dire, c'est ce que les meilleurs PORTENT. Ce n'est pas une
+--- mesure, c'est un usage — et c'est la seule reponse honnete a portee.
 --- @return table|nil { { id, name, slot, ilvl, count, share }, ... }
-function Meta.Trinkets(mythicOnly)
+function Meta.Trinkets()
     local data = block()
-    local list = data and (mythicOnly and data.trinketsMythic or data.trinkets)
+    local list = data and data.trinkets
     return (type(list) == "table" and #list > 0) and list or nil
+end
+
+--- Bijoux SEPARES PAR PROVENANCE : ce qui tombe en raid, ce qui tombe en donjon.
+---
+--- LA CORRECTION QUI A MOTIVE CETTE FONCTION. Le releve publiait deux listes, « raid +
+--- mythique+ » et « mythique+ seul » — deux POPULATIONS observees. Ce n'est pas la
+--- question que se pose un joueur. Un raideur porte son bijou de raid en donjon : il
+--- apparaissait donc dans la liste « mythique+ » sans y etre obtenable une seule seconde,
+--- et pour qui ne raide pas c'etait le contraire d'une reponse.
+---
+--- Warcraft Logs ne dit pas d'ou tombe un objet ; le journal des aventures du client, si.
+--- Le releve mesure donc ce qu'il sait mesurer — l'adoption — et la separation se fait
+--- ici, avec la seule source qui la connaisse.
+---
+--- Un bijou dont la provenance reste INCONNUE n'est mis nulle part. Le journal charge son
+--- butin de facon asynchrone : lui inventer une provenance serait pire que l'omettre, et
+--- l'appel suivant le retrouvera.
+--- @param limit number|nil nombre maximum par liste
+--- @return table raid, table dungeon
+function Meta.TrinketsBySource(limit)
+    local raid, dungeon = {}, {}
+    for _, item in ipairs(Meta.Trinkets() or {}) do
+        local source = ns.Journal.ItemSource(item.id)
+        local bucket = (source == "raid" and raid) or (source == "dungeon" and dungeon)
+        if bucket and (not limit or #bucket < limit) then
+            table.insert(bucket, item)
+        end
+    end
+    return raid, dungeon
 end
 
 --- Fourchette interquartile d'une statistique : p25, p75, ecart.

@@ -359,19 +359,33 @@ def test_crafts_and_trinkets(report: Report) -> None:
             ["DeathKnight/Blood"] = {
                 specID = 250, class = "DeathKnight", spec = "Blood",
                 role = "tank", sample = 20,
+                -- Le MEME relevé, pris en raid et en donjon. Ce ne sont pas les memes
+                -- arbres : c'est toute la raison d'etre du selecteur de contenu.
+                talents = {
+                    { id = 100, count = 20, share = 1.0 },
+                    { id = 101, count = 12, share = 0.6 },
+                },
+                talentsMythic = {
+                    { id = 100, count = 20, share = 1.0 },
+                    { id = 202, count = 15, share = 0.75 },
+                },
+                builds = { { n = 5, share = 0.25, differs = { 101 } } },
+                buildsMythic = { { n = 7, share = 0.35, differs = { 202 } } },
                 crafts = {
                     { id = 237834, slot = "WristSlot", ilvl = 331, count = 11,
                       share = 0.55, name = "Spellbreaker's Bracers" },
                     { id = 237846, slot = "MainHandSlot", ilvl = 331, count = 11,
                       share = 0.55, name = "Blood Knight's Warblade" },
                 },
+                -- UNE liste, dans l'ordre d'adoption. La separation par provenance se
+                -- fait en jeu : le releve ne sait pas d'ou tombe un objet.
                 trinkets = {
                     { id = 270175, slot = "Trinket0Slot", ilvl = 334, count = 22,
                       share = 0.55, name = "Voracious Heart" },
-                },
-                trinketsMythic = {
                     { id = 270165, slot = "Trinket1Slot", ilvl = 321, count = 7,
                       share = 0.35, name = "Seething Core" },
+                    { id = 111111, slot = "Trinket0Slot", ilvl = 300, count = 3,
+                      share = 0.15, name = "Provenance inconnue" },
                 },
             },
         }
@@ -387,23 +401,62 @@ def test_crafts_and_trinkets(report: Report) -> None:
     suite.equal("niveau publie", int(crafts[1]["ilvl"]), 331)
     suite.equal("emplacement publie", str(crafts[1]["slot"]), "WristSlot")
 
-    everywhere = ns.Meta.Trinkets(False)
-    mythic = ns.Meta.Trinkets(True)
-    suite.equal("bijoux tout contenu", int(everywhere[1]["id"]), 270175)
-    suite.equal("bijoux mythique+", int(mythic[1]["id"]), 270165)
-    # Les deux listes ne sont pas la meme : c'est la raison d'etre de la seconde.
-    suite.falsy("listes distinctes", int(everywhere[1]["id"]) == int(mythic[1]["id"]))
+    # LE SELECTEUR DE CONTENU. Sans cette verification, un onglet Talents qui ignorerait
+    # son propre bouton rendrait le relevé de raid dans les deux cas et rien ne le dirait :
+    # les deux ecrans se ressemblent, seule la donnee change.
+    raid_talents = ns.Meta.Talents()
+    mythic_talents = ns.Meta.Talents("mythic")
+    suite.equal("talents de raid", [int(raid_talents[i]["id"]) for i in (1, 2)], [100, 101])
+    suite.equal("talents de donjon", [int(mythic_talents[i]["id"]) for i in (1, 2)], [100, 202])
+    suite.equal("build de raid", int(ns.Meta.Builds()[1]["n"]), 5)
+    suite.equal("build de donjon", int(ns.Meta.Builds("mythic")[1]["n"]), 7)
+    # Un contenu inconnu retombe sur le raid plutot que de ne rien rendre : le selecteur
+    # n'a que deux positions, mais un appelant fautif ne doit pas vider la page.
+    suite.equal("contenu inconnu = raid", int(ns.Meta.Builds("autre")[1]["n"]), 5)
+
+    trinkets = ns.Meta.Trinkets()
+    suite.equal("bijoux lus", len(trinkets), 3)
+    suite.equal("le plus porte en tete", int(trinkets[1]["id"]), 270175)
+
+    # LA SEPARATION PAR PROVENANCE, qui est le coeur du bloc. Elle ne se fait pas sur la
+    # population observee — un raideur porte son bijou de raid en donjon — mais sur ce que
+    # le journal des aventures du client sait : d'ou l'objet TOMBE.
+    lua.execute("""
+        GEARPROOF_NS.Journal = {}
+        GEARPROOF_NS.Journal.ItemSource = function(id)
+            if id == 270175 then return "raid" end
+            if id == 270165 then return "dungeon" end
+            return nil
+        end
+    """)
+    raid, dungeon = ns.Meta.TrinketsBySource()
+    suite.equal("un bijou de raid", len(raid), 1)
+    suite.equal("le bon", int(raid[1]["id"]), 270175)
+    suite.equal("un bijou de donjon", len(dungeon), 1)
+    suite.equal("le bon aussi", int(dungeon[1]["id"]), 270165)
+
+    # Une provenance INCONNUE ne va nulle part. Le journal charge son butin de facon
+    # asynchrone : lui inventer une provenance serait pire que de l'omettre, et l'appel
+    # suivant le retrouvera.
+    suite.falsy("provenance inconnue rangee nulle part",
+                any(int(raid[i]["id"]) == 111111 for i in range(1, len(raid) + 1))
+                or any(int(dungeon[i]["id"]) == 111111 for i in range(1, len(dungeon) + 1)))
+
+    # La limite s'applique PAR LISTE : quatre bijoux dans l'onglet Recommandations, c'est
+    # deux et deux, pas quatre du meme cote.
+    lua.execute('GEARPROOF_NS.Journal.ItemSource = function() return "raid" end')
+    raid, dungeon = ns.Meta.TrinketsBySource(2)
+    suite.equal("limite par liste", len(raid), 2)
+    suite.equal("l'autre liste reste vide", len(dungeon), 0)
 
     # Une spe sans ces blocs — toutes celles qui ne sont ni tank ni soigneur pour les
     # bijoux — doit rendre nil, pas une table vide : l'appelant saute la section.
     lua.execute("""
         GearProofMeta["DeathKnight/Blood"].crafts = nil
         GearProofMeta["DeathKnight/Blood"].trinkets = nil
-        GearProofMeta["DeathKnight/Blood"].trinketsMythic = nil
     """)
     suite.equal("sans crafts, nil", ns.Meta.Crafts(), None)
-    suite.equal("sans bijoux, nil", ns.Meta.Trinkets(False), None)
-    suite.equal("sans bijoux mythique+, nil", ns.Meta.Trinkets(True), None)
+    suite.equal("sans bijoux, nil", ns.Meta.Trinkets(), None)
 
     # Une liste VIDE n'est pas une liste : elle poserait un titre de section sur rien.
     lua.execute('GearProofMeta["DeathKnight/Blood"].crafts = {}')

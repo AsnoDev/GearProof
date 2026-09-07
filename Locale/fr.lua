@@ -64,17 +64,36 @@ ns.translations.fr = {
     ["ilvl %d"] = "ilvl %d",
     ["worn at ilvl"] = "porte au niveau",
 
-    -- Section BIJOUX, tanks et soigneurs uniquement. Aucun chiffre ne classe un bijou de
-    -- tank : le droptimizer mesure des degats, Warcraft Logs n'a pas de classement de
-    -- survie. On dit ce que les meilleurs PORTENT, et on dit que c'est un usage.
-    ["No number ranks a tank trinket: a droptimizer measures damage, and Warcraft Logs has no survival ranking. This is what the top players wear."] =
-        "Aucun chiffre ne classe un bijou de tank : un droptimizer mesure les degats, et Warcraft Logs n'a pas de classement de survie. Voici ce que portent les meilleurs.",
-    ["No number ranks a healer trinket by throughput under pressure. This is what the top players wear."] =
-        "Aucun chiffre ne classe un bijou de soigneur sur ce qui compte vraiment. Voici ce que portent les meilleurs.",
-    ["Raid and Mythic+"] = "Raid et Mythique+",
-    ["Mythic+ only"] = "Mythique+ uniquement",
+    -- Onglets neufs.
+    ["Items"] = "Objets",
+    ["Talents"] = "Talents",
+    ["Mythic+"] = "Mythique+",
+
+    -- Section BIJOUX. Aucun chiffre ne classe un bijou de tank ou de soigneur : le
+    -- droptimizer mesure des degats, Warcraft Logs n'a pas de classement de survie. On dit
+    -- ce que les meilleurs PORTENT, et on dit que c'est un usage.
+    --
+    -- La separation se fait sur la PROVENANCE, pas sur la population observee : un raideur
+    -- porte son bijou de raid en donjon, il figurait donc dans une liste « mythique+ » sans
+    -- y etre obtenable.
+    ["No number ranks a trinket for a tank or a healer: a droptimizer measures damage, and Warcraft Logs has no survival ranking. This is what the top players wear."] =
+        "Aucun chiffre ne classe un bijou de tank ou de soigneur : un droptimizer mesure les degats, et Warcraft Logs n'a pas de classement de survie. Voici ce que portent les meilleurs.",
+    ["Drops in the raid"] = "Tombe en raid",
+    ["Drops in Mythic+ dungeons"] = "Tombe en donjon mythique+",
     ["Obtainable without setting foot in the raid."] =
         "Obtenables sans mettre un pied en raid.",
+    ["Source unknown for now: the adventure guide has not answered yet. Reopen this tab."] =
+        "Provenance inconnue pour l'instant : le journal des aventures n'a pas encore repondu. Rouvre cet onglet.",
+    ["Full lists, and the crafted gear, are on the Items tab."] =
+        "Les listes completes, et l'artisanat, sont dans l'onglet Objets.",
+    ["What the top players of your spec obtain: which trinkets, and where they drop."] =
+        "Ce que les meilleurs de ta spe OBTIENNENT : quels bijoux, et ou ils tombent.",
+
+    -- Onglet Talents : le meme releve, pris en raid et en donjon. Ce ne sont pas les memes
+    -- arbres, et personne ne publie la comparaison.
+    ["Talent trees played on raid bosses."] = "Arbres joues sur les boss de raid.",
+    ["Talent trees played in Mythic+ dungeons."] = "Arbres joues en donjon mythique+.",
+    ["No build recorded for this content."] = "Aucun build releve pour ce contenu.",
 
     -- Fenetre Droptimizer : le parcours en trois etapes, dans une seule fenetre.
     ["optional"] = "facultatif",

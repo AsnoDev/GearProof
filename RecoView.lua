@@ -8,7 +8,13 @@ ns.RecoView = RecoView
 -- L'onglet Équipement dit ce qui MANQUE — il le lit sur l'objet. Celui-ci dit ce que le
 -- haut de tableau a posé à la place, avec la part qui le justifie.
 --
--- Deux sections, sur une seule page. Il y en avait six, dans une barre latérale : quatre
+-- Ce qui se POSE sur une pièce, et rien d'autre : statistiques visées, enchantements,
+-- gemmes. Les builds et les talents sont partis dans l'onglet Talents, les bijoux et
+-- l'artisanat dans l'onglet Objets — six sections dans un seul défilement répondaient à
+-- six questions différentes et n'en servaient bien aucune. Il ne reste ici qu'un
+-- raccourci de quatre bijoux, parce que c'est la décision d'équipement la plus discutée.
+--
+-- Il y avait déjà eu six sections dans une barre latérale : quatre
 -- d'entre elles n'apportaient rien. Correctifs et Bijoux redisaient l'onglet Équipement
 -- avec d'autres mots, Général était de la paperasse de provenance, et Buffs au pull
 -- listait des auras que personne ne peut poser depuis cette fenêtre. Une barre latérale
@@ -103,38 +109,6 @@ local function newGemRow()
 end
 
 --- Ligne de build : rang, part, et la repartition de stats de CE groupe.
-local function newBuildRow()
-    local row = CreateFrame("Button", nil, view.content, "BackdropTemplate")
-    row:SetHeight(38)
-    row:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-
-    row.rank = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    row.rank:SetPoint("LEFT", 10, 0)
-    row.rank:SetWidth(28)
-    row.rank:SetJustifyH("LEFT")
-
-    row.share = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    row.share:SetPoint("LEFT", 40, 0)
-    row.share:SetWidth(64)
-    row.share:SetJustifyH("LEFT")
-
-    row.stats = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.stats:SetPoint("LEFT", 110, 0)
-    row.stats:SetJustifyH("LEFT")
-    row.stats:SetWordWrap(false)
-
-    row.tag = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.tag:SetPoint("RIGHT", -10, 0)
-    row.tag:SetJustifyH("RIGHT")
-    row.tag:SetWordWrap(false)
-
-    return row
-end
-
 --- Ligne de statistique : nom, fourchette du haut de tableau, et TA position dedans.
 local function newStatRow()
     local row = CreateFrame("Frame", nil, view.content)
@@ -290,174 +264,6 @@ local function heading(top, width, label)
     return text(top, width, hex("link") .. label:upper() .. "|r") - 6
 end
 
-
--- ------------------------------------------------------------------ builds
-
---- Nom d'un talent, si le client sait le resoudre.
----
---- Warcraft Logs rend un `talentID` dont RIEN ne garantit qu'il vive dans le meme espace
---- d'identifiants que celui du client. On tente donc la resolution, et on n'affiche que ce
---- qui porte un nom : montrer « talent 112823 » a un joueur ne lui apprend rien et fait
---- passer une donnee vraie pour une donnee cassee.
----
---- Si la resolution echoue pour toute la liste, la sous-section disparait entierement.
---- C'est le comportement voulu tant que la correspondance n'est pas verifiee en jeu.
-local function talentName(id)
-    local getInfo = (C_Spell and C_Spell.GetSpellInfo) or GetSpellInfo
-    if type(getInfo) ~= "function" then return nil end
-
-    local ok, info = pcall(getInfo, id)
-    if not ok or not info then return nil end
-    -- `C_Spell.GetSpellInfo` rend une table, l'ancienne globale rendait le nom en premier.
-    if type(info) == "table" then return info.name end
-    return type(info) == "string" and info or nil
-end
-
---- Les talents les plus pris, quand on sait les nommer.
-local function layoutTalents(top, width)
-    local list = ns.Meta.Talents()
-    if not list then return top end
-
-    local named = {}
-    for _, entry in ipairs(list) do
-        local name = talentName(entry.id)
-        if name then
-            table.insert(named, { name = name, share = entry.share })
-        end
-        if #named >= 8 then break end
-    end
-    if #named == 0 then return top end
-
-    top = top - 4
-    for _, entry in ipairs(named) do
-        local row = pools.enchant:Acquire()
-        row:SetParent(view.content)
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", 0, top)
-        row:SetWidth(width)
-
-        -- On reutilise la ligne d'enchantement : memes colonnes, meme barre de part, meme
-        -- lecture. Un second widget aurait duplique la mise en page pour la meme forme.
-        row.slot:SetWidth(96)
-        row.slot:SetText("")
-        row.state:SetText("")
-
-        row.name:ClearAllPoints()
-        row.name:SetPoint("LEFT", 30, 0)
-        row.name:SetWidth(math.max(60, width - 88 - 46 - 40))
-        row.name:SetText(hex("text") .. entry.name .. "|r")
-
-        row.track:ClearAllPoints()
-        row.track:SetPoint("RIGHT", row, "RIGHT", -58, 0)
-        row.track:SetWidth(88)
-
-        row.fill:ClearAllPoints()
-        row.fill:SetPoint("LEFT", row.track, "LEFT", 0, 0)
-        row.fill:SetWidth(math.max(1, 88 * math.min(1, entry.share or 0)))
-        row.fill:SetColorTexture(unpack(ns.Theme.RGB.link))
-
-        row.share:SetText(string.format("%d%%", (entry.share or 0) * 100 + 0.5))
-        row:Show()
-        top = top - ROW_HEIGHT
-    end
-
-    return top
-end
-
---- Quel build te ressemble le plus, d'apres TA repartition de statistiques.
----
---- On ne compare pas les arbres de talents : rien ne garantit que l'identifiant rendu par
---- Warcraft Logs vive dans le meme espace que celui du client. La repartition secondaire,
---- elle, est mesuree des deux cotes avec la meme definition — c'est la seule comparaison
---- qu'on puisse faire sans rien supposer.
----
---- @return number|nil rang du build le plus proche
-local function closestBuild(builds)
-    local mine = ns.Stats.Current()
-    if not mine then return nil end
-
-    local total = 0
-    for _, definition in ipairs(ns.Stats.LIST) do
-        total = total + ((mine[definition.key] or {}).rating or 0)
-    end
-    if total <= 0 then return nil end
-
-    local best, bestGap
-    for index, build in ipairs(builds) do
-        if type(build.stats) == "table" then
-            local gap = 0
-            for _, definition in ipairs(ns.Stats.LIST) do
-                local share = ((mine[definition.key] or {}).rating or 0) / total
-                gap = gap + math.abs(share - (build.stats[definition.key] or 0))
-            end
-            if not bestGap or gap < bestGap then best, bestGap = index, gap end
-        end
-    end
-    return best
-end
-
---- Les ensembles de talents reellement joues, et la repartition de chacun.
----
---- C'est ce qui donne enfin un sens aux deux ecoles detectees par `Meta.Modes` : il disait
---- « la maitrise se joue a 21 % ou a 38 % » sans dire quel build etait derriere chaque
---- valeur. Ici chaque groupe porte SA repartition.
-local function layoutBuilds(top, width)
-    local builds = ns.Meta.Builds()
-    if not builds then return top end
-
-    top = heading(top, width, ns.L["Builds"])
-
-    local closest = closestBuild(builds)
-
-    for index, build in ipairs(builds) do
-        local row = pools.build:Acquire()
-        row:SetParent(view.content)
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", 0, top)
-        row:SetWidth(width)
-        ns.Theme.ApplyCard(row, index == closest and ns.Theme.RGB.link or nil)
-
-        row.rank:SetText(hex("muted") .. index .. "|r")
-        row.share:SetText(string.format("%s%d%%|r", index == 1 and hex("link") or hex("text"),
-            (build.share or 0) * 100 + 0.5))
-
-        -- La repartition DE CE GROUPE, dans l'ordre decroissant : c'est elle qui distingue
-        -- un build d'un autre pour qui doit choisir son equipement.
-        local parts = {}
-        if type(build.stats) == "table" then
-            local ordered = {}
-            for _, definition in ipairs(ns.Stats.LIST) do
-                local share = build.stats[definition.key]
-                if share and share > 0.02 then
-                    table.insert(ordered, { label = definition.label, share = share })
-                end
-            end
-            table.sort(ordered, function(a, b) return a.share > b.share end)
-            for _, entry in ipairs(ordered) do
-                table.insert(parts, string.format("%s %d%%", ns.L[entry.label],
-                    entry.share * 100 + 0.5))
-            end
-        end
-        row.stats:SetWidth(math.max(80, width - 230))
-        row.stats:SetText(#parts > 0
-            and (hex("text") .. table.concat(parts, "   ") .. "|r")
-            or (hex("muted") .. ns.L["stats not measured for this group"] .. "|r"))
-
-        -- « Toi » repose sur la repartition, pas sur les talents : on dit donc « le plus
-        -- proche », et jamais « c'est ton build ».
-        row.tag:SetText(index == closest
-            and (hex("link") .. ns.L["closest to yours"] .. "|r") or "")
-
-        row:Show()
-        top = top - 38 - 4
-    end
-
-    top = layoutTalents(top, width)
-
-    top = text(top - 2, width, hex("muted") .. string.format(
-        ns.L["%d players grouped by identical talent tree"], ns.Meta.Sample()) .. "|r")
-    return top
-end
 
 -- ------------------------------------------------------------------- stats
 
@@ -732,131 +538,66 @@ local function layoutGems(top, width)
     return top
 end
 
--- ------------------------------------------------------------- objets
+-- ------------------------------------------------------------- bijoux, en bref
 
---- Nom d'un emplacement d'equipement, dans la langue du client.
+--- QUATRE bijoux, pas un de plus : deux du raid, deux des donjons.
 ---
---- Le releve porte le nom d'emplacement de Warcraft Logs (`WristSlot`), qui est de
---- l'anglais technique. Le client, lui, a le libelle traduit sous une globale.
-local SLOT_GLOBALS = {
-    HeadSlot = "HEADSLOT", NeckSlot = "NECKSLOT", ShoulderSlot = "SHOULDERSLOT",
-    ChestSlot = "CHESTSLOT", WaistSlot = "WAISTSLOT", LegsSlot = "LEGSSLOT",
-    FeetSlot = "FEETSLOT", WristSlot = "WRISTSLOT", HandsSlot = "HANDSSLOT",
-    Finger0Slot = "FINGER0SLOT", Finger1Slot = "FINGER0SLOT",
-    Trinket0Slot = "TRINKET0SLOT", Trinket1Slot = "TRINKET0SLOT",
-    BackSlot = "BACKSLOT", MainHandSlot = "MAINHANDSLOT",
-    SecondaryHandSlot = "SECONDARYHANDSLOT",
-}
+--- La page Objets porte les listes completes. Ici on ne garde qu'un raccourci, et il est
+--- volontairement court — cet onglet dit ce qui se POSE sur une piece, et une liste de
+--- douze bijoux au milieu des enchantements ramenait exactement le fouillis qu'on vient
+--- de defaire. Deux et deux, parce qu'un joueur a deux emplacements et deux contenus.
+local SHORTLIST = 2
 
-local function slotLabel(slot)
-    local key = SLOT_GLOBALS[slot or ""]
-    local label = key and _G[key]
-    return (type(label) == "string" and label ~= "") and label or nil
-end
-
---- Pose une liste d'objets releves. Rend le nouveau haut.
----
---- @param rows table { { id, name, slot, ilvl, share }, ... }
---- @param showSlot boolean|nil ecrire l'emplacement : utile pour les crafts, qui touchent
----        toute la panoplie ; inutile pour les bijoux, qui n'en occupent qu'un.
-local function layoutItems(top, width, rows, showSlot)
-    for index = 1, #rows do
-        local item = rows[index]
-        local row = pools.item:Acquire()
-        row:SetParent(view.content)
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", 0, top)
-        row:SetWidth(width)
-        ns.Theme.ApplyCard(row, index == 1 and ns.Theme.RGB.link or nil)
-
-        local icon
-        local getIcon = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
-        if getIcon then
-            local ok, value = pcall(getIcon, item.id)
-            if ok then icon = value end
-        end
-        row.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-
-        -- Le nom du CLIENT quand il le connait : traduit, et a jour. Celui du releve est
-        -- de l'anglais fige au moment de la generation — il ne sert que de repli.
-        local name = ns.Meta.GemName(item.id) or item.name
-        row.name:SetWidth(math.max(80, width - 150))
-        row.name:SetText(hex("text") .. (name or ("#" .. tostring(item.id))) .. "|r")
-
-        local parts = {}
-        if showSlot then
-            local label = slotLabel(item.slot)
-            if label then table.insert(parts, label) end
-        end
-        if item.ilvl and item.ilvl > 0 then
-            table.insert(parts, string.format(ns.L["ilvl %d"], item.ilvl))
-        end
-        row.sub:SetWidth(math.max(60, width - 150))
-        row.sub:SetText(hex("muted") .. table.concat(parts, "  ·  ") .. "|r")
-
-        row.share:SetText(string.format("%s%d%%|r", hex(index == 1 and "link" or "muted"),
-            (item.share or 0) * 100 + 0.5))
-
-        row.itemID, row.itemLevel = item.id, item.ilvl
-        row:SetScript("OnEnter", itemOnEnter)
-        row:SetScript("OnLeave", hideTooltip)
-
-        top = top - ITEM_ROW_HEIGHT - 4
-    end
-    return top
-end
-
---- CRAFTS : les recettes que le haut de tableau a fait faire.
----
---- C'est le seul bloc de l'onglet qui dise quoi faire HORS du combat, et il ne se devine
---- pas : rien en jeu ne distingue un objet fabrique d'un butin sans ouvrir sa recette.
-local function layoutCrafts(top, width)
-    local crafts = ns.Meta.Crafts()
-    if not crafts then return top end
-
-    top = heading(top, width, ns.L["Crafted"])
-    top = text(top, width, hex("muted")
-        .. ns.L["Made, not dropped. These are the recipes worth ordering."] .. "|r")
-    top = layoutItems(top - 2, width, crafts, true)
-    return text(top - 2, width, hex("muted")
-        .. string.format(ns.L["measured on %d top players"], ns.Meta.Sample()) .. "|r")
-end
-
---- BIJOUX : la section qui n'existe que pour les tanks et les soigneurs.
----
---- POURQUOI ELLE EXISTE. Un droptimizer ne mesure QUE des degats — les colonnes du CSV de
---- Raidbots ne portent rien d'autre — et Warcraft Logs n'a pas de classement de survie.
---- Aucun chiffre disponible ne dit donc si un bijou defensif vaut mieux qu'un autre, et un
---- tank qui lit « +3,56 % » sur un bijou lit une mesure de degats qui ne repond pas a sa
---- question. Ce que les meilleurs PORTENT n'est pas une mesure, c'est un usage — et c'est
---- la seule reponse honnete a portee. La section le dit en toutes lettres plutot que de
---- laisser croire a un classement.
----
---- DEUX LISTES, parce qu'une liste dominee par des bijoux de raid n'apprend rien a qui ne
---- raide pas : elle nomme des objets qu'il ne peut pas obtenir.
 local function layoutTrinkets(top, width)
-    local role = ns.Spec.Role()
-    if role ~= "TANK" and role ~= "HEALER" then return top end
-
-    local all, mythic = ns.Meta.Trinkets(false), ns.Meta.Trinkets(true)
-    if not all and not mythic then return top end
+    local raid, dungeon = ns.Meta.TrinketsBySource(SHORTLIST)
+    if #raid == 0 and #dungeon == 0 then return top end
 
     top = heading(top, width, ns.L["Trinkets"])
-    top = text(top, width, hex("muted") .. (role == "TANK"
-        and ns.L["No number ranks a tank trinket: a droptimizer measures damage, and Warcraft Logs has no survival ranking. This is what the top players wear."]
-        or ns.L["No number ranks a healer trinket by throughput under pressure. This is what the top players wear."]) .. "|r")
 
-    if all then
-        top = text(top - 4, width, hex("text") .. ns.L["Raid and Mythic+"] .. "|r")
-        top = layoutItems(top - 2, width, all, false)
+    local function line(label, rows)
+        if #rows == 0 then return end
+        for index, item in ipairs(rows) do
+            local row = pools.item:Acquire()
+            row:SetParent(view.content)
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", 0, top)
+            row:SetWidth(width)
+            ns.Theme.ApplyCard(row, index == 1 and ns.Theme.RGB.link or nil)
+
+            local icon
+            local getIcon = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
+            if getIcon then
+                local ok, value = pcall(getIcon, item.id)
+                if ok then icon = value end
+            end
+            row.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+
+            local name = ns.Meta.GemName(item.id) or item.name
+            row.name:SetWidth(math.max(80, width - 150))
+            row.name:SetText(hex("text") .. (name or ("#" .. tostring(item.id))) .. "|r")
+
+            -- La PROVENANCE plutot que l'emplacement : un bijou se porte toujours au meme
+            -- endroit, et c'est justement d'ou il tombe qui decide si le joueur peut
+            -- l'avoir.
+            row.sub:SetWidth(math.max(60, width - 150))
+            row.sub:SetText(hex("muted") .. label .. "|r")
+
+            row.share:SetText(string.format("%s%d%%|r",
+                hex(index == 1 and "link" or "muted"), (item.share or 0) * 100 + 0.5))
+
+            row.itemID, row.itemLevel = item.id, item.ilvl
+            row:SetScript("OnEnter", itemOnEnter)
+            row:SetScript("OnLeave", hideTooltip)
+
+            top = top - ITEM_ROW_HEIGHT - 4
+        end
     end
-    if mythic then
-        top = text(top - 4, width, hex("text") .. ns.L["Mythic+ only"] .. "|r")
-        top = text(top, width, hex("muted")
-            .. ns.L["Obtainable without setting foot in the raid."] .. "|r")
-        top = layoutItems(top - 2, width, mythic, false)
-    end
-    return top
+
+    line(ns.L["Drops in the raid"], raid)
+    line(ns.L["Drops in Mythic+ dungeons"], dungeon)
+
+    return text(top - 2, width, hex("muted")
+        .. ns.L["Full lists, and the crafted gear, are on the Items tab."] .. "|r")
 end
 
 -- ------------------------------------------------------------------- public
@@ -928,12 +669,13 @@ function RecoView.Refresh()
         -- L'ordre est celui dans lequel on decide : le build d'abord, les
         -- statistiques qu'il implique ensuite, les consommables en dernier. L'onglet
         -- s'appelait « Recommandations » et ne recommandait que des consommables.
-        top = layoutBuilds(top, width)
+        -- L'ordre est celui dans lequel on decide : la cible de statistiques d'abord,
+        -- puis ce qu'on pose dessus. Les bijoux en dernier, en raccourci : ils
+        -- s'OBTIENNENT, ils ne se posent pas, et leur place est l'onglet Objets.
         top = layoutStats(top, width)
-        top = layoutTrinkets(top, width)
         top = layoutEnchants(top, width)
         top = layoutGems(top, width)
-        top = layoutCrafts(top, width)
+        top = layoutTrinkets(top, width)
     end
 
     view.content:SetHeight(math.max(1, -top + 12))

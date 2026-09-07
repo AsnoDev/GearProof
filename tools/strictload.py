@@ -26,7 +26,7 @@ from __future__ import annotations
 from common import Report, run
 from luaenv import ADDON_ROOT, new_runtime
 
-TABS = ["gear", "reco", "raid", "guild", "help"]
+TABS = ["gear", "reco", "talent", "items", "raid", "guild", "help"]
 
 # Toutes les commandes du gestionnaire de `Core.lua`. Une commande qui leve est une
 # fonctionnalite morte que rien d'autre ne signale.
@@ -188,28 +188,66 @@ def main() -> int:
                   name = "Blood Knight's Warblade" },
             }
         end
-        GEARPROOF_NS.Meta.Trinkets = function(mythicOnly)
-            if mythicOnly then
-                return { { id = 270165, slot = "Trinket1Slot", ilvl = 321, count = 7,
-                           share = 0.35, name = "Seething Core" } }
-            end
-            return { { id = 270175, slot = "Trinket0Slot", ilvl = 334, count = 22,
-                       share = 0.55, name = "Voracious Heart" } }
+        GEARPROOF_NS.Meta.Trinkets = function()
+            return {
+                { id = 270175, slot = "Trinket0Slot", ilvl = 334, count = 22, share = 0.55,
+                  name = "Voracious Heart" },
+                { id = 270165, slot = "Trinket1Slot", ilvl = 321, count = 7, share = 0.35,
+                  name = "Seething Core" },
+                { id = 111111, slot = "Trinket0Slot", ilvl = 300, count = 3, share = 0.15,
+                  name = "Provenance inconnue" },
+            }
         end
     """)
 
-    # Les TROIS roles, parce que la section Bijoux existe pour deux d'entre eux et pas pour
-    # le troisieme : une branche qui ne pose rien est une branche a part entiere.
-    for role in ("TANK", "HEALER", "DAMAGER"):
-        lua.execute(f'GEARPROOF_NS.Spec.Role = function() return "{role}" end')
-        for pass_number in (1, 2):
-            step(f"recommandations {role}, passe {pass_number}",
-                 "GEARPROOF_NS.UI.Show('reco')")
+    # TROIS ETATS DE PROVENANCE, et les trois comptent.
+    #
+    # Le journal des aventures charge son butin de facon asynchrone : « rien de classe »
+    # est un etat REEL, celui de la premiere ouverture d'onglet, et il emprunte une
+    # branche entierement differente — la liste non separee, avec son avertissement. Un
+    # onglet ne se teste pas sur un seul jeu de donnees.
+    SOURCES = {
+        "provenances connues":
+            'GEARPROOF_NS.Journal.ItemSource = function(id) '
+            'if id == 270175 then return "raid" end '
+            'if id == 270165 then return "dungeon" end return nil end',
+        "que du raid":
+            'GEARPROOF_NS.Journal.ItemSource = function() return "raid" end',
+        "journal muet":
+            'GEARPROOF_NS.Journal.ItemSource = function() return nil end',
+    }
 
-    # L'ecran doit DIRE quelque chose, pas seulement ne pas lever.
-    shown = lua.eval("GEARPROOF_NS.RecoView ~= nil")
-    if not shown:
-        report.error("recommandations", "la vue n'existe pas")
+    for label, setup in SOURCES.items():
+        lua.execute(setup)
+        # Les TROIS roles : la phrase des bijoux change avec le role, et une branche qui
+        # ne pose rien est une branche a part entiere.
+        for role in ("TANK", "HEALER", "DAMAGER"):
+            lua.execute(f'GEARPROOF_NS.Spec.Role = function() return "{role}" end')
+            for pass_number in (1, 2):
+                for tab in ("reco", "items"):
+                    step(f"{tab}, {label}, {role}, passe {pass_number}",
+                         f"GEARPROOF_NS.UI.Show('{tab}')")
+
+    # L'onglet Talents a DEUX contenus, derriere deux boutons. `UI.Show` n'en montre
+    # qu'un : le defaut. C'est exactement la ou se cachait la derniere panne en date.
+    for pass_number in (1, 2):
+        step(f"talents, mythique+ passe {pass_number}",
+             'GEARPROOF_NS.TalentView.Create(nil).modes[2]:Fire("OnClick")')
+        step(f"talents, raid passe {pass_number}",
+             'GEARPROOF_NS.TalentView.Create(nil).modes[1]:Fire("OnClick")')
+
+    # Un [ok] sur un ecran VIDE ne prouve rien : on verifie que la separation par
+    # provenance rend DEUX listes quand le journal repond, et que l'inconnu n'est range
+    # nulle part.
+    lua.execute(SOURCES["provenances connues"])
+    # `select(1, a, b)` rend a ET b : lupa en fait un tuple de deux, et `len()` mesurait
+    # le nombre de valeurs de retour au lieu du contenu de la liste. On passe donc par des
+    # globales, ou chaque table reste une table.
+    lua.execute("GEARPROOF_RAID, GEARPROOF_DUNGEON = GEARPROOF_NS.Meta.TrinketsBySource()")
+    raid, dungeon = lua.globals().GEARPROOF_RAID, lua.globals().GEARPROOF_DUNGEON
+    if len(raid) != 1 or len(dungeon) != 1:
+        report.error("bijoux, provenance",
+                     f"{len(raid)} en raid et {len(dungeon)} en donjon, attendu 1 et 1")
 
     # L'onglet Guilde a DEUX ecrans et une section repliable, tous derriere des boutons.
     # `UI.Show('guild')` n'en montre qu'un : le defaut. La derniere panne en date venait

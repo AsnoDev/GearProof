@@ -176,6 +176,7 @@ end
 -- pas en cours de session.
 
 local raidCache, encounterCache, lootCache, portraitCache = nil, {}, {}, {}
+local dungeonCache, sourceCache = nil, nil
 
 --- Portrait d'un boss, comme le journal l'affiche.
 ---
@@ -212,13 +213,18 @@ function Journal.Portrait(instanceID, encounterID)
     return portrait
 end
 
---- Raids de l'extension en cours.
+--- Instances de l'extension en cours, raids ou donjons.
+---
+--- `EJ_GetInstanceByIndex(index, isRaid)` est le meme appel pour les deux : le second
+--- argument decide. Ecrire deux fonctions presque identiques est exactement la duplication
+--- qui a le plus coute dans ce depot — deux lecteurs du journal divergeant sur un detail
+--- invisible.
+--- @param isRaid boolean
 --- @return table { { id, name }, ... }
-function Journal.Raids()
-    if raidCache then return raidCache end
+local function instancesOfTier(isRaid)
     if type(EJ_GetInstanceByIndex) ~= "function" then return {} end
 
-    local found = Journal.Read(nil, nil, nil, function()
+    return Journal.Read(nil, nil, nil, function()
         local list = {}
         -- Le journal se positionne sur le palier courant : sans ca, il rend le palier
         -- que le joueur regardait, qui peut etre une extension d'il y a dix ans.
@@ -228,17 +234,35 @@ function Journal.Raids()
         end
 
         for index = 1, 40 do
-            local ok, instanceID, name = pcall(EJ_GetInstanceByIndex, index, true)
+            local ok, instanceID, name = pcall(EJ_GetInstanceByIndex, index, isRaid)
             if not ok or not instanceID then break end
             table.insert(list, { id = instanceID, name = name })
         end
         return list
-    end)
+    end) or {}
+end
 
-    -- Un echec n'est PAS mis en cache : le journal peut ne pas etre initialise au
-    -- premier affichage, ou le joueur peut l'avoir ouvert.
-    if found and #found > 0 then raidCache = found end
-    return found or {}
+--- Donjons de l'extension en cours.
+---
+--- Ils ne servent pas a lister du contenu : ils servent a savoir D'OU TOMBE un objet.
+--- Voir `Journal.ItemSource`.
+function Journal.Dungeons()
+    if dungeonCache then return dungeonCache end
+    local found = instancesOfTier(false)
+    if #found > 0 then dungeonCache = found end
+    return found
+end
+
+--- Raids de l'extension en cours.
+---
+--- Un echec n'est PAS mis en cache : le journal peut ne pas etre initialise au premier
+--- affichage, ou le joueur peut l'avoir ouvert — deux etats parfaitement temporaires.
+--- @return table { { id, name }, ... }
+function Journal.Raids()
+    if raidCache then return raidCache end
+    local found = instancesOfTier(true)
+    if #found > 0 then raidCache = found end
+    return found
 end
 
 --- Rencontres d'un raid, dans l'ordre du journal.
@@ -375,9 +399,54 @@ function Journal.InstanceLoot(instanceID, difficultyID, classID, specID)
     return found or {}
 end
 
+--- D'OU TOMBE un objet : "raid", "dungeon", ou nil quand on ne sait pas.
+---
+--- LA QUESTION QUE LE RELEVE NE PEUT PAS TRANCHER. Warcraft Logs dit ce que les meilleurs
+--- PORTENT, pas d'ou l'objet vient. Or un raideur porte son bijou de raid en donjon : une
+--- liste « bijoux vus en mythique+ » melangeait donc des objets obtenables en cle et des
+--- objets qui n'y tombent jamais. Pour un joueur qui ne raide pas, c'est le contraire
+--- d'une reponse.
+---
+--- Le client, lui, sait : le journal des aventures porte la table de butin de chaque
+--- instance. On construit l'index UNE fois, a la demande, et sans filtre de classe — la
+--- provenance d'un objet ne depend pas de qui le regarde.
+---
+--- PRUDENCE DE LECTURE, la meme que partout ici : le journal charge son butin de facon
+--- asynchrone. Un index qui ne trouve RIEN n'est pas mis en cache, sinon la premiere
+--- consultation de la session figerait « aucune provenance connue » jusqu'au /reload.
+--- @return string|nil
+function Journal.ItemSource(itemID)
+    if not itemID then return nil end
+
+    if not sourceCache then
+        local index, found = {}, false
+
+        -- Le RAID d'abord : en cas de doublon, un objet qui tombe des deux cotes est
+        -- annonce comme butin de donjon, qui est le contenu le plus accessible. Dire a un
+        -- joueur qu'il doit raider pour un objet qu'une cle lui donne serait le seul sens
+        -- ou l'erreur coute quelque chose.
+        for _, raid in ipairs(Journal.Raids()) do
+            for _, loot in ipairs(Journal.InstanceLoot(raid.id, nil, nil, nil)) do
+                if loot.id then index[loot.id], found = "raid", true end
+            end
+        end
+        for _, dungeon in ipairs(Journal.Dungeons()) do
+            for _, loot in ipairs(Journal.InstanceLoot(dungeon.id, nil, nil, nil)) do
+                if loot.id then index[loot.id], found = "dungeon", true end
+            end
+        end
+
+        if not found then return nil end
+        sourceCache = index
+    end
+
+    return sourceCache[itemID]
+end
+
 --- Oublie tout ce qui a ete lu. Le butin depend de la difficulte et de la spe.
 function Journal.Invalidate()
     raidCache, encounterCache, lootCache = nil, {}, {}
+    dungeonCache, sourceCache = nil, nil
 end
 
 ns.On("ACTIVE_TALENT_GROUP_CHANGED", Journal.Invalidate)
