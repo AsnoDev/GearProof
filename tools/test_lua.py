@@ -333,6 +333,228 @@ def test_prune_reports(report: Report) -> None:
     suite.done()
 
 
+# ------------------------------------------------ serialisation des talents
+
+def test_traits_stream(report: Report) -> None:
+    """Le flux de bits d'une chaine d'import, teste sans le client.
+
+    UNE CHAINE FAUSSE EST PIRE QUE PAS DE CHAINE : le joueur collerait un arbre qui n'est
+    pas celui qu'il a regarde, et rien ne le lui dirait. Le format de Blizzard ne peut se
+    verifier qu'en jeu — `Traits.SelfCheck` compare notre sortie a celle que le client
+    produit — mais l'ecriture des bits, elle, est du code pur et se teste ici.
+
+    On relit avec un decodeur INDEPENDANT, ecrit d'apres la description du format, et non
+    avec le meme code lu a l'envers : deux implementations qui partagent un bug ne le
+    montrent jamais.
+    """
+    suite = Suite(report, "Traits.stream")
+    lua, ns, locals_ = new_runtime(
+        ["Spec.lua", "Traits.lua"],
+        expose={"Traits.lua": ["BASE64", "addValue", "encode", "serialize"]})
+
+    alphabet = str(locals_["BASE64"])
+    add, encode, serialize = locals_["addValue"], locals_["encode"], locals_["serialize"]
+
+    def decode(text):
+        """Chaque caractere porte SIX bits, du moins significatif au plus significatif."""
+        bits = []
+        for char in text:
+            value = alphabet.index(char)
+            for offset in range(6):
+                bits.append((value >> offset) & 1)
+        return bits
+
+    def read(bits, start, width):
+        return sum(bits[start + i] << i for i in range(width))
+
+    # Un octet seul : 0xB5 = 1011 0101, ecrit du bit de poids faible au bit de poids fort.
+    stream = lua.eval("{ bits = {} }")
+    add(stream, 0xB5, 8)
+    suite.equal("octet ecrit poids faible en tete",
+                decode(str(encode(stream)))[:8], [1, 0, 1, 0, 1, 1, 0, 1])
+
+    # Trois valeurs de largeurs differentes, relues dans l'ordre.
+    stream = lua.eval("{ bits = {} }")
+    add(stream, 2, 8)
+    add(stream, 250, 16)
+    add(stream, 1, 1)
+    bits = decode(str(encode(stream)))
+    suite.equal("version relue", read(bits, 0, 8), 2)
+    suite.equal("specID relu", read(bits, 8, 16), 250)
+    suite.equal("bit suivant", read(bits, 24, 1), 1)
+    # 25 bits tiennent sur cinq caracteres de six bits : le remplissage n'ajoute rien de
+    # significatif, il complete le dernier caractere.
+    suite.equal("longueur en caracteres", len(str(encode(stream))), 5)
+
+    # LA SERIALISATION COMPLETE, sur un arbre fabrique : un noeud simple monte a fond, un
+    # noeud partiellement monte, un noeud a choix dont on prend la seconde option.
+    lua.execute("""
+        Enum = Enum or {}
+        Enum.TraitNodeType = { Single = 0, Tiered = 1, Selection = 2 }
+        C_Traits = C_Traits or {}
+        C_Traits.GetTreeHash = function()
+            return { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 }
+        end
+        GEARPROOF_SHOT = {
+            treeID = 1,
+            order = { 10, 20, 30 },
+            nodes = {
+                [10] = { id = 10, maxRanks = 1, type = 0, entryIDs = { 100 } },
+                [20] = { id = 20, maxRanks = 3, type = 1, entryIDs = { 200 } },
+                [30] = { id = 30, maxRanks = 1, type = 2, entryIDs = { 300, 301 } },
+            },
+        }
+        GEARPROOF_PICK = {
+            [10] = { rank = 1 },
+            [20] = { rank = 2 },
+            [30] = { rank = 1, entryID = 301 },
+        }
+        GEARPROOF_READER = function(nodeID)
+            local picked = GEARPROOF_PICK[nodeID]
+            if not picked then return 0 end
+            return picked.rank, picked.entryID
+        end
+        GEARPROOF_EMPTY = function() return 0 end
+    """)
+
+    shot = lua.globals().GEARPROOF_SHOT
+    text = serialize(shot, 2, 250, lua.globals().GEARPROOF_READER)
+    suite.truthy("une chaine est produite", bool(text))
+
+    bits = decode(str(text))
+    suite.equal("version", read(bits, 0, 8), 2)
+    suite.equal("specID", read(bits, 8, 16), 250)
+    hashed = [read(bits, 24 + i * 8, 8) for i in range(16)]
+    suite.equal("empreinte de l'arbre", hashed, list(range(1, 17)))
+
+    at = 24 + 16 * 8
+    # Noeud 10 : pris, complet (1 sur 1), pas un choix.
+    suite.equal("noeud 10 pris", read(bits, at, 1), 1)
+    suite.equal("noeud 10 complet", read(bits, at + 1, 1), 0)
+    suite.equal("noeud 10 sans choix", read(bits, at + 2, 1), 0)
+    at += 3
+    # Noeud 20 : pris, PARTIEL (2 sur 3), donc six bits de rang suivent.
+    suite.equal("noeud 20 pris", read(bits, at, 1), 1)
+    suite.equal("noeud 20 partiel", read(bits, at + 1, 1), 1)
+    suite.equal("noeud 20 rang", read(bits, at + 2, 6), 2)
+    suite.equal("noeud 20 sans choix", read(bits, at + 8, 1), 0)
+    at += 9
+    # Noeud 30 : pris, complet, A CHOIX — seconde option, donc index 1.
+    suite.equal("noeud 30 pris", read(bits, at, 1), 1)
+    suite.equal("noeud 30 complet", read(bits, at + 1, 1), 0)
+    suite.equal("noeud 30 a choix", read(bits, at + 2, 1), 1)
+    suite.equal("noeud 30 seconde option", read(bits, at + 3, 2), 1)
+
+    # Un noeud NON pris ne coute qu'UN bit. C'est ce qui fait tenir soixante-dix noeuds
+    # dans une chaine courte, et un bit de trop decalerait tout ce qui suit.
+    short = serialize(shot, 2, 250, lua.globals().GEARPROOF_EMPTY)
+    header = 24 + 16 * 8
+    useful = header + 3
+    suite.equal("trois noeuds vides = trois bits",
+                len(str(short)), (useful + 5) // 6)
+
+    suite.done()
+
+
+def test_traits_selfcheck(report: Report) -> None:
+    """L'export n'est propose QUE si notre serialiseur reproduit celui du client.
+
+    Le format d'import de Blizzard n'est pas un contrat : il a change d'une extension a
+    l'autre. Ecrire une chaine fausse serait pire que de ne rien proposer — le joueur
+    collerait un arbre qui n'est pas celui qu'il a regarde, et rien ne le lui dirait.
+
+    D'ou ce garde-fou : on serialise la configuration DU JOUEUR avec notre code, et on la
+    compare a celle que le client produit pour la meme configuration. Identiques au
+    caractere pres : le format est verifie sur ce client. Differentes : pas d'export.
+    """
+    suite = Suite(report, "Traits.SelfCheck")
+    lua, ns, locals_ = new_runtime(["Spec.lua", "Traits.lua"],
+                                   expose={"Traits.lua": ["serialize"]})
+    lua.globals().GEARPROOF_NS = ns
+
+    lua.execute("""
+        Enum = Enum or {}
+        Enum.TraitNodeType = { Single = 0, Tiered = 1, Selection = 2 }
+
+        local NODES = {
+            [10] = { posX = 0, posY = 0, maxRanks = 1, type = 0, entryIDs = { 100 },
+                     ranksPurchased = 1, activeEntry = { entryID = 100, rank = 1 } },
+            [20] = { posX = 100, posY = 100, maxRanks = 3, type = 1, entryIDs = { 200 },
+                     ranksPurchased = 2, activeEntry = { entryID = 200, rank = 2 } },
+            [30] = { posX = 200, posY = 200, maxRanks = 1, type = 2, entryIDs = { 300, 301 },
+                     ranksPurchased = 1, activeEntry = { entryID = 301, rank = 1 } },
+        }
+        C_ClassTalents = { GetActiveConfigID = function() return 7 end }
+        C_Traits = {
+            GetConfigInfo = function() return { treeIDs = { 42 } } end,
+            GetTreeNodes = function() return { 10, 20, 30 } end,
+            GetNodeInfo = function(_, nodeID) return NODES[nodeID] end,
+            GetEntryInfo = function(_, entryID) return { definitionID = entryID } end,
+            GetDefinitionInfo = function(id) return { overrideName = "T" .. id } end,
+            GetTreeHash = function()
+                return { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 }
+            end,
+        }
+        GEARPROOF_CONFIG = {
+            treeID = 42,
+            order = { 10, 20, 30 },
+            nodes = {
+                [10] = { id = 10, maxRanks = 1, type = 0, entryIDs = { 100 } },
+                [20] = { id = 20, maxRanks = 3, type = 1, entryIDs = { 200 } },
+                [30] = { id = 30, maxRanks = 1, type = 2, entryIDs = { 300, 301 } },
+            },
+        }
+        GEARPROOF_MINE = function(nodeID)
+            local ranks = { [10] = 1, [20] = 2, [30] = 1 }
+            local entries = { [10] = 100, [20] = 200, [30] = 301 }
+            return ranks[nodeID] or 0, entries[nodeID]
+        end
+    """)
+    ns.Spec.Active = lua.eval("function() return 250 end")
+
+    # La chaine que le client rendrait s'il etait d'accord avec nous : produite par notre
+    # propre serialiseur sur la configuration du joueur. C'est la definition meme de
+    # l'accord, et la seule fixture qui ne fige pas un format qu'on ne controle pas.
+    reference = locals_["serialize"](lua.globals().GEARPROOF_CONFIG, 2, 250,
+                                     lua.globals().GEARPROOF_MINE)
+    suite.truthy("une chaine de reference existe", bool(reference))
+
+    lua.globals().GEARPROOF_REF = reference
+    lua.execute("C_Traits.GenerateImportString = function() return GEARPROOF_REF end")
+    lua.execute("GEARPROOF_OK, GEARPROOF_WHY = GEARPROOF_NS.Traits.SelfCheck()")
+    suite.equal("format reconnu", lua.globals().GEARPROOF_OK, True)
+
+    # ET DANS L'AUTRE SENS. Un seul caractere de difference doit suffire : c'est tout
+    # l'interet d'une comparaison exacte plutot que d'un controle de longueur.
+    lua.execute("""
+        C_Traits.GenerateImportString = function()
+            return GEARPROOF_REF:sub(1, #GEARPROOF_REF - 1) .. "Z"
+        end
+        GEARPROOF_NS.Traits.Invalidate()
+        GEARPROOF_OK, GEARPROOF_WHY = GEARPROOF_NS.Traits.SelfCheck()
+    """)
+    suite.equal("un caractere de trop suffit a refuser", lua.globals().GEARPROOF_OK, False)
+    suite.equal("et la raison est dite", str(lua.globals().GEARPROOF_WHY), "format mismatch")
+
+    # Sans chaine de reference du client, on ne DEVINE pas : on refuse.
+    lua.execute("""
+        C_Traits.GenerateImportString = nil
+        GEARPROOF_NS.Traits.Invalidate()
+        GEARPROOF_OK, GEARPROOF_WHY = GEARPROOF_NS.Traits.SelfCheck()
+    """)
+    suite.equal("sans reference, refus", lua.globals().GEARPROOF_OK, False)
+    suite.equal("raison dite", str(lua.globals().GEARPROOF_WHY), "no reference string")
+
+    # Et l'export lui-meme se tait tant que le format n'est pas verifie.
+    lua.execute("""
+        GEARPROOF_MATCH = GEARPROOF_NS.Traits.Match({ 10, 1, 20, 2 })
+        GEARPROOF_TEXT, GEARPROOF_REASON = GEARPROOF_NS.Traits.Export(GEARPROOF_MATCH)
+    """)
+    suite.equal("aucun export sans preuve", lua.globals().GEARPROOF_TEXT, None)
+
+    suite.done()
+
+
 # --------------------------------------------- crafts et bijoux du releve
 
 def test_crafts_and_trinkets(report: Report) -> None:
@@ -835,7 +1057,8 @@ def main() -> int:
                  test_guild_payload, test_simc_item_line, test_schema_migration,
                  test_prune_reports, test_csv_freshness, test_roster_freshness,
                  test_by_encounter_season, test_known_level,
-                 test_crafts_and_trinkets):
+                 test_crafts_and_trinkets, test_traits_stream,
+                 test_traits_selfcheck):
         try:
             test(report)
         except Exception as error:  # noqa: BLE001 — un test qui casse est un constat

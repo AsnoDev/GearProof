@@ -95,6 +95,29 @@ ns.translations.fr = {
     ["Talent trees played in Mythic+ dungeons."] = "Arbres joues en donjon mythique+.",
     ["No build recorded for this content."] = "Aucun build releve pour ce contenu.",
 
+    -- L'ARBRE, et les trois raisons de ne pas pouvoir le dessiner — dites au joueur
+    -- plutot que masquees derriere une page vide.
+    ["Talent tree"] = "Arbre de talents",
+    ["Top build: %d%% of the top players. Hover a node for its adoption."] =
+        "Build de tete : %d %% du haut de tableau. Survole un noeud pour son taux de prise.",
+    ["taken by the top build"] = "pris par le build de tete",
+    ["not taken by the top build"] = "pas pris par le build de tete",
+    ["taken by"] = "pris par",
+    ["The reference does not carry a full tree for this content."] =
+        "Le releve ne porte pas d'arbre complet pour ce contenu.",
+    ["The tree can only be drawn for the spec you are playing."] =
+        "L'arbre ne peut etre dessine que pour la spe que tu joues.",
+    ["The client did not return a talent tree."] =
+        "Le client n'a pas rendu d'arbre de talents.",
+    ["The reference talent ids do not match this client's tree."] =
+        "Les identifiants de talent du releve ne correspondent pas a l'arbre de ce client.",
+
+    -- L'EXPORT. Il ne s'affiche que si notre serialiseur reproduit celui du client : une
+    -- chaine fausse ferait coller un arbre qui n'est pas celui qu'on regarde.
+    ["Copy import string"] = "Copier la chaine d'import",
+    ["Talent import string"] = "Chaine d'import des talents",
+    ["import string refused: %s"] = "chaine d'import refusee : %s",
+
     -- Fenetre Droptimizer : le parcours en trois etapes, dans une seule fenetre.
     ["optional"] = "facultatif",
     ["Validate"] = "Valider",

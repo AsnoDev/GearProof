@@ -24,6 +24,7 @@ Data\Meta.lua
 Data\Sim.lua
 Data\Build.lua
 Spec.lua
+Traits.lua
 Stats.lua
 Meta.lua
 Sim.lua

@@ -236,6 +236,124 @@ def main() -> int:
         step(f"talents, raid passe {pass_number}",
              'GEARPROOF_NS.TalentView.Create(nil).modes[1]:Fire("OnClick")')
 
+    # L'ARBRE DE TALENTS, ET SES QUATRE ETATS.
+    #
+    # Sans `C_Traits`, `layoutTree` rend nil et la page retombe sur sa liste : l'onglet
+    # signalerait [ok] sans qu'une seule ligne du dessin ait tourne. C'est exactement la
+    # zone aveugle deja trouvee sur l'onglet Recommandations, un cran plus loin.
+    #
+    # Le faux arbre est minuscule mais porte les trois formes qui comptent : un noeud
+    # simple, un noeud a rangs multiples, un noeud a choix. Les positions sont dans le
+    # repere de plusieurs milliers d'unites que rend le client, pour exercer la mise a
+    # l'echelle et pas seulement le placement.
+    lua.execute("""
+        Enum = Enum or {}
+        Enum.TraitNodeType = { Single = 0, Tiered = 1, Selection = 2 }
+
+        local NODES = {
+            [10] = { posX = 1000, posY = 1000, maxRanks = 1, type = 0, entryIDs = { 100 },
+                     ranksPurchased = 1, activeEntry = { entryID = 100, rank = 1 } },
+            [20] = { posX = 4000, posY = 2600, maxRanks = 3, type = 1, entryIDs = { 200 },
+                     ranksPurchased = 2, activeEntry = { entryID = 200, rank = 2 } },
+            [30] = { posX = 7400, posY = 5200, maxRanks = 1, type = 2,
+                     entryIDs = { 300, 301 }, ranksPurchased = 0 },
+        }
+
+        C_ClassTalents = C_ClassTalents or {}
+        C_ClassTalents.GetActiveConfigID = function() return 7 end
+
+        C_Traits = C_Traits or {}
+        C_Traits.GetConfigInfo = function() return { treeIDs = { 42 } } end
+        C_Traits.GetTreeNodes = function() return { 10, 20, 30 } end
+        C_Traits.GetNodeInfo = function(_, nodeID) return NODES[nodeID] end
+        C_Traits.GetEntryInfo = function(_, entryID) return { definitionID = entryID } end
+        C_Traits.GetDefinitionInfo = function(definitionID)
+            return { overrideName = "Talent " .. definitionID,
+                     overrideIcon = "Interface\\Icons\\INV_Misc_QuestionMark" }
+        end
+        C_Traits.GetTreeHash = function()
+            return { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 }
+        end
+
+        -- Le relevé parle en NOEUDS ici. L'autre espace — les entrees — est couvert plus
+        -- bas : c'est `Traits.Match` qui tranche, et les deux branches comptent.
+        GEARPROOF_NS.Meta.Builds = function()
+            return { { n = 5, share = 0.25, nodes = { 10, 1, 20, 2 },
+                       stats = { crit = 0.3, haste = 0.3, mastery = 0.2, versatility = 0.2 } } }
+        end
+        GEARPROOF_NS.Meta.Talents = function()
+            return { { id = 10, count = 20, share = 1.0 },
+                     { id = 20, count = 12, share = 0.6 } }
+        end
+    """)
+    GEARPROOF_NS_TRAITS_RESET = "GEARPROOF_NS.Traits.Invalidate()"
+    lua.execute(GEARPROOF_NS_TRAITS_RESET)
+
+    for pass_number in (1, 2):
+        for label, mode in (("raid", 1), ("mythique+", 2)):
+            step(f"arbre {label}, passe {pass_number}",
+                 f'GEARPROOF_NS.TalentView.Create(nil).modes[{mode}]:Fire("OnClick")')
+
+    # L'ARBRE A-T-IL VRAIMENT ETE DESSINE ? Un [ok] ne prouve que l'absence d'erreur, et la
+    # page a un repli qui, lui, ne leve jamais. On verifie la correspondance elle-meme.
+    lua.execute("""
+        GEARPROOF_MATCH = GEARPROOF_NS.Traits.Match({ 10, 1, 20, 2 })
+        GEARPROOF_ENTRY = GEARPROOF_NS.Traits.Match({ 100, 1, 301, 1 })
+    """)
+    match = lua.globals().GEARPROOF_MATCH
+    if not match or match["mode"] != "node" or int(match["matched"]) != 2:
+        report.error("arbre, correspondance par noeud",
+                     "le relevé en identifiants de noeud n'est pas reconnu")
+
+    # L'AUTRE ESPACE D'IDENTIFIANTS. Une entree designe la branche PRISE sur un noeud a
+    # choix, ce que l'identifiant de noeud ne dit pas : les deux se resolvent, et c'est
+    # `Match` qui doit trancher, pas une supposition ecrite en dur.
+    entry = lua.globals().GEARPROOF_ENTRY
+    if not entry or entry["mode"] != "entry" or int(entry["matched"]) != 2:
+        report.error("arbre, correspondance par entree",
+                     "le relevé en identifiants d'entree n'est pas reconnu")
+    elif entry["selection"][30]["entryID"] != 301:
+        report.error("arbre, noeud a choix",
+                     "la branche prise sur un noeud a choix n'est pas retenue")
+
+    # LE CONTROLE DU FORMAT D'EXPORT. Le stub ne fournit pas `GenerateImportString` : le
+    # bouton doit donc rester MASQUE. Un export propose sans preuve produirait une chaine
+    # que le jeu refuse — ou, pire, accepte de travers.
+    #
+    # `SelfCheck` rend DEUX valeurs, et `lua.eval` en fait un tuple — toujours vrai cote
+    # Python, meme quand la premiere valeur est `false`. Meme piege que `select(1, a, b)`
+    # deux cents lignes plus haut : on passe par une globale, ou chaque valeur reste une
+    # valeur. Le cas PASSANT de `SelfCheck` se teste dans `test_lua.py`, ou le serialiseur
+    # est atteignable et peut fabriquer la chaine de reference.
+    lua.execute("GEARPROOF_OK, GEARPROOF_WHY = GEARPROOF_NS.Traits.SelfCheck()")
+    if lua.globals().GEARPROOF_OK:
+        report.error("export", "propose alors que le format n'est pas verifie")
+    elif str(lua.globals().GEARPROOF_WHY) != "no reference string":
+        report.error("export", "refuse pour la mauvaise raison : "
+                     + str(lua.globals().GEARPROOF_WHY))
+
+    # Et le bouton lui-meme doit etre masque, pas seulement la fonction rendre faux.
+    lua.execute("GEARPROOF_NS.UI.Show('talent')")
+    if lua.eval("GEARPROOF_NS.TalentView.Create(nil).export:IsShown()"):
+        report.error("export", "le bouton reste visible sans format verifie")
+
+    # LES QUATRE RAISONS DE NE PAS DESSINER, une par une : chacune emprunte une branche
+    # differente, et chacune doit rendre la page lisible plutot que vide.
+    FAILURES = {
+        "sans arbre client": "C_ClassTalents.GetActiveConfigID = function() return nil end",
+        "sans arbre dans le relevé":
+            "GEARPROOF_NS.Meta.Builds = function() return { { n = 5, share = 0.25 } } end",
+        "identifiants inconnus":
+            "GEARPROOF_NS.Meta.Builds = function() "
+            "return { { n = 5, share = 0.25, nodes = { 999, 1, 998, 1 } } } end",
+    }
+    for label, setup in FAILURES.items():
+        lua.execute(setup)
+        lua.execute(GEARPROOF_NS_TRAITS_RESET)
+        for pass_number in (1, 2):
+            step(f"arbre indisponible ({label}), passe {pass_number}",
+                 "GEARPROOF_NS.UI.Show('talent')")
+
     # Un [ok] sur un ecran VIDE ne prouve rien : on verifie que la separation par
     # provenance rend DEUX listes quand le journal repond, et que l'inconnu n'est range
     # nulle part.
