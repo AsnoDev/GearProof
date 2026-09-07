@@ -666,9 +666,6 @@ function RecoView.Refresh()
         top = text(top, width, hex("muted")
             .. ns.L["no top-build reference for this spec yet"] .. "|r")
     else
-        -- L'ordre est celui dans lequel on decide : le build d'abord, les
-        -- statistiques qu'il implique ensuite, les consommables en dernier. L'onglet
-        -- s'appelait « Recommandations » et ne recommandait que des consommables.
         -- L'ordre est celui dans lequel on decide : la cible de statistiques d'abord,
         -- puis ce qu'on pose dessus. Les bijoux en dernier, en raccourci : ils
         -- s'OBTIENNENT, ils ne se posent pas, et leur place est l'onglet Objets.

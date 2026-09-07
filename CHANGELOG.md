@@ -12,18 +12,26 @@ Versionnement sémantique — `MAJEUR.MINEUR.CORRECTIF`.
 
 ### Ajouté
 
-- **Section Artisanat** dans l'onglet Recommandations : les objets **fabriqués** que porte
-  le haut de tableau, avec l'emplacement, le niveau à monter et le taux de port. Rien, en
-  jeu, ne distingue un objet crafté d'un butin sans ouvrir sa recette — c'est le seul bloc
-  qui dise quoi faire *hors* du combat.
-- **Section Bijoux**, visible uniquement en spé **tank ou soigneur**. Un droptimizer ne
-  mesure que des dégâts et Warcraft Logs n'a pas de classement de survie : aucun chiffre
-  ne dit si un bijou défensif vaut mieux qu'un autre. La section montre donc ce que les
-  meilleurs **portent** — et le dit en toutes lettres plutôt que de laisser croire à un
-  classement. Deux listes : **raid et mythique+**, puis **mythique+ uniquement**, pour qui
-  ne met pas les pieds en raid et à qui une liste de bijoux de raid n'apprend rien.
+- **Onglet Objets** : les **bijoux** que porte le haut de tableau, séparés par
+  **provenance** — ce qui tombe en raid, ce qui tombe en donjon mythique+ — et
+  l'**artisanat**, les recettes qu'il vaut la peine de commander. Rien, en jeu, ne
+  distingue un objet crafté d'un butin sans ouvrir sa recette.
+- **Onglet Talents** : les builds et les taux d'adoption par talent, avec le choix
+  **Raid** ou **Mythique+**. Ce ne sont pas les mêmes arbres — sur un relevé réel, sept
+  talents n'apparaissent qu'en raid, sept autres qu'en donjon. Personne ne publie cette
+  comparaison.
 
 ### Modifié
+
+- **L'onglet Recommandations est allégé.** Il portait six sections dans un seul
+  défilement. Il garde ce qui se **pose** sur une pièce — statistiques, enchantements,
+  gemmes — plus **quatre bijoux** en raccourci : deux du raid, deux des donjons.
+- **Les bijoux sont séparés par provenance, pas par population observée.** La version
+  précédente publiait « raid + mythique+ » et « mythique+ seul » : deux populations de
+  joueurs. Or un raideur porte son bijou de raid en clé mythique+ — il apparaissait donc
+  dans la liste « mythique+ » sans y être obtenable une seule seconde, ce qui, pour qui ne
+  raide pas, est le contraire d'une réponse. Warcraft Logs ne dit pas d'où tombe un objet ;
+  le journal des aventures du client, si.
 
 - **Import d'un droptimizer : un aller-retour au lieu de deux.** L'adresse du fichier de
   résultats est simplement celle du rapport suivie de `/data.csv` — Raidbots le documente,
