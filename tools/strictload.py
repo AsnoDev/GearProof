@@ -391,9 +391,19 @@ def main() -> int:
     # le journal repond, le joueur possede l'objet, personne n'a rien. Le troisieme est
     # celui qui pose l'avertissement « niveau du modele ».
     LINKS = {
-        "journal et sacs muets":
+        # Provenance CONNUE et aucun lien : c'est le seul cas ou l'avertissement
+        # « niveau du modele » doit sortir.
+        "journal et sacs muets, provenance connue":
             'GEARPROOF_NS.Journal.ItemLink = function() return nil end '
-            'GEARPROOF_NS.Bags.OwnedLink = function() return nil end',
+            'GEARPROOF_NS.Bags.OwnedLink = function() return nil end '
+            'GEARPROOF_NS.Journal.ItemSource = function() return "raid" end',
+        # Aucune provenance : un objet CRAFTE. Le repli sur le modele est ici le cas
+        # NORMAL, et « ce n'est pas le niveau du drop » n'aurait aucun sens — il n'y a
+        # pas de drop. Deux branches, et la seconde n'existait pas au premier essai.
+        "journal et sacs muets, sans provenance":
+            'GEARPROOF_NS.Journal.ItemLink = function() return nil end '
+            'GEARPROOF_NS.Bags.OwnedLink = function() return nil end '
+            'GEARPROOF_NS.Journal.ItemSource = function() return nil end',
         "le journal repond":
             'GEARPROOF_NS.Journal.ItemLink = function() return "|cffa335ee|Hitem:212014::::::::80:577::::|h[J]|h|r" end '
             'GEARPROOF_NS.Bags.OwnedLink = function() return nil end',

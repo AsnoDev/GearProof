@@ -249,9 +249,14 @@ local function itemOnEnter(self)
         GameTooltip:AddLine(" ")
         GameTooltip:AddDoubleLine(ns.L["worn at ilvl"], tostring(self.itemLevel),
             0.54, 0.54, 0.54, 0.91, 0.91, 0.91)
-        -- L'avertissement ne sert que si l'on a du retomber sur le modele : les chiffres
-        -- au-dessus decrivent alors un autre objet que celui de la ligne.
-        if not shown then
+        -- L'avertissement ne concerne QUE ce qui tombe.
+        --
+        -- Il ne s'affiche donc que si l'objet a une provenance connue et qu'on a quand
+        -- meme du retomber sur le modele. Sur un objet CRAFTE, « ce n'est pas le niveau
+        -- du drop » ne veut rien dire : il n'y a pas de drop. La phrase etait du bruit sur
+        -- toute la section Artisanat, ou le repli sur le modele est le cas NORMAL — aucun
+        -- craft ne figure dans une table de butin.
+        if not shown and ns.Journal.ItemSource(self.itemID) then
             GameTooltip:AddLine(ns.L["the item level above is the base template, not the drop"],
                 0.54, 0.54, 0.54, true)
         end
