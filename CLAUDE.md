@@ -225,6 +225,21 @@ conditions sans lesquelles il ne trouve rien, chacune apprise d'un bug qui est p
 | Rejouer les **événements** (`ADDON_LOADED`, `PLAYER_LOGIN`) | `ns.db` n'existe qu'après — sans ça tout échoue pour la mauvaise raison |
 | Rafraîchir **deux fois** | La remise à neuf d'un pool ne tourne jamais au premier rendu |
 | **Trois** états d'équipement (incomplet, complet, nu) | Un équipement parfait emprunte une branche entièrement différente |
+| Une **spécialisation réelle** | Sans elle `Meta.Available()` est faux et l'onglet Recommandations ne rend que son état vide — toutes ses sections passaient au vert sans avoir tourné |
+| **Déclencher les survols** | Une infobulle vit dans un `OnEnter`. Poser le gestionnaire n'appelle rien : les lignes se rendaient, l'onglet signalait `[ok]`, et pas une infobulle n'avait jamais été construite |
+
+### La règle qui manquait, apprise quatre fois
+
+**Une branche neuve exige d'abord la donnée qui la déclenche dans le stub.** Le harnais ne
+peut pas la deviner : on ajoute du code, le test passe au vert, et il n'a rien exécuté.
+C'est arrivé pour les sections Objets (pas de `crafts` dans le relevé simulé), les liaisons
+de l'arbre (`CreateLine` absent du stub), les talents de héros (aucun `subTreeID`), et les
+infobulles (aucun survol déclenché). À chaque fois, la vérification « dans les deux sens »
+l'a révélé — la régression volontaire ne cassait rien.
+
+Le stub modélise donc maintenant aussi : les cadres **nommés** dans `_G` (l'addon en dépend
+via `UISpecialFrames`), le type **`Line`**, les **enfants** d'un cadre (`GetChildren`, seul
+chemin vers les lignes d'un pool privé), et les compteurs `Num*` qui rendent un nombre.
 
 Toute modification d'un vérificateur se teste **dans les deux sens** : zéro erreur sur
 l'arbre propre, exactement l'erreur attendue quand le bug est réintroduit.

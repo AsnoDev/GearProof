@@ -204,19 +204,40 @@ local function widget(kind, template, label)
     end
 
     local object = {}
-    local children = {}
+
+    -- ENFANTS ET REGIONS, SEPAREMENT, ET REELLEMENT PEUPLES.
+    --
+    -- `children` existait, n'etait jamais rempli, et `GetChildren` comme `GetRegions`
+    -- rendaient la meme liste vide. Un stub qui rend toujours rien sur ces deux
+    -- accesseurs ment sur deux points : il conflate deux listes que le client distingue,
+    -- et il rend intestable tout ce qui se declenche sur un widget qu'on ne peut pas
+    -- atteindre — les infobulles au survol, en particulier. Les vues gardent leurs lignes
+    -- dans des pools prives ; leurs enfants sont le seul chemin depuis l'exterieur.
+    local children, regions = {}, {}
 
     -- Les scripts sont REELLEMENT stockes. Sans ca, `GetScript("OnEvent")` tombait sur le
     -- repli numerique des accesseurs `Get*` et il devenait impossible de rejouer un
     -- evenement du client — donc de tester le vrai chemin de demarrage.
     local scripts = {}
 
+    local function region(kind)
+        local piece = widget(kind, nil, label)
+        table.insert(regions, piece)
+        return piece
+    end
+
     local handlers = {
-        CreateFontString = function() return widget("FontStringRegion", nil, label) end,
-        CreateLine = function() return widget("LineRegion", nil, label) end,
-        CreateTexture = function() return widget("TextureRegion", nil, label) end,
-        GetRegions = function() return unpack(children) end,
+        CreateFontString = function() return region("FontStringRegion") end,
+        CreateLine = function() return region("LineRegion") end,
+        CreateTexture = function() return region("TextureRegion") end,
+        GetRegions = function() return unpack(regions) end,
         GetChildren = function() return unpack(children) end,
+        GetNumChildren = function() return #children end,
+        GetNumRegions = function() return #regions end,
+        -- Reservee au harnais : `GetChildren` rend des valeurs multiples, penible a
+        -- parcourir depuis Python. La table, elle, se lit d'un index.
+        Children = function() return children end,
+        Adopt = function(_, child) table.insert(children, child) end,
         GetObjectType = function() return definition.name end,
         IsObjectType = function(_, want) return want == definition.name end,
         SetScript = function(_, name, fn) scripts[name] = fn end,
@@ -359,6 +380,11 @@ CLASSES.LineRegion = Line
 function CreateFrame(kind, name, parent, template)
     local w = widget(kind, template, name or ("<" .. tostring(kind) .. " anonyme>"))
     if name then _G[name] = w end
+    -- Le cadre s'inscrit chez son parent, comme cote client. C'est ce qui rend un widget
+    -- de pool atteignable depuis l'exterieur de la vue qui le possede.
+    if type(parent) == "table" and type(parent.Adopt) == "function" then
+        parent:Adopt(w)
+    end
     return w
 end
 

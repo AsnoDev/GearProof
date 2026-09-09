@@ -231,9 +231,15 @@ local function itemOnEnter(self)
     -- `SetItemByID` ne connait que le MODELE, et le crochet d'infobulle lisait ce modele.
     ns.Tooltip.SetKnownLevel(self.itemID, self.itemLevel)
 
-    -- Le lien du JOURNAL d'abord : il porte les identifiants de bonus, donc le vrai niveau
-    -- ET les vraies statistiques. Le modele n'est qu'un repli.
-    local link = ns.Journal.ItemLink(self.itemID)
+    -- TROIS SOURCES, dans l'ordre de ce qu'elles decrivent le mieux.
+    --
+    --   1. Le JOURNAL, qui rend l'objet a la difficulte de reference — c'est le niveau
+    --      affiche sur la ligne, donc les deux concordent.
+    --   2. L'exemplaire que le joueur POSSEDE. Un objet crafte n'est dans aucune table de
+    --      butin : le journal ne le rendra jamais, et le modele donne « niveau 44 » avec
+    --      des lignes « Random Stat 1 / 2 » qui n'existent sur aucun exemplaire reel.
+    --   3. Le modele, en dernier, avec l'avertissement qui dit que c'est un gabarit.
+    local link = ns.Journal.ItemLink(self.itemID) or ns.Bags.OwnedLink(self.itemID)
     local shown = link and pcall(GameTooltip.SetHyperlink, GameTooltip, link)
     if not shown and not pcall(GameTooltip.SetItemByID, GameTooltip, self.itemID) then
         GameTooltip:AddLine("item:" .. self.itemID)

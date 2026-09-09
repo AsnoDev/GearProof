@@ -170,6 +170,50 @@ local function containerLink(bag, slot)
 end
 
 
+-- Index itemID -> chaine d'objet, pour ce que le joueur a deja.
+--
+-- POURQUOI IL EXISTE. Les onglets Objets et Recommandations nomment des objets que le
+-- joueur ne possede pas forcement, et construisent leur infobulle avec `SetItemByID` quand
+-- le journal des aventures ne rend rien. Or `SetItemByID` ne connait que le MODELE : sur
+-- un objet CRAFTE, cela donne « niveau 44 » et des lignes « Random Stat 1 / Random Stat 2 »
+-- — des valeurs de gabarit qui n'existent sur aucun exemplaire reel.
+--
+-- Et un objet crafte n'est dans AUCUNE table de butin : le journal ne le rendra jamais. Le
+-- seul exemplaire vrai a portee est celui que le joueur porte ou transporte. Vu en jeu :
+-- l'addon affichait « Spellbreaker's Bracers, niveau 44 » a cote de la meme piece equipee
+-- au niveau 331.
+local ownedCache
+
+--- Chaine d'objet d'un exemplaire que le joueur POSSEDE : porte, ou dans ses sacs.
+---
+--- L'equipement d'abord : c'est l'exemplaire qu'il a choisi de monter, donc le plus
+--- representatif quand il en a plusieurs.
+---
+--- L'index est memoise avec le reste du module et tombe aux memes evenements — un objet
+--- ramasse ou equipe change la reponse.
+--- @return string|nil
+function Bags.OwnedLink(itemID)
+    if not itemID then return nil end
+
+    if not ownedCache then
+        ownedCache = {}
+        for _, entry in ipairs(ns.Gear.Scan() or {}) do
+            if entry.itemID and entry.link and not ownedCache[entry.itemID] then
+                ownedCache[entry.itemID] = entry.link
+            end
+        end
+        for _, bag in ipairs(candidateBags()) do
+            for slot = 1, containerSlots(bag) do
+                local link = containerLink(bag, slot)
+                local id = link and ns.ItemInfo.ID(link)
+                if id and not ownedCache[id] then ownedCache[id] = link end
+            end
+        end
+    end
+
+    return ownedCache[itemID]
+end
+
 --- Sacs du personnage, plus la banque si elle est ouverte.
 local function candidateBags()
     local bags = { 0, 1, 2, 3, 4, 5 }
@@ -347,6 +391,7 @@ local COMPARE_TTL = 2
 
 function Bags.Invalidate()
     cachedCompare, compareAt = nil, 0
+    ownedCache = nil
 end
 
 function Bags.Compare()

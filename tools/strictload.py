@@ -358,6 +358,61 @@ def main() -> int:
         report.error("arbre de heros", "nom non resolu : "
                      + str(lua.globals().GEARPROOF_HERO))
 
+
+    # LES SURVOLS, ET POURQUOI ILS N'ETAIENT PAS TESTES.
+    #
+    # Les infobulles se construisent dans un `OnEnter`. Poser le gestionnaire n'appelle
+    # rien : les onglets rendaient leurs lignes, signalaient [ok], et pas une infobulle
+    # n'avait jamais ete construite. C'est exactement la que vivait le dernier bug vu en
+    # jeu — un objet crafte affiche « niveau 44 » avec des « Random Stat » de gabarit.
+    #
+    # Les vues gardent leurs lignes dans des pools prives. Le seul chemin depuis
+    # l'exterieur passe par les ENFANTS du cadre de contenu, que le stub peuple maintenant
+    # comme le client.
+    def hover_rows(label, view_name):
+        lua.execute(f"GEARPROOF_VIEW = GEARPROOF_NS.{view_name}.Create(nil)")
+        view = lua.globals().GEARPROOF_VIEW
+        if view is None or view["content"] is None:
+            report.error(f"{label}, survol", "la vue n'expose pas son contenu")
+            return
+        lua.execute("GEARPROOF_ROWS = GEARPROOF_VIEW.content:Children()")
+        rows = lua.globals().GEARPROOF_ROWS
+        count = len(rows) if rows is not None else 0
+        if count == 0:
+            report.error(f"{label}, survol", "aucune ligne a survoler")
+            return
+        for index in range(1, count + 1):
+            step(f"{label}, survol de la ligne {index}",
+                 f'local row = GEARPROOF_ROWS[{index}] '
+                 f'if row.GetScript and row:GetScript("OnEnter") then '
+                 f'row:Fire("OnEnter") row:Fire("OnLeave") end')
+
+    # TROIS ETATS DE LIEN, et les trois empruntent une branche differente de l'infobulle :
+    # le journal repond, le joueur possede l'objet, personne n'a rien. Le troisieme est
+    # celui qui pose l'avertissement « niveau du modele ».
+    LINKS = {
+        "journal et sacs muets":
+            'GEARPROOF_NS.Journal.ItemLink = function() return nil end '
+            'GEARPROOF_NS.Bags.OwnedLink = function() return nil end',
+        "le journal repond":
+            'GEARPROOF_NS.Journal.ItemLink = function() return "|cffa335ee|Hitem:212014::::::::80:577::::|h[J]|h|r" end '
+            'GEARPROOF_NS.Bags.OwnedLink = function() return nil end',
+        "seul le sac repond":
+            'GEARPROOF_NS.Journal.ItemLink = function() return nil end '
+            'GEARPROOF_NS.Bags.OwnedLink = function() return "|cffa335ee|Hitem:212014::::::::80:577::::|h[S]|h|r" end',
+    }
+    for label, setup in LINKS.items():
+        lua.execute(setup)
+        lua.execute("GEARPROOF_NS.UI.Show('items')")
+        hover_rows(f"objets ({label})", "ItemsView")
+        lua.execute("GEARPROOF_NS.UI.Show('reco')")
+        hover_rows(f"recommandations ({label})", "RecoView")
+
+    # Les noeuds de l'arbre ont eux aussi une infobulle, et elle nomme la branche PRISE
+    # sur un noeud a choix — une donnee qui n'existe que la.
+    lua.execute("GEARPROOF_NS.UI.Show('talent')")
+    hover_rows("talents", "TalentView")
+
     # LE CONTROLE DU FORMAT D'EXPORT. Le stub ne fournit pas `GenerateImportString` : le
     # bouton doit donc rester MASQUE. Un export propose sans preuve produirait une chaine
     # que le jeu refuse — ou, pire, accepte de travers.
