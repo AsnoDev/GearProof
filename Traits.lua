@@ -146,11 +146,28 @@ function Traits.Snapshot()
         local info = safe(C_Traits.GetNodeInfo, configID, nodeID)
         if info then
             local entryIDs = info.entryIDs or {}
+            -- CHAQUE ENTREE porte son nom et son icone, pas seulement la premiere.
+            --
+            -- Un noeud a choix propose deux sorts differents. N'en garder qu'un affichait
+            -- l'icone de la premiere branche meme quand le build prenait la seconde : le
+            -- joueur voyait le bon noeud allume et la mauvaise icone dessus.
+            local entries = {}
             local name, icon
             for _, entryID in ipairs(entryIDs) do
                 byEntry[entryID] = nodeID
-                if not name then name, icon = entryLabel(configID, entryID) end
+                local entryName, entryIcon = entryLabel(configID, entryID)
+                entries[entryID] = { name = entryName, icon = entryIcon }
+                if not name then name, icon = entryName, entryIcon end
             end
+
+            -- LES LIAISONS. Un arbre sans traits n'est qu'une grille d'icones : c'est
+            -- justement ce qui rendait la page « peu claire ». `visibleEdges` dit quel
+            -- noeud ouvre quel autre, et c'est ce que le jeu dessine lui aussi.
+            local edges = {}
+            for _, edge in ipairs(info.visibleEdges or {}) do
+                if edge.targetNode then table.insert(edges, edge.targetNode) end
+            end
+
             nodes[nodeID] = {
                 id = nodeID,
                 x = info.posX or 0,
@@ -158,6 +175,8 @@ function Traits.Snapshot()
                 maxRanks = info.maxRanks or 1,
                 type = info.type,
                 entryIDs = entryIDs,
+                entries = entries,
+                edges = edges,
                 ranksPurchased = info.ranksPurchased or 0,
                 activeEntry = info.activeEntry,
                 name = name,

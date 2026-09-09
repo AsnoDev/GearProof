@@ -264,13 +264,20 @@ def main() -> int:
         Enum = Enum or {}
         Enum.TraitNodeType = { Single = 0, Tiered = 1, Selection = 2 }
 
+        -- `visibleEdges` DOIT etre la : sans elle, la boucle qui dessine les liaisons
+        -- n'a aucun tour a faire et le code des traits n'est jamais execute. Trois
+        -- noeuds relies en chaine couvrent les deux cas — une liaison dont les deux
+        -- bouts sont pris, et une dont un seul l'est.
         local NODES = {
             [10] = { posX = 1000, posY = 1000, maxRanks = 1, type = 0, entryIDs = { 100 },
-                     ranksPurchased = 1, activeEntry = { entryID = 100, rank = 1 } },
+                     ranksPurchased = 1, activeEntry = { entryID = 100, rank = 1 },
+                     visibleEdges = { { targetNode = 20 } } },
             [20] = { posX = 4000, posY = 2600, maxRanks = 3, type = 1, entryIDs = { 200 },
-                     ranksPurchased = 2, activeEntry = { entryID = 200, rank = 2 } },
+                     ranksPurchased = 2, activeEntry = { entryID = 200, rank = 2 },
+                     visibleEdges = { { targetNode = 30 } } },
             [30] = { posX = 7400, posY = 5200, maxRanks = 1, type = 2,
-                     entryIDs = { 300, 301 }, ranksPurchased = 0 },
+                     entryIDs = { 300, 301 }, ranksPurchased = 0,
+                     visibleEdges = {} },
         }
 
         C_ClassTalents = C_ClassTalents or {}

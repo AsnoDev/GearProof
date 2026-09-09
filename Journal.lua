@@ -177,6 +177,8 @@ end
 
 local raidCache, encounterCache, lootCache, portraitCache = nil, {}, {}, {}
 local dungeonCache, sourceCache, linkCache, levelCache = nil, nil, nil, nil
+-- L'index a-t-il ete construit alors que des liens manquaient encore ?
+local sourceIncomplete = false
 
 -- DIFFICULTE DE REFERENCE de chaque provenance.
 --
@@ -185,6 +187,26 @@ local dungeonCache, sourceCache, linkCache, levelCache = nil, nil, nil, nil
 -- niveau au-dela — donc le donjon mythique est le PLANCHER de ce qu'une cle rend, et c'est
 -- le chiffre honnete a afficher : celui qu'on est sur d'obtenir.
 local RAID_REFERENCE, DUNGEON_REFERENCE = 16, 23
+
+--- Une lecture de butin est-elle COMPLETE ?
+---
+--- « Un resultat vide n'est pas un resultat » ne suffisait pas. Le journal rend d'abord la
+--- liste des identifiants, puis les LIENS arrivent — c'est une seconde vague, annoncee par
+--- `EJ_LOOT_DATA_RECEIVED`. Une lecture faite entre les deux est non vide et pourtant
+--- inutilisable : elle porte des identifiants sans liens, donc sans niveau d'objet ni
+--- statistiques.
+---
+--- Elle etait mise en cache dans cet etat, definitivement. Vu en jeu : les bijoux de raid
+--- affichaient « ilvl 344 raid mythique » et ceux de donjon rien du tout — l'index des
+--- donjons avait ete construit pendant la fenetre ou les liens manquaient encore, et plus
+--- rien ne le relisait.
+local function lootIsComplete(list)
+    if not list or not next(list) then return false end
+    for _, loot in ipairs(list) do
+        if not loot.link then return false end
+    end
+    return true
+end
 
 --- Portrait d'un boss, comme le journal l'affiche.
 ---
@@ -344,8 +366,9 @@ function Journal.Loot(instanceID, encounterID, difficultyID, classID, specID)
 
     -- Comme pour `Sim.LootLink` : un resultat VIDE n'est pas un resultat. Le journal
     -- charge son butin de facon asynchrone, et la premiere lecture apres selection rend
-    -- toujours zero. Le mettre en cache figerait « ce boss ne donne rien ».
-    if found and next(found) then lootCache[key] = found end
+    -- toujours zero. Le mettre en cache figerait « ce boss ne donne rien ». Une lecture
+    -- SANS LIENS n'en est pas un non plus — voir `lootIsComplete`.
+    if lootIsComplete(found) then lootCache[key] = found end
     return found or {}
 end
 
@@ -403,7 +426,7 @@ function Journal.InstanceLoot(instanceID, difficultyID, classID, specID)
         return list
     end)
 
-    if found and next(found) then lootCache[key] = found end
+    if lootIsComplete(found) then lootCache[key] = found end
     return found or {}
 end
 
@@ -428,6 +451,7 @@ function Journal.ItemSource(itemID)
 
     if not sourceCache then
         local index, links, levels, found = {}, {}, {}, false
+        sourceIncomplete = false
 
         -- Le RAID d'abord : en cas de doublon, un objet qui tombe des deux cotes est
         -- annonce comme butin de donjon, qui est le contenu le plus accessible. Dire a un
@@ -447,6 +471,10 @@ function Journal.ItemSource(itemID)
                             links[loot.id] = loot.link
                             local level = ns.ItemInfo.Level(loot.link)
                             if level and level > 0 then levels[loot.id] = level end
+                        else
+                            -- Un objet classe mais sans lien : l'index est INCOMPLET, et
+                            -- il faudra le refaire quand la seconde vague arrivera.
+                            sourceIncomplete = true
                         end
                     end
                 end
@@ -496,10 +524,24 @@ function Journal.ItemLevel(itemID)
     return level, source
 end
 
+--- Les liens du butin arrivent en SECONDE VAGUE, apres les identifiants.
+---
+--- On ne jette l'index QUE s'il a ete construit avant leur arrivee : le reconstruire a
+--- chaque salve couterait une relecture de toutes les instances du palier pour rien.
+local function onLootDataReceived()
+    if not sourceIncomplete then return end
+    sourceCache, linkCache, levelCache, sourceIncomplete = nil, nil, nil, false
+end
+
+for _, event in ipairs({ "EJ_LOOT_DATA_RECIEVED", "EJ_LOOT_DATA_RECEIVED" }) do
+    ns.On(event, onLootDataReceived)
+end
+
 --- Oublie tout ce qui a ete lu. Le butin depend de la difficulte et de la spe.
 function Journal.Invalidate()
     raidCache, encounterCache, lootCache = nil, {}, {}
     dungeonCache, sourceCache, linkCache, levelCache = nil, nil, nil, nil
+    sourceIncomplete = false
 end
 
 ns.On("ACTIVE_TALENT_GROUP_CHANGED", Journal.Invalidate)

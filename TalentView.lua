@@ -43,6 +43,17 @@ end
 
 -- ------------------------------------------------------------------- widgets
 
+--- Une LIAISON entre deux noeuds.
+---
+--- `CreateLine` est le type de widget que Blizzard utilise pour son propre arbre : il se
+--- pose par deux ancres et se charge de l'angle. Une texture pivotee ne ferait pas
+--- l'affaire — `SetRotation` tourne l'image DANS sa region, pas la region.
+local function newEdge()
+    local line = view.content:CreateLine(nil, "BACKGROUND")
+    line:SetThickness(2)
+    return line
+end
+
 local function newNode()
     local button = CreateFrame("Button", nil, view.content, "BackdropTemplate")
     button:SetSize(NODE, NODE)
@@ -127,7 +138,7 @@ local function newText()
 end
 
 local function resetNode(button)
-    button.node, button.share = nil, nil
+    button.node, button.share, button.chosen = nil, nil, nil
     button:SetScript("OnEnter", nil)
     button:SetScript("OnLeave", nil)
 end
@@ -142,7 +153,8 @@ local function nodeOnEnter(self)
 
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:ClearLines()
-    GameTooltip:AddLine(node.name or ("#" .. tostring(node.id)))
+    GameTooltip:AddLine((self.chosen and self.chosen.name) or node.name
+        or ("#" .. tostring(node.id)))
     if self.pickedRank then
         GameTooltip:AddDoubleLine(L["taken by the top build"],
             string.format("%d/%d", self.pickedRank, node.maxRanks or 1),
@@ -225,8 +237,27 @@ local function layoutTree(top, width)
     end
     if not minX or maxX == minX then return nil, L["The client did not return a talent tree."] end
 
+    -- DES NOEUDS QUI NE SE CHEVAUCHENT PAS.
+    --
+    -- Une taille fixe et une echelle calculee sur la largeur se contredisent des que
+    -- l'arbre est dense : deux colonnes voisines finissent a douze pixels l'une de
+    -- l'autre et les icones se recouvrent. On mesure donc l'ecart le plus SERRE entre
+    -- deux positions distinctes, et la taille du noeud s'y plie.
     local usable = width - NODE - 8
     local scale = usable / (maxX - minX)
+
+    local tightest
+    local seen = {}
+    for _, node in pairs(shot.nodes) do
+        for _, other in pairs(seen) do
+            local gap = math.max(math.abs(node.x - other.x), math.abs(node.y - other.y))
+            if gap > 0 then tightest = math.min(tightest or gap, gap) end
+        end
+        table.insert(seen, node)
+    end
+
+    local size = NODE
+    if tightest then size = math.max(14, math.min(NODE, tightest * scale - 2)) end
     local height = (maxY - minY) * scale
 
     top = heading(top, width, L["Talent tree"])
@@ -235,6 +266,36 @@ local function layoutTree(top, width)
         (build.share or 0) * 100 + 0.5) .. "|r")
 
     local origin = top - 4
+    local function place(node)
+        return 4 + (node.x - minX) * scale + size / 2,
+               origin - (node.y - minY) * scale - size / 2
+    end
+
+    -- LES LIAISONS D'ABORD, sous les noeuds : posees apres, elles passeraient dessus.
+    local dim = ns.Theme.RGB.muted or { 0.5, 0.5, 0.5 }
+    local lit = ns.Theme.RGB.link or { 0, 0.7, 1 }
+    for _, nodeID in ipairs(shot.order) do
+        local node = shot.nodes[nodeID]
+        for _, targetID in ipairs((node and node.edges) or {}) do
+            local target = shot.nodes[targetID]
+            if target then
+                local line = pools.edge:Acquire()
+                local ax, ay = place(node)
+                local bx, by = place(target)
+                line:ClearAllPoints()
+                line:SetStartPoint("TOPLEFT", view.content, ax, ay)
+                line:SetEndPoint("TOPLEFT", view.content, bx, by)
+                -- Une liaison ALLUMEE quand ses deux extremites sont prises : c'est le
+                -- chemin que le build a reellement emprunte, et c'est ce qui fait lire
+                -- l'arbre d'un coup d'oeil plutot que noeud par noeud.
+                local live = match.selection[nodeID] and match.selection[targetID]
+                local rgb = live and lit or dim
+                line:SetColorTexture(rgb[1], rgb[2], rgb[3], live and 0.9 or 0.25)
+                line:Show()
+            end
+        end
+    end
+
     for _, nodeID in ipairs(shot.order) do
         local node = shot.nodes[nodeID]
         if node then
@@ -242,15 +303,21 @@ local function layoutTree(top, width)
             local button = pools.node:Acquire()
             button:SetParent(view.content)
             button:ClearAllPoints()
+            button:SetSize(size, size)
             button:SetPoint("TOPLEFT",
                 4 + (node.x - minX) * scale,
                 origin - (node.y - minY) * scale)
 
-            button.icon:SetTexture(node.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+            -- L'ICONE DE LA BRANCHE PRISE sur un noeud a choix. La premiere entree servait
+            -- pour tout le monde : le noeud s'allumait juste et portait l'icone de l'autre
+            -- option.
+            local chosen = picked and picked.entryID and node.entries[picked.entryID]
+            button.icon:SetTexture((chosen and chosen.icon) or node.icon
+                or "Interface\\Icons\\INV_Misc_QuestionMark")
             -- PRIS ou PAS PRIS, et rien entre les deux : la couleur seule ne porte jamais
             -- l'information ici non plus, le rang l'ecrit en chiffres.
             button.icon:SetDesaturated(not picked)
-            button.icon:SetAlpha(picked and 1 or 0.35)
+            button.icon:SetAlpha(picked and 1 or 0.3)
             ns.Theme.ApplyCard(button, picked and ns.Theme.RGB.link or nil)
 
             local maxRanks = node.maxRanks or 1
@@ -258,6 +325,7 @@ local function layoutTree(top, width)
                 and (hex("text") .. picked.rank .. "|r") or "")
 
             button.node = node
+            button.chosen = chosen
             button.pickedRank = picked and picked.rank or nil
             button.share = picked and shares[picked.sourceID] or nil
             button:SetScript("OnEnter", nodeOnEnter)
@@ -266,7 +334,7 @@ local function layoutTree(top, width)
         end
     end
 
-    return origin - height - NODE - NODE_GAP
+    return origin - height - size - NODE_GAP
 end
 
 local function layoutTalentList(top, width)
@@ -499,6 +567,7 @@ function TalentView.Create(parent)
     ns.Theme.CleanScrollBar(view.scroll)
 
     pools = {
+        edge = ns.Pool.New(newEdge),
         node = ns.Pool.New(newNode, resetNode),
         build = ns.Pool.New(newBuildRow),
         talent = ns.Pool.New(newTalentRow),

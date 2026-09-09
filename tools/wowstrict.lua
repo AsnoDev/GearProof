@@ -80,6 +80,16 @@ local EditBox = class("EditBox", {
     "SetTextInsets", "Insert", "SetJustifyH",
 }, Frame)
 
+-- Une LIGNE est une region a part : elle se pose par deux ancres au lieu d'un cadre, et
+-- c'est ce que le client utilise pour les liaisons d'un arbre de talents. Sans elle dans
+-- le stub, `content:CreateLine()` rendait nil et la boucle des liaisons n'etait jamais
+-- atteinte — l'arbre passait au vert sans qu'un seul trait ait ete dessine.
+local Line = class("Line", {
+    "SetThickness", "GetThickness", "SetStartPoint", "SetEndPoint",
+    "SetColorTexture", "SetVertexColor", "SetTexture", "SetDrawLayer",
+    "SetAtlas",
+}, Region)
+
 local ScrollFrame = class("ScrollFrame", {
     "SetScrollChild", "GetScrollChild", "SetVerticalScroll", "GetVerticalScroll",
     "GetVerticalScrollRange", "UpdateScrollChildRect", "SetHorizontalScroll",
@@ -203,6 +213,7 @@ local function widget(kind, template, label)
 
     local handlers = {
         CreateFontString = function() return widget("FontStringRegion", nil, label) end,
+        CreateLine = function() return widget("LineRegion", nil, label) end,
         CreateTexture = function() return widget("TextureRegion", nil, label) end,
         GetRegions = function() return unpack(children) end,
         GetChildren = function() return unpack(children) end,
@@ -338,6 +349,7 @@ end
 -- FontString et Texture sont des Regions, pas des Frames : elles ont leur propre table.
 CLASSES.FontStringRegion = FontString
 CLASSES.TextureRegion = Texture
+CLASSES.LineRegion = Line
 
 -- Un cadre NOMME devient une globale, comme dans le client. L'addon en depend : il pose
 -- "GearProofDroptimizer" dans `UISpecialFrames`, une table de NOMS que le client resout
