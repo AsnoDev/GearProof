@@ -172,6 +172,12 @@ function Traits.Snapshot()
                 id = nodeID,
                 x = info.posX or 0,
                 y = info.posY or 0,
+                -- L'ARBRE DE HEROS EST UN ARBRE A PART, et ses coordonnees ne vivent pas
+                -- dans le meme repere que celles de l'arbre principal. Normalisees avec le
+                -- reste, elles l'envoyaient en haut a droite, colle a l'arbre de spe. En
+                -- jeu il est en bas, au centre. `subTreeID` est ce qui permet de le
+                -- reconnaitre — nil sur les noeuds de classe et de spe.
+                subTree = info.subTreeID,
                 maxRanks = info.maxRanks or 1,
                 type = info.type,
                 entryIDs = entryIDs,
@@ -198,6 +204,16 @@ end
 
 function Traits.Invalidate()
     snapshot = nil
+end
+
+--- Nom d'un arbre de heros, quand le client sait le donner.
+--- @return string|nil
+function Traits.SubTreeName(subTreeID)
+    if not subTreeID then return nil end
+    local shot = Traits.Snapshot()
+    if not shot then return nil end
+    local info = safe(C_Traits and C_Traits.GetSubTreeInfo, shot.configID, subTreeID)
+    return info and info.name or nil
 end
 
 --- Le relevé parle-t-il en NOEUDS ou en ENTREES ? On compte, on ne suppose pas.

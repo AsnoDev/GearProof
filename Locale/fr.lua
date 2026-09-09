@@ -102,6 +102,7 @@ ns.translations.fr = {
     -- L'ARBRE, et les trois raisons de ne pas pouvoir le dessiner — dites au joueur
     -- plutot que masquees derriere une page vide.
     ["Talent tree"] = "Arbre de talents",
+    ["Hero talents"] = "Talents de heros",
     ["Top build: %d%% of the top players. Hover a node for its adoption."] =
         "Build de tete : %d %% du haut de tableau. Survole un noeud pour son taux de prise.",
     ["taken by the top build"] = "pris par le build de tete",

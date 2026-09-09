@@ -278,6 +278,17 @@ def main() -> int:
             [30] = { posX = 7400, posY = 5200, maxRanks = 1, type = 2,
                      entryIDs = { 300, 301 }, ranksPurchased = 0,
                      visibleEdges = {} },
+            -- DEUX ARBRES DE HEROS, dont un seul est joue. C'est la situation reelle : une
+            -- spe en propose plusieurs, le build en prend un. Celui que personne ne prend
+            -- ne doit pas remplir la page de noeuds eteints.
+            [40] = { posX = 2000, posY = 9000, maxRanks = 1, type = 0, entryIDs = { 400 },
+                     ranksPurchased = 1, activeEntry = { entryID = 400, rank = 1 },
+                     subTreeID = 5, visibleEdges = { { targetNode = 41 } } },
+            [41] = { posX = 2600, posY = 9600, maxRanks = 1, type = 0, entryIDs = { 410 },
+                     ranksPurchased = 1, activeEntry = { entryID = 410, rank = 1 },
+                     subTreeID = 5, visibleEdges = {} },
+            [50] = { posX = 2000, posY = 9000, maxRanks = 1, type = 0, entryIDs = { 500 },
+                     ranksPurchased = 0, subTreeID = 6, visibleEdges = {} },
         }
 
         C_ClassTalents = C_ClassTalents or {}
@@ -285,7 +296,10 @@ def main() -> int:
 
         C_Traits = C_Traits or {}
         C_Traits.GetConfigInfo = function() return { treeIDs = { 42 } } end
-        C_Traits.GetTreeNodes = function() return { 10, 20, 30 } end
+        C_Traits.GetTreeNodes = function() return { 10, 20, 30, 40, 41, 50 } end
+        C_Traits.GetSubTreeInfo = function(_, subTreeID)
+            return { name = "Heros " .. tostring(subTreeID) }
+        end
         C_Traits.GetNodeInfo = function(_, nodeID) return NODES[nodeID] end
         C_Traits.GetEntryInfo = function(_, entryID) return { definitionID = entryID } end
         C_Traits.GetDefinitionInfo = function(definitionID)
@@ -299,7 +313,7 @@ def main() -> int:
         -- Le relevé parle en NOEUDS ici. L'autre espace — les entrees — est couvert plus
         -- bas : c'est `Traits.Match` qui tranche, et les deux branches comptent.
         GEARPROOF_NS.Meta.Builds = function()
-            return { { n = 5, share = 0.25, nodes = { 10, 1, 20, 2 },
+            return { { n = 5, share = 0.25, nodes = { 10, 1, 20, 2, 40, 1, 41, 1 },
                        stats = { crit = 0.3, haste = 0.3, mastery = 0.2, versatility = 0.2 } } }
         end
         GEARPROOF_NS.Meta.Talents = function()
@@ -318,11 +332,12 @@ def main() -> int:
     # L'ARBRE A-T-IL VRAIMENT ETE DESSINE ? Un [ok] ne prouve que l'absence d'erreur, et la
     # page a un repli qui, lui, ne leve jamais. On verifie la correspondance elle-meme.
     lua.execute("""
-        GEARPROOF_MATCH = GEARPROOF_NS.Traits.Match({ 10, 1, 20, 2 })
+        GEARPROOF_MATCH = GEARPROOF_NS.Traits.Match({ 10, 1, 20, 2, 40, 1, 41, 1 })
+        GEARPROOF_HERO = GEARPROOF_NS.Traits.SubTreeName(5)
         GEARPROOF_ENTRY = GEARPROOF_NS.Traits.Match({ 100, 1, 301, 1 })
     """)
     match = lua.globals().GEARPROOF_MATCH
-    if not match or match["mode"] != "node" or int(match["matched"]) != 2:
+    if not match or match["mode"] != "node" or int(match["matched"]) != 4:
         report.error("arbre, correspondance par noeud",
                      "le relevé en identifiants de noeud n'est pas reconnu")
 
@@ -336,6 +351,12 @@ def main() -> int:
     elif entry["selection"][30]["entryID"] != 301:
         report.error("arbre, noeud a choix",
                      "la branche prise sur un noeud a choix n'est pas retenue")
+
+    # L'ARBRE DE HEROS EST-IL RECONNU ? Son nom vient du client, et sans lui le bloc
+    # s'afficherait sous un titre generique sans que rien ne le signale.
+    if str(lua.globals().GEARPROOF_HERO) != "Heros 5":
+        report.error("arbre de heros", "nom non resolu : "
+                     + str(lua.globals().GEARPROOF_HERO))
 
     # LE CONTROLE DU FORMAT D'EXPORT. Le stub ne fournit pas `GenerateImportString` : le
     # bouton doit donc rester MASQUE. Un export propose sans preuve produirait une chaine

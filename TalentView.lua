@@ -30,6 +30,9 @@ local L = ns.L
 
 local NODE = 30
 local NODE_GAP = 6
+-- Espace entre l'arbre principal et celui de heros. Assez large pour qu'on lise deux
+-- dessins et non un seul qui deborde.
+local HERO_GAP = 24
 local BUILD_ROW = 38
 local TALENT_ROW = 22
 local SECTION_GAP = 18
@@ -225,66 +228,145 @@ local function layoutTree(top, width)
 
     local shares = shareByID()
 
-    -- MISE A L'ECHELLE. Les positions de `C_Traits` sont dans un repere propre a Blizzard,
-    -- de plusieurs milliers d'unites. On ramene l'ensemble dans la largeur disponible en
-    -- gardant les proportions : un arbre etire ne se reconnait plus.
-    local minX, maxX, minY, maxY
-    for _, node in pairs(shot.nodes) do
-        minX = math.min(minX or node.x, node.x)
-        maxX = math.max(maxX or node.x, node.x)
-        minY = math.min(minY or node.y, node.y)
-        maxY = math.max(maxY or node.y, node.y)
-    end
-    if not minX or maxX == minX then return nil, L["The client did not return a talent tree."] end
-
-    -- DES NOEUDS QUI NE SE CHEVAUCHENT PAS.
+    -- DEUX ARBRES, DEUX REPERES.
     --
-    -- Une taille fixe et une echelle calculee sur la largeur se contredisent des que
-    -- l'arbre est dense : deux colonnes voisines finissent a douze pixels l'une de
-    -- l'autre et les icones se recouvrent. On mesure donc l'ecart le plus SERRE entre
-    -- deux positions distinctes, et la taille du noeud s'y plie.
+    -- Les noeuds de heros portent un `subTree` et vivent dans un systeme de coordonnees
+    -- qui leur est propre. Normalises avec le reste, ils atterrissaient en haut a droite,
+    -- colles a l'arbre de spe — alors qu'en jeu ils sont en bas, au centre. On les sort
+    -- donc du calcul principal et on leur donne leur propre bloc.
+    local main, heroes = {}, {}
+    for _, nodeID in ipairs(shot.order) do
+        local node = shot.nodes[nodeID]
+        if node then
+            if node.subTree then
+                heroes[node.subTree] = heroes[node.subTree] or {}
+                table.insert(heroes[node.subTree], node)
+            else
+                table.insert(main, node)
+            end
+        end
+    end
+    if #main == 0 then return nil, L["The client did not return a talent tree."] end
+
+    --- Etendue d'un groupe de noeuds.
+    local function bounds(list)
+        local minX, maxX, minY, maxY
+        for _, node in ipairs(list) do
+            minX = math.min(minX or node.x, node.x)
+            maxX = math.max(maxX or node.x, node.x)
+            minY = math.min(minY or node.y, node.y)
+            maxY = math.max(maxY or node.y, node.y)
+        end
+        return minX, maxX, minY, maxY
+    end
+
+    --- Ecart le plus SERRE entre deux positions distinctes.
+    ---
+    --- Une taille de noeud fixe et une echelle calculee sur la largeur se contredisent des
+    --- que l'arbre est dense : deux colonnes voisines finissent a douze pixels l'une de
+    --- l'autre et les icones se recouvrent. La taille se plie donc a l'ecart le plus court.
+    local function tightestGap(list)
+        local tightest
+        for index = 1, #list do
+            for other = index + 1, #list do
+                local gap = math.max(math.abs(list[index].x - list[other].x),
+                                     math.abs(list[index].y - list[other].y))
+                if gap > 0 then tightest = math.min(tightest or gap, gap) end
+            end
+        end
+        return tightest
+    end
+
+    local minX, maxX, minY, maxY = bounds(main)
+    if not minX or maxX == minX then
+        return nil, L["The client did not return a talent tree."]
+    end
+
     local usable = width - NODE - 8
     local scale = usable / (maxX - minX)
-
-    local tightest
-    local seen = {}
-    for _, node in pairs(shot.nodes) do
-        for _, other in pairs(seen) do
-            local gap = math.max(math.abs(node.x - other.x), math.abs(node.y - other.y))
-            if gap > 0 then tightest = math.min(tightest or gap, gap) end
-        end
-        table.insert(seen, node)
-    end
-
-    local size = NODE
-    if tightest then size = math.max(14, math.min(NODE, tightest * scale - 2)) end
-    local height = (maxY - minY) * scale
+    local gap = tightestGap(main)
+    local size = gap and math.max(14, math.min(NODE, gap * scale - 2)) or NODE
 
     top = heading(top, width, L["Talent tree"])
     top = text(top, width, hex("muted") .. string.format(
         L["Top build: %d%% of the top players. Hover a node for its adoption."],
         (build.share or 0) * 100 + 0.5) .. "|r")
 
+    -- Position finale de chaque noeud, tous arbres confondus. Les liaisons s'y reperent
+    -- ensuite sans avoir a savoir de quel arbre vient chaque extremite.
+    local placed = {}
     local origin = top - 4
-    local function place(node)
-        return 4 + (node.x - minX) * scale + size / 2,
-               origin - (node.y - minY) * scale - size / 2
+    for _, node in ipairs(main) do
+        placed[node.id] = {
+            x = 4 + (node.x - minX) * scale,
+            y = origin - (node.y - minY) * scale,
+        }
+    end
+    local bottom = origin - (maxY - minY) * scale - size
+
+    -- L'ARBRE DE HEROS RETENU : celui que le build joue.
+    --
+    -- Une specialisation en propose plusieurs et n'en joue qu'un. Les afficher tous
+    -- remplirait la page de noeuds eteints qui ne decrivent personne — c'est d'ailleurs la
+    -- grille grise qui trainait au milieu. On garde celui ou le build a pris le plus de
+    -- noeuds, et a defaut aucun.
+    local bestTree, bestCount
+    for subTree, list in pairs(heroes) do
+        local taken = 0
+        for _, node in ipairs(list) do
+            if match.selection[node.id] then taken = taken + 1 end
+        end
+        if taken > 0 and (not bestCount or taken > bestCount) then
+            bestTree, bestCount = subTree, taken
+        end
+    end
+
+    local heroLabel
+    if bestTree then
+        local list = heroes[bestTree]
+        local hminX, hmaxX, hminY, hmaxY = bounds(list)
+        local span = math.max(1, hmaxX - hminX)
+        local heroGap = tightestGap(list)
+
+        -- Meme pas de grille que l'arbre principal : deux arbres a des echelles
+        -- differentes sur la meme page ne se lisent pas comme un seul dessin.
+        local heroScale = heroGap and (size + 4) / heroGap or scale
+        local heroWidth = span * heroScale
+        local left = math.max(4, (width - heroWidth - size) / 2)
+
+        bottom = bottom - HERO_GAP
+        heroLabel = { top = bottom, name = ns.Traits.SubTreeName(bestTree) }
+        bottom = bottom - 18
+
+        for _, node in ipairs(list) do
+            placed[node.id] = {
+                x = left + (node.x - hminX) * heroScale,
+                y = bottom - (node.y - hminY) * heroScale,
+            }
+        end
+        bottom = bottom - (hmaxY - hminY) * heroScale - size
+    end
+
+    if heroLabel then
+        local label = pools.text:Acquire()
+        label:ClearAllPoints()
+        label:SetPoint("TOPLEFT", 2, heroLabel.top)
+        label:SetWidth(width - 4)
+        label:SetText(hex("link") .. (heroLabel.name or L["Hero talents"]):upper() .. "|r")
     end
 
     -- LES LIAISONS D'ABORD, sous les noeuds : posees apres, elles passeraient dessus.
     local dim = ns.Theme.RGB.muted or { 0.5, 0.5, 0.5 }
     local lit = ns.Theme.RGB.link or { 0, 0.7, 1 }
-    for _, nodeID in ipairs(shot.order) do
+    for nodeID, from in pairs(placed) do
         local node = shot.nodes[nodeID]
         for _, targetID in ipairs((node and node.edges) or {}) do
-            local target = shot.nodes[targetID]
-            if target then
+            local to = placed[targetID]
+            if to then
                 local line = pools.edge:Acquire()
-                local ax, ay = place(node)
-                local bx, by = place(target)
                 line:ClearAllPoints()
-                line:SetStartPoint("TOPLEFT", view.content, ax, ay)
-                line:SetEndPoint("TOPLEFT", view.content, bx, by)
+                line:SetStartPoint("TOPLEFT", view.content, from.x + size / 2, from.y - size / 2)
+                line:SetEndPoint("TOPLEFT", view.content, to.x + size / 2, to.y - size / 2)
                 -- Une liaison ALLUMEE quand ses deux extremites sont prises : c'est le
                 -- chemin que le build a reellement emprunte, et c'est ce qui fait lire
                 -- l'arbre d'un coup d'oeil plutot que noeud par noeud.
@@ -296,45 +378,41 @@ local function layoutTree(top, width)
         end
     end
 
-    for _, nodeID in ipairs(shot.order) do
+    for nodeID, at in pairs(placed) do
         local node = shot.nodes[nodeID]
-        if node then
-            local picked = match.selection[nodeID]
-            local button = pools.node:Acquire()
-            button:SetParent(view.content)
-            button:ClearAllPoints()
-            button:SetSize(size, size)
-            button:SetPoint("TOPLEFT",
-                4 + (node.x - minX) * scale,
-                origin - (node.y - minY) * scale)
+        local picked = match.selection[nodeID]
+        local button = pools.node:Acquire()
+        button:SetParent(view.content)
+        button:ClearAllPoints()
+        button:SetSize(size, size)
+        button:SetPoint("TOPLEFT", at.x, at.y)
 
-            -- L'ICONE DE LA BRANCHE PRISE sur un noeud a choix. La premiere entree servait
-            -- pour tout le monde : le noeud s'allumait juste et portait l'icone de l'autre
-            -- option.
-            local chosen = picked and picked.entryID and node.entries[picked.entryID]
-            button.icon:SetTexture((chosen and chosen.icon) or node.icon
-                or "Interface\\Icons\\INV_Misc_QuestionMark")
-            -- PRIS ou PAS PRIS, et rien entre les deux : la couleur seule ne porte jamais
-            -- l'information ici non plus, le rang l'ecrit en chiffres.
-            button.icon:SetDesaturated(not picked)
-            button.icon:SetAlpha(picked and 1 or 0.3)
-            ns.Theme.ApplyCard(button, picked and ns.Theme.RGB.link or nil)
+        -- L'ICONE DE LA BRANCHE PRISE sur un noeud a choix. La premiere entree servait
+        -- pour tout le monde : le noeud s'allumait juste et portait l'icone de l'autre
+        -- option.
+        local chosen = picked and picked.entryID and node.entries[picked.entryID]
+        button.icon:SetTexture((chosen and chosen.icon) or node.icon
+            or "Interface\\Icons\\INV_Misc_QuestionMark")
+        -- PRIS ou PAS PRIS, et rien entre les deux : la couleur seule ne porte jamais
+        -- l'information ici non plus, le rang l'ecrit en chiffres.
+        button.icon:SetDesaturated(not picked)
+        button.icon:SetAlpha(picked and 1 or 0.3)
+        ns.Theme.ApplyCard(button, picked and ns.Theme.RGB.link or nil)
 
-            local maxRanks = node.maxRanks or 1
-            button.rank:SetText((picked and maxRanks > 1)
-                and (hex("text") .. picked.rank .. "|r") or "")
+        local maxRanks = node.maxRanks or 1
+        button.rank:SetText((picked and maxRanks > 1)
+            and (hex("text") .. picked.rank .. "|r") or "")
 
-            button.node = node
-            button.chosen = chosen
-            button.pickedRank = picked and picked.rank or nil
-            button.share = picked and shares[picked.sourceID] or nil
-            button:SetScript("OnEnter", nodeOnEnter)
-            button:SetScript("OnLeave", hideTooltip)
-            button:Show()
-        end
+        button.node = node
+        button.chosen = chosen
+        button.pickedRank = picked and picked.rank or nil
+        button.share = picked and shares[picked.sourceID] or nil
+        button:SetScript("OnEnter", nodeOnEnter)
+        button:SetScript("OnLeave", hideTooltip)
+        button:Show()
     end
 
-    return origin - height - size - NODE_GAP
+    return bottom - NODE_GAP
 end
 
 local function layoutTalentList(top, width)
