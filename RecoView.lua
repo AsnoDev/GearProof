@@ -577,7 +577,22 @@ local CONSUMABLE_LABEL = {
     flask = "Flask", food = "Food", augment = "Augment rune", vantus = "Vantus rune",
 }
 
---- CE QU'ILS PRENNENT, nomme.
+-- QUAND A-T-ON LE DROIT DE NOMMER ? Mesure sur les quarante specialisations du relevé :
+-- le flacon de tete fait 68 % de mediane et depasse 40 % PARTOUT, la nourriture 85 %. Mais
+-- la rune d'augmentation de tete fait 15 % de mediane et ne depasse 40 % NULLE PART — la
+-- nommer reviendrait a recommander un geste que 85 % du haut de tableau ne fait pas.
+--
+-- On nomme donc a deux conditions : la tete rassemble au moins 40 %, et elle devance la
+-- suivante d'au moins 10 points. Sous ce seuil la section dit que le choix est partage,
+-- ce qui est l'information reelle. Deux flacons a 50/50 ne se departagent pas en tirant
+-- au sort le premier de la liste.
+local NAMED_FLOOR, NAMED_LEAD = 0.40, 0.10
+
+-- En dessous, la categorie elle-meme merite d'etre situee : « un joueur sur quatre en pose
+-- une » n'est pas la meme information que « personne n'est d'accord sur laquelle ».
+local COMMON_KIND = 0.90
+
+--- CE QU'ILS PRENNENT — une ligne par categorie, nommee quand ils sont d'accord.
 ---
 --- La categorie vient du relevé, decidee hors du jeu sur les noms anglais de l'API. Ici on
 --- affiche le nom TRADUIT que le client connait, et le taux mesure.
@@ -589,10 +604,13 @@ local function layoutConsumables(top, width)
     if sample <= 0 then return top end
 
     -- Regroupe par categorie, en gardant l'ordre d'adoption a l'interieur de chacune.
-    local byKind = {}
+    local byKind, kindShare = {}, {}
     for _, entry in ipairs(rows) do
         byKind[entry.kind] = byKind[entry.kind] or {}
         table.insert(byKind[entry.kind], entry)
+        -- Part de la CATEGORIE : un joueur ne porte qu'un flacon, donc les parts d'une
+        -- meme categorie s'additionnent sans doublon.
+        kindShare[entry.kind] = (kindShare[entry.kind] or 0) + (entry.share or 0)
     end
 
     top = heading(top, width, ns.L["Consumables"])
@@ -600,44 +618,57 @@ local function layoutConsumables(top, width)
     for _, kind in ipairs(CONSUMABLE_ORDER) do
         local list = byKind[kind]
         if list then
-            for index, entry in ipairs(list) do
-                -- Une seule ligne par categorie, sauf les runes de Vantus : il y en a une
-                -- PAR BOSS, et les nommer toutes est le seul moyen d'etre utile.
-                if kind ~= "vantus" and index > 1 then break end
+            local best, second = list[1], list[2]
+            local lead = (best.share or 0) - (second and second.share or 0)
+            local named = (best.share or 0) >= NAMED_FLOOR and lead >= NAMED_LEAD
 
-                local row = pools.item:Acquire()
-                row:SetParent(view.content)
-                row:ClearAllPoints()
-                row:SetPoint("TOPLEFT", 0, top)
-                row:SetWidth(width)
-                ns.Theme.ApplyCard(row, index == 1 and ns.Theme.RGB.link or nil)
+            local row = pools.item:Acquire()
+            row:SetParent(view.content)
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", 0, top)
+            row:SetWidth(width)
+            ns.Theme.ApplyCard(row, named and ns.Theme.RGB.link or nil)
 
-                local icon
+            local icon
+            if named then
                 local getIcon = (C_Spell and C_Spell.GetSpellTexture) or GetSpellTexture
                 if getIcon then
-                    local ok, value = pcall(getIcon, entry.id)
+                    local ok, value = pcall(getIcon, best.id)
                     if ok then icon = value end
                 end
-                row.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-
-                row.name:SetWidth(math.max(80, width - 150))
-                row.name:SetText(hex("text")
-                    .. (ns.Meta.ConsumableName(entry) or ("#" .. tostring(entry.id))) .. "|r")
-
-                row.sub:SetWidth(math.max(60, width - 150))
-                row.sub:SetText(hex("muted") .. ns.L[CONSUMABLE_LABEL[kind] or kind] .. "|r")
-
-                row.share:SetText(string.format("%s%d%%|r",
-                    hex(index == 1 and "link" or "muted"), (entry.share or 0) * 100 + 0.5))
-
-                -- Ce sont des SORTS, pas des objets : l'infobulle d'objet n'a rien a dire.
-                row.itemID, row.itemLevel = nil, nil
-                row:SetScript("OnEnter", nil)
-                row:SetScript("OnLeave", nil)
-                row:Show()
-
-                top = top - ITEM_ROW_HEIGHT - 4
             end
+            row.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+
+            row.name:SetWidth(math.max(80, width - 150))
+            row.name:SetText(named
+                and (hex("text") .. (ns.Meta.ConsumableName(best) or ("#" .. tostring(best.id))) .. "|r")
+                or (hex("muted") .. ns.L["no agreement on which one"] .. "|r"))
+
+            -- Le libelle de categorie porte AUSSI le taux d'adoption de la categorie quand
+            -- elle n'est pas universelle : « rune d'augmentation » seul laisserait croire
+            -- que tout le monde en pose une.
+            local label = ns.L[CONSUMABLE_LABEL[kind] or kind]
+            local share = kindShare[kind] or 0
+            if share < COMMON_KIND then
+                label = string.format("%s — %s", label,
+                    string.format(ns.L["%d%% take one"], share * 100 + 0.5))
+            end
+            row.sub:SetWidth(math.max(60, width - 150))
+            row.sub:SetText(hex("muted") .. label .. "|r")
+
+            -- Le chiffre de droite est TOUJOURS celui de la ligne : la part du consommable
+            -- nomme, ou celle de la categorie quand aucun ne l'est. Deux sens dans la meme
+            -- colonne se liraient comme un seul.
+            row.share:SetText(string.format("%s%d%%|r", hex(named and "link" or "muted"),
+                (named and best.share or share) * 100 + 0.5))
+
+            -- Ce sont des SORTS, pas des objets : l'infobulle d'objet n'a rien a dire.
+            row.itemID, row.itemLevel = nil, nil
+            row:SetScript("OnEnter", nil)
+            row:SetScript("OnLeave", nil)
+            row:Show()
+
+            top = top - ITEM_ROW_HEIGHT - 4
         end
     end
 

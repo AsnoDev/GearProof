@@ -47,7 +47,7 @@ journal fichier reste la source de vérité de l'outil Python, pas de l'addon.
 | `Meta.lua` | Lecture du relevé + contrôle de version du format |
 | `Sim.lua` | Gains simulés, regroupement par rencontre, liens de butin |
 | `Recommendations.lua` | Façade : table éditable, sinon le relevé |
-| **Consommables** | `Meta.Consumables()` — flacon, nourriture, runes, **nommés**. La source de l'aura écarte les buffs de groupe (ils viennent d'un autre acteur) ; le nom et l'icône séparent les consommables des passifs de spé. La catégorie est décidée **hors du jeu**, sur les noms anglais de l'API |
+| **Consommables** | `Meta.Consumables()` — flacon, nourriture, runes, **nommés**. La source de l'aura écarte les buffs de groupe (ils viennent d'un autre acteur) ; le nom et l'icône séparent les consommables des passifs de spé. La catégorie est décidée **hors du jeu**, sur les noms anglais de l'API. Une catégorie n'est **nommée** que si sa tête rassemble ≥ 40 % et devance la suivante de ≥ 10 points — mesuré sur les 40 spés, le flacon passe partout, la rune d'augmentation nulle part. Sinon la ligne dit que le choix est partagé |
 | `Weights.lua` | Poids de statistiques depuis une chaîne Pawn — **aucun repli dérivé** |
 | `Data/Meta.lua` | **Généré et livré** : relevé des 40 spés — ne jamais éditer à la main |
 | `Data/Sim.lua` | **Généré** depuis tes droptimizers — ne jamais éditer à la main |
