@@ -234,18 +234,7 @@ local function layoutTree(top, width)
     -- qui leur est propre. Normalises avec le reste, ils atterrissaient en haut a droite,
     -- colles a l'arbre de spe — alors qu'en jeu ils sont en bas, au centre. On les sort
     -- donc du calcul principal et on leur donne leur propre bloc.
-    local main, heroes = {}, {}
-    for _, nodeID in ipairs(shot.order) do
-        local node = shot.nodes[nodeID]
-        if node then
-            if node.subTree then
-                heroes[node.subTree] = heroes[node.subTree] or {}
-                table.insert(heroes[node.subTree], node)
-            else
-                table.insert(main, node)
-            end
-        end
-    end
+    local main, heroes = ns.Traits.SplitTrees(shot)
     if #main == 0 then return nil, L["The client did not return a talent tree."] end
 
     --- Etendue d'un groupe de noeuds.

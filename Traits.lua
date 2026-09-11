@@ -206,6 +206,39 @@ function Traits.Invalidate()
     snapshot = nil
 end
 
+--- Separe les noeuds : l'arbre principal d'un cote, les arbres de HEROS de l'autre.
+---
+--- Les noeuds de heros vivent dans un repere qui leur est propre. Melanges au reste, ils
+--- atterrissent la ou le hasard les met — en haut a droite sur un relevé reel, alors qu'en
+--- jeu ils sont en bas, au centre.
+---
+--- `> 0` ET PAS SEULEMENT « non nil » : en Lua, ZERO EST VRAI. Si le client rend
+--- `subTreeID = 0` sur un noeud ordinaire — rien ne l'interdit, et c'est une facon
+--- courante de dire « aucun » cote C — un simple test de presence les rangerait TOUS parmi
+--- les heros. L'arbre principal serait vide et la page afficherait « le client n'a pas
+--- rendu d'arbre » sur un client parfaitement sain.
+---
+--- Cette regle vivait dans la vue, ou rien ne pouvait la tester : le mauvais classement ne
+--- leve aucune erreur, il vide juste un ecran.
+--- @return table principal, table { [subTreeID] = { noeuds } }
+function Traits.SplitTrees(shot)
+    local main, heroes = {}, {}
+    if not shot then return main, heroes end
+
+    for _, nodeID in ipairs(shot.order or {}) do
+        local node = shot.nodes[nodeID]
+        if node then
+            if node.subTree and node.subTree > 0 then
+                heroes[node.subTree] = heroes[node.subTree] or {}
+                table.insert(heroes[node.subTree], node)
+            else
+                table.insert(main, node)
+            end
+        end
+    end
+    return main, heroes
+end
+
 --- Nom d'un arbre de heros, quand le client sait le donner.
 --- @return string|nil
 function Traits.SubTreeName(subTreeID)
@@ -330,8 +363,13 @@ local function serialize(shot, version, specID, reader)
             addValue(stream, partial and 1 or 0, 1)
             if partial then addValue(stream, rank, RANK_BITS) end
 
-            local isChoice = node and node.type == (Enum and Enum.TraitNodeType
-                and Enum.TraitNodeType.Selection)
+            -- La valeur de reference est lue AVANT la comparaison. Ecrite en ligne,
+            -- elle vaut nil quand `Enum.TraitNodeType` n'existe pas, et `node.type == nil`
+            -- devient VRAI pour tout noeud sans type : chacun recevrait alors deux bits
+            -- d'index de choix et la chaine serait corrompue. Une comparaison ne doit
+            -- jamais changer de sens parce qu'un de ses membres a disparu.
+            local selection = Enum and Enum.TraitNodeType and Enum.TraitNodeType.Selection
+            local isChoice = selection ~= nil and node ~= nil and node.type == selection
             addValue(stream, isChoice and 1 or 0, 1)
             if isChoice then
                 local index = 0

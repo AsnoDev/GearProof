@@ -289,6 +289,12 @@ def main() -> int:
                      subTreeID = 5, visibleEdges = {} },
             [50] = { posX = 2000, posY = 9000, maxRanks = 1, type = 0, entryIDs = { 500 },
                      ranksPurchased = 0, subTreeID = 6, visibleEdges = {} },
+            -- UN `subTreeID` DE ZERO, et c'est le piege. En Lua zero est VRAI : un test
+            -- « si le noeud a un subTree » le rangerait parmi les heros. Si le client rend
+            -- 0 pour un noeud ordinaire — rien ne l'interdit — l'arbre principal se
+            -- viderait et la page afficherait « le client n'a pas rendu d'arbre ».
+            [60] = { posX = 5600, posY = 3800, maxRanks = 1, type = 0, entryIDs = { 600 },
+                     ranksPurchased = 0, subTreeID = 0, visibleEdges = {} },
         }
 
         C_ClassTalents = C_ClassTalents or {}
@@ -296,7 +302,7 @@ def main() -> int:
 
         C_Traits = C_Traits or {}
         C_Traits.GetConfigInfo = function() return { treeIDs = { 42 } } end
-        C_Traits.GetTreeNodes = function() return { 10, 20, 30, 40, 41, 50 } end
+        C_Traits.GetTreeNodes = function() return { 10, 20, 30, 40, 41, 50, 60 } end
         C_Traits.GetSubTreeInfo = function(_, subTreeID)
             return { name = "Heros " .. tostring(subTreeID) }
         end

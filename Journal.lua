@@ -528,8 +528,24 @@ end
 ---
 --- On ne jette l'index QUE s'il a ete construit avant leur arrivee : le reconstruire a
 --- chaque salve couterait une relecture de toutes les instances du palier pour rien.
+-- Delai minimum entre deux reconstructions de l'index de provenance.
+--
+-- POURQUOI IL EXISTE. `EJ_LOOT_DATA_RECEIVED` ne se declenche pas une fois : il arrive par
+-- salves pendant que le client charge ses objets. Chaque salve jetait l'index tant qu'il
+-- etait incomplet, et le rendu suivant le refaisait — NEUF instances, chacune posant puis
+-- restaurant la selection du journal. Sur les quelques secondes de chargement, cela se
+-- repete a chaque salve, sur une interface partagee avec le joueur.
+--
+-- Deux secondes : assez pour absorber une salve, assez court pour que l'index se complete
+-- pendant que le joueur regarde encore l'onglet.
+local REBUILD_COOLDOWN = 2
+local lastRebuild = 0
+
 local function onLootDataReceived()
     if not sourceIncomplete then return end
+    local now = GetTime and GetTime() or 0
+    if (now - lastRebuild) < REBUILD_COOLDOWN then return end
+    lastRebuild = now
     sourceCache, linkCache, levelCache, sourceIncomplete = nil, nil, nil, false
 end
 

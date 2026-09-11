@@ -456,6 +456,47 @@ def test_traits_stream(report: Report) -> None:
     suite.done()
 
 
+def test_traits_split(report: Report) -> None:
+    """Quel noeud appartient a quel arbre — et le piege du ZERO.
+
+    Les noeuds de heros vivent dans un repere propre : melanges au reste, ils atterrissent
+    la ou le hasard les met. La separation se fait sur `subTreeID`.
+
+    EN LUA, ZERO EST VRAI. Un simple test de presence rangerait parmi les heros tout noeud
+    portant `subTreeID = 0` — une facon courante de dire « aucun » cote C. L'arbre
+    principal se viderait et la page afficherait « le client n'a pas rendu d'arbre » sur un
+    client parfaitement sain. Le mauvais classement ne leve rien : il vide un ecran.
+    """
+    suite = Suite(report, "Traits.SplitTrees")
+    lua, ns, _ = new_runtime(["Spec.lua", "Traits.lua"])
+
+    shot = lua.eval("""{
+        order = { 10, 20, 30, 40 },
+        nodes = {
+            [10] = { id = 10 },
+            [20] = { id = 20, subTree = 0 },
+            [30] = { id = 30, subTree = 5 },
+            [40] = { id = 40, subTree = 5 },
+        },
+    }""")
+    main, heroes = ns.Traits.SplitTrees(shot)
+
+    got = sorted(int(main[i]["id"]) for i in range(1, len(main) + 1))
+    suite.equal("zero reste dans l'arbre principal", got, [10, 20])
+    # `#` sur une table indexee par identifiant rend ZERO : les cles ne sont pas une
+    # sequence. On compte les cles, pas la longueur — le meme piege que cote Lua.
+    trees = sorted(int(key) for key in heroes)
+    suite.equal("un seul arbre de heros", trees, [5])
+    suite.equal("et il porte ses deux noeuds", len(heroes[5]), 2)
+
+    # Un instantane absent ne doit pas lever : la page a un repli, pas un plantage.
+    empty_main, empty_heroes = ns.Traits.SplitTrees(None)
+    suite.equal("sans instantane, rien", len(empty_main), 0)
+    suite.equal("et aucun heros", sorted(empty_heroes), [])
+
+    suite.done()
+
+
 def test_traits_selfcheck(report: Report) -> None:
     """L'export n'est propose QUE si notre serialiseur reproduit celui du client.
 
@@ -1100,7 +1141,7 @@ def main() -> int:
                  test_prune_reports, test_csv_freshness, test_roster_freshness,
                  test_by_encounter_season, test_known_level,
                  test_crafts_and_trinkets, test_traits_stream,
-                 test_traits_selfcheck):
+                 test_traits_selfcheck, test_traits_split):
         try:
             test(report)
         except Exception as error:  # noqa: BLE001 — un test qui casse est un constat
