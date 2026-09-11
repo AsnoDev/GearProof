@@ -75,6 +75,17 @@ def load_reference(source: str) -> dict:
             # Le build de DONJON separement : c'est une decision distincte de celle du
             # raid, et un joueur qui fait des cles la prend chaque semaine.
             "buildMythic": _first_ids(block["buildsMythic"], field="differs"),
+            # Les CONSOMMABLES sont trois decisions de plus, prises chaque soir : ce qu'on
+            # boit, ce qu'on mange, la rune qu'on pose. Un flacon qui change et une
+            # publication qui ne part pas laisserait l'addon recommander l'ancien.
+            #
+            # Les runes de VANTUS sont volontairement exclues : il y en a une par boss, et
+            # celle qui arrive en tete depend du boss le plus joue cette semaine. Elle
+            # basculerait sur du bruit, et le changement de palier qui les remplace
+            # vraiment est deja vu par `source`.
+            "flask": _first_of_kind(block["consumables"], "flask"),
+            "food": _first_of_kind(block["consumables"], "food"),
+            "augment": _first_of_kind(block["consumables"], "augment"),
         }
     return specs
 
@@ -95,6 +106,20 @@ def _first_id(table) -> int | None:
     if table is None or len(table) == 0:
         return None
     return int(table[1]["id"] or 0)
+
+
+def _first_of_kind(table, kind: str) -> int | None:
+    """Premier consommable d'une catégorie, par adoption — celui que l'addon recommande.
+
+    La liste est déjà décroissante : le premier de la catégorie est celui qui s'affiche.
+    """
+    if table is None:
+        return None
+    for index in range(1, len(table) + 1):
+        row = table[index]
+        if str(row["kind"]) == kind:
+            return int(row["id"] or 0)
+    return None
 
 
 def _first_ids(table, field: str = "ids") -> tuple:
@@ -130,6 +155,9 @@ FIELDS = [
     ("craft", "recette recommandee"),
     ("trinket", "bijou le plus porte"),
     ("buildMythic", "build de donjon le plus joue"),
+    ("flask", "flacon recommande"),
+    ("food", "nourriture recommandee"),
+    ("augment", "rune d'augmentation recommandee"),
 ]
 
 
