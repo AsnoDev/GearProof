@@ -22,7 +22,6 @@ ns.translations.fr = {
 
     -- Equipement
     ["missing"] = "manque",
-    ["empty"] = "vide",
     ["enchant"] = "enchant",
     ["gem"] = "gemme",
     ["ignored"] = "ignore",
@@ -49,8 +48,6 @@ ns.translations.fr = {
     ["durability %d%%"] = "durabilite %d%%",
     ["%s: empty slot"] = "%s : emplacement vide",
     ["%s: damaged"] = "%s : piece abimee",
-    ["%s: %s missing"] = "%s : %s manquant",
-    ["gem missing"] = "gemme manquante",
     ["Gear complete"] = "Equipement complet",
 
     -- Onglet Recommandations : sections Builds et Statistiques.
@@ -65,13 +62,11 @@ ns.translations.fr = {
     ["worn at ilvl"] = "porte au niveau",
 
     -- Onglets neufs.
-    ["Items"] = "Objets",
     ["Talents: the tree your spec's top players actually play, in raid or in Mythic+."] =
         "Talents : l'arbre que jouent reellement les meilleurs de ta spe, en raid ou en mythique+.",
     ["Items: which trinkets they wear and where those drop, plus the recipes worth ordering."] =
         "Objets : quels bijoux ils portent et ou ils tombent, plus les recettes qui valent la commande.",
     ["Talents"] = "Talents",
-    ["Mythic+"] = "Mythique+",
 
     -- Section BIJOUX. Aucun chiffre ne classe un bijou de tank ou de soigneur : le
     -- droptimizer mesure des degats, Warcraft Logs n'a pas de classement de survie. On dit
@@ -94,8 +89,6 @@ ns.translations.fr = {
         "Provenance inconnue pour l'instant : le journal des aventures n'a pas encore repondu. Rouvre cet onglet.",
     ["Full lists, and the crafted gear, are on the Items tab."] =
         "Les listes completes, et l'artisanat, sont dans l'onglet Objets.",
-    ["What the top players of your spec obtain: which trinkets, and where they drop."] =
-        "Ce que les meilleurs de ta spe OBTIENNENT : quels bijoux, et ou ils tombent.",
 
     -- Onglet Talents : le meme releve, pris en raid et en donjon. Ce ne sont pas les memes
     -- arbres, et personne ne publie la comparaison.
@@ -188,14 +181,10 @@ ns.translations.fr = {
     ["Crit"] = "Critique",
     ["Mastery"] = "Maitrise",
     ["Versatility"] = "Polyvalence",
-    ["no reference yet"] = "pas encore de reference",
     ["diminishing tier %d"] = "palier %d de rendement",
-    ["vs top %d"] = "contre le top %d",
     ["no measure"] = "pas de releve",
-    ["on target"] = "dans la cible",
     ["yours"] = "chez toi",
     ["top %d"] = "top %d",
-    ["on the character sheet"] = "sur la feuille de personnage",
     ["PRIORITY"] = "PRIORITE",
     ["no top-build reference for this spec yet"] = "pas encore de releve pour cette specialisation",
     ["weapon enchant combination not in the top %d"] = "combinaison d'enchantements d'armes absente du top %d",
@@ -210,8 +199,6 @@ ns.translations.fr = {
     ["SimulationCraft string — paste it on raidbots.com"] =
         "Chaine SimulationCraft — a coller sur raidbots.com",
     ["ilvl vs equipped"] = "ilvl contre l'equipe",
-    ["as measured"] = "conforme au releve",
-    ["different"] = "different",
     ["left-click: copy the enchant name"] = "clic gauche : copier le nom de l'enchantement",
     ["left-click: details"] = "clic gauche : detail",
     ["right-click: ignore"] = "clic droit : ignorer",
@@ -222,7 +209,6 @@ ns.translations.fr = {
     ["of yours"] = "du tien",
     ["simulated (% DPS)"] = "simule (% DPS)",
     ["estimated (stat points)"] = "estime (points de stats)",
-    ["needs a sim"] = "demande une simulation",
     ["fix pending"] = "correctif en attente",
     ["fixes pending"] = "correctifs en attente",
     ["slots clean"] = "emplacements propres",
@@ -233,31 +219,18 @@ ns.translations.fr = {
         "La barre montre la part de cette statistique dans ton propre budget secondaire, et le nombre a droite est le pourcentage de ta feuille de personnage. Survole pour les points et la part du top 20.",
     ["Raid"] = "Raid",
     ["Roster"] = "Roster",
-    ["ready"] = "a jour",
     ["stale"] = "perime",
     -- Cle distincte de ["missing"] : le tableau de guilde dit qu'un MEMBRE n'a pas de
     -- droptimizer, les cartes d'equipement disent qu'il MANQUE un enchantement. Les
     -- deux partageaient la meme cle et la seconde declaration ecrasait la premiere en
     -- silence — les cartes affichaient donc "absent" au lieu de "manque".
-    ["no droptimizer"] = "absent",
-    ["%d of %d ready"] = "%d sur %d a jour",
     ["No droptimizer shared yet. Run the roll call, and ask members to enable sharing."] =
         "Aucun droptimizer partage. Lance la tournee, et demande aux membres d'activer le partage.",
-    ["Loot per boss, ranked by the best gain in the guild. Hover an item for the ranking."] =
-        "Butin par boss, classe par le meilleur gain de la guilde. Survole un objet pour le classement.",
     ["Guild ranking"] = "Classement de la guilde",
-    ["ready of %d"] = "prets sur %d",
-    ["Total gain on the table"] = "Gain total sur la table",
-    ["Average per member"] = "Moyenne par membre",
-    ["Members with fixes pending"] = "Membres avec correctifs",
-    ["No shared droptimizer yet"] = "Aucun droptimizer partage",
     ["Best gain here"] = "Meilleur gain ici",
     ["the item level above is the base template, not the drop"] =
         "le niveau d'objet ci-dessus est celui du modele, pas celui du butin",
     ["%d items"] = "%d objets",
-    ["%d need"] = "%d interesses",
-    ["No droptimizer imported yet. Paste a report link in the Equipment tab."] =
-        "Aucun droptimizer importe. Colle un lien de rapport dans l'onglet Equipement.",
     ["Each boss shows the items your droptimizer actually simulated, best gain first."] =
         "Chaque boss montre les objets que ton droptimizer a reellement simules, meilleur gain d'abord.",
     ["encounter %d"] = "rencontre %d",
@@ -269,9 +242,6 @@ ns.translations.fr = {
     ["Raid difficulty"] = "Difficulte de raid",
     ["The journal lists different item levels per difficulty."] =
         "Le journal donne des niveaux d'objet differents selon la difficulte.",
-    ["Normal"] = "Normal",
-    ["Heroic"] = "Heroique",
-    ["Mythic"] = "Mythique",
     ["simulated at ilvl"] = "simule en ilvl",
     ["Ctrl+A then Ctrl+C to copy"] = "Ctrl+A puis Ctrl+C pour copier",
     ["settings carried over from SpecAnalyser"] =
@@ -279,39 +249,20 @@ ns.translations.fr = {
     ["Class set"] = "Ensemble",
     ["%d pieces"] = "%d pieces",
     ["GEMS"] = "GEMMES",
-    ["empty → %s"] = "vide → %s",
     ["Item data not loaded yet — click again in a moment."] =
         "Donnees de l'objet pas encore chargees — reclique dans un instant.",
 
     -- Onglet Recommandations.
-    ["Recommendations"] = "Recommandations",
-    ["What the top players of your spec actually put on. Each line says where its advice comes from."] =
-        "Ce que posent reellement les meilleurs joueurs de ta spe. Chaque ligne dit d'ou vient son conseil.",
     ["%d%% of the top players run two DIFFERENT weapon enchants"] =
         "%d%% du haut de tableau portent deux enchantements d'armes DIFFERENTS",
     -- Detection de builds bimodaux. La donnee existait depuis toujours et n'avait
     -- aucun lecteur : c'est le seul endroit ou l'addon peut dire qu'une moyenne ne
     -- decrit personne.
-    ["Reference"] = "Reference",
     ["Two builds measured"] = "Deux builds mesures",
-    ["The top players split into two groups on these stats. The average describes neither."] =
-        "Le haut de tableau se separe en deux groupes sur ces statistiques. La moyenne ne decrit ni l'un ni l'autre.",
-    ["you are here"] = "tu es ici",
     ["Enchants"] = "Enchantements",
     ["Gems"] = "Gemmes",
     ["Trinkets"] = "Bijoux",
-    ["Fixes"] = "Correctifs",
-    ["Buffs at pull"] = "Buffs au pull",
-    ["General"] = "General",
-    ["Missing"] = "Manquant",
-    ["Optimal"] = "Optimal",
-    ["Other"] = "Autre",
-    ["socket"] = "chasse",
-    ["unrated"] = "non chiffre",
     ["Weapons (pair)"] = "Armes (paire)",
-    ["No socket was measured for this spec."] = "Aucune chasse relevee pour cette specialisation.",
-    ["measured by your droptimizer"] = "mesure par ton droptimizer",
-    ["import a droptimizer that covers it"] = "importe un droptimizer qui le couvre",
     ["No droptimizer imported yet."] = "Aucun droptimizer importe.",
     ["Import a droptimizer"] = "Importer un droptimizer",
     ["droptimizer imported: %d items"] = "droptimizer importe : %d objets",
@@ -324,33 +275,15 @@ ns.translations.fr = {
         "GearProof te rend une adresse : ouvre-la, selectionne tout, copie.",
     ["Paste that back here. No tool, no reload."] =
         "Recolle ici. Aucun outil, aucun rechargement.",
-    ["Paste the report link and GearProof gives you the address of its data. Open it, copy everything, paste it back here — no tool needed."] =
-        "Colle le lien du rapport et GearProof te rend l'adresse de ses donnees. Ouvre-la, copie tout, recolle ici — aucun outil requis.",
-    ["This tab lists the loot each boss can drop for you, ranked by the gain your own simulation measured. It fills up as soon as you import one report."] =
-        "Cet onglet liste le butin que chaque boss peut te donner, classe par le gain que ta propre simulation a mesure. Il se remplit des qu'un rapport est importe.",
     ["Nobody has answered yet."] = "Personne n'a encore repondu.",
     ["Run the roll call: every guild member running GearProof answers with their spec, item level and pending fixes. Nothing is sent from your client unless you tick sharing."] =
         "Lance la tournee : chaque membre de la guilde equipe de GearProof repond avec sa spe, son ilvl et ses correctifs en attente. Rien ne part de ton client tant que tu n'as pas coche le partage.",
     ["weapon enchant combination"] = "combinaison d'enchantements d'armes",
-    ["durability"] = "durabilite",
-    ["empty socket"] = "chasse vide",
-    ["Recoverable"] = "Recuperable",
-    ["measured on %d of %d fixes"] = "mesure sur %d correctifs sur %d",
     ["measured on %d top players"] = "mesure sur %d joueurs du haut de tableau",
-    ["Run the sweep with --with-stats to collect them."] =
-        "Relance le relevé avec --with-stats pour les collecter.",
-    ["Specialisation"] = "Specialisation",
-    ["preview, not your active spec"] = "apercu, pas ta specialisation active",
-    ["Sample"] = "Echantillon",
-    ["Tertiary (top average)"] = "Tertiaires (moyenne du top)",
-    ["Stat weights"] = "Poids de statistiques",
-    ["out of date"] = "perimes",
     ["fresh"] = "a jour",
     ["Droptimizer"] = "Droptimizer",
     ["%d day(s) old"] = "%d jour(s)",
     ["none"] = "aucun",
-    ["Every line says where its advice comes from. A verdict without an adoption rate would be an opinion; with one it is a measurement."] =
-        "Chaque ligne dit d'ou vient son conseil. Un verdict sans taux d'adoption serait un avis ; avec, c'est une mesure.",
 
     -- Onglet Aide, reecrit sur l'outil reel (audit d'equipement, plus d'analyse de jeu).
     ["Where the reference comes from"] = "D'ou vient la reference",
@@ -381,11 +314,6 @@ ns.translations.fr = {
         "Les rencontres les plus recentes passent d'abord. Les anciennes ne servent que si les nouvelles n'ont pas encore assez de classements.",
     ["The reference is per spec. Pick another spec of your class in the header to see what the audit would say."] =
         "La reference est par specialisation. Choisis-en une autre dans l'entete pour voir ce que l'audit dirait.",
-    ["The measured reference, on your PC:"] = "La reference mesuree, sur ton PC :",
-    ["Your simulated upgrades, from a droptimizer:"] = "Tes gains simules, depuis un droptimizer :",
-    ["Then, in game:"] = "Puis, en jeu :",
-    ["A generated data file is only read when the interface loads. Without a reload, the new numbers stay invisible."] =
-        "Un fichier de donnees genere n'est lu qu'au chargement de l'interface. Sans reload, les nouveaux chiffres restent invisibles.",
     ["The stat bars"] = "Les barres de statistiques",
     ["The priority line"] = "La ligne de priorite",
     ["The order the top players actually run, with each share. Read once, not repeated on every row."] =
@@ -423,16 +351,7 @@ ns.translations.fr = {
     ["Alert ignored for this piece"] = "Alerte ignoree pour cette piece",
     ["Enchant and gems: ok"] = "Enchantement et gemmes : ok",
     ["Right click: ignore or re-enable the alert"] = "Clic droit : ignorer ou reactiver l'alerte",
-    ["re-enabled"] = "reactivee",
-    ["Nothing to fix on this piece."] = "Rien a corriger sur cette piece.",
-    ["Advice: "] = "Conseil : ",
-    ["No enchant recorded for this slot yet."] = "Aucun enchantement releve pour cet emplacement.",
-    ["Suggested gem: "] = "Gemme conseillee : ",
     ["No gem recorded yet."] = "Aucune gemme relevee.",
-    ["Run: specanalyser wcl enchants --to-addon to fill these in."] =
-        "Lance : specanalyser wcl enchants --to-addon pour les remplir.",
-    ["Alert ignored - right click to re-enable."] = "Alerte ignoree — clic droit pour reactiver.",
-    ["Right click the card to ignore this piece."] = "Clic droit sur la carte pour ignorer cette piece.",
     ["stat enchant"] = "enchantement de stat",
     ["leg armor"] = "renfort de jambes",
     ["weapon enchant"] = "enchantement d'arme",
@@ -446,13 +365,10 @@ ns.translations.fr = {
     ["weights: %s (%d days)"] = "poids : %s (%d j)",
     ["stat weights saved (%s)"] = "poids de stats enregistres (%s)",
     ["unreadable Pawn string"] = "chaine Pawn illisible",
-    ["Paste my stat weights"] = "Coller mes poids",
-    ["Paste a Pawn string from your Raidbots sim"] = "Colle une chaine Pawn issue de ta sim Raidbots",
     ["IN YOUR BAGS"] = "DANS TES SACS",
     ["proc — sim required"] = "proc — sim requise",
     ["set piece — sim required"] = "piece d'ensemble — sim requise",
     ["needs a second weapon — sim required"] = "demande une seconde arme — sim requise",
-    ["measured on %d top players (%s)"] = "mesure sur %d joueurs du haut de tableau (%s)",
     ["skin: %s"] = "habillage : %s",
     ["gear grid"] = "grille d'equipement",
     ["gear audit"] = "audit d'equipement",
@@ -465,21 +381,11 @@ ns.translations.fr = {
     ["%d gear problem(s):"] = "%d probleme(s) d'equipement :",
     ["In your bags"] = "Dans tes sacs",
     ["Search this in the auction house"] = "A chercher a l'hotel des ventes",
-    ["Droptimizer link"] = "Lien droptimizer",
-    ["Droptimizer Copy"] = "Copier pour droptimizer",
     ["%d stat points"] = "%d points de statistique",
     ["click to copy the name"] = "clic pour copier le nom",
     ["Droptimizer report"] = "Rapport droptimizer",
-    ["Paste droptimizer link"] = "Enregistrer mon droptimizer",
     ["This tab lists the loot each boss can drop for you, ranked by the gain your own simulation measured."] =
         "Cet onglet liste le butin que chaque boss peut te donner, classe par le gain que ta propre simulation a mesure.",
-    ["An addon cannot download anything. Import the report on your PC:"] =
-        "Un addon ne peut rien telecharger. Importe le rapport sur ton PC :",
-    ["then /reload in game."] = "puis /reload en jeu.",
-    ["Records the report id so the guild roll call can show your simulation is fresh. The loot table itself is imported on your PC."] =
-        "Enregistre l'identifiant du rapport pour que la tournee de guilde montre que ta simulation est recente. La table de butin, elle, s'importe sur ton PC.",
-    ["Paste the Raidbots report link, or a Pawn string"] =
-        "Colle le lien du rapport Raidbots, ou une chaine Pawn",
     ["droptimizer report stored"] = "rapport droptimizer enregistre",
     ["nothing readable in that paste"] = "rien d'exploitable dans ce collage",
 
@@ -518,17 +424,8 @@ ns.translations.fr = {
     ["Share my data"] = "Partager mes donnees",
     -- Libelles de colonnes du tableau de guilde. Ils remplacent une chaine unique bourree
     -- d'espaces, qui devait tomber en face de colonnes qu'elle ne pouvait pas connaitre.
-    ["name"] = "nom",
-    ["spec"] = "spe",
-    ["ilvl"] = "ilvl",
-    ["fixes"] = "corr.",
-    ["last sim"] = "derniere sim",
-    ["Only you so far — ask your guild to run the roll call."] =
-        "Toi seul pour l'instant — demande a la guilde de lancer l'appel.",
-    ["no sim"] = "pas de sim",
     ["you are not in a guild"] = "tu n'es dans aucune guilde",
     ["Refresh"] = "Rafraichir",
-    ["Copy SimC"] = "Copier SimC",
     ["nothing to recover"] = "rien a recuperer",
     ["%d fix(es) pending"] = "%d correctif(s) en attente",
     ["%d slots checked, nothing to fix"] = "%d emplacements verifies, rien a corriger",
