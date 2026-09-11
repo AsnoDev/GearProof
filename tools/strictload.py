@@ -346,6 +346,24 @@ def main() -> int:
             return { { n = 5, share = 0.25, nodes = { 10, 1, 20, 2, 40, 1, 41, 1 },
                        stats = { crit = 0.3, haste = 0.3, mastery = 0.2, versatility = 0.2 } } }
         end
+        -- CONSOMMABLES : sans eux, la section neuve n'a rien a poser et ne tourne pas.
+        -- Deux runes de Vantus, parce que c'est la seule categorie dont on affiche
+        -- plusieurs lignes — une par boss.
+        GEARPROOF_NS.Meta.Consumables = function()
+            return {
+                { id = 1235111, kind = "flask", count = 19, share = 0.95,
+                  name = "Flask of the Shattered Sun" },
+                { id = 1285644, kind = "food", count = 18, share = 0.90,
+                  name = "Hearty Well Fed" },
+                { id = 1234969, kind = "augment", count = 14, share = 0.70,
+                  name = "Ethereal Augmentation" },
+                { id = 1303187, kind = "vantus", count = 9, share = 0.45,
+                  name = "Vantus Rune: Ula'tek" },
+                { id = 1303171, kind = "vantus", count = 7, share = 0.35,
+                  name = "Vantus Rune: Tides" },
+            }
+        end
+        GEARPROOF_NS.Meta.ConsumableSample = function() return 20 end
         GEARPROOF_NS.Meta.Talents = function()
             return { { id = 10, count = 20, share = 1.0 },
                      { id = 20, count = 12, share = 0.6 } }

@@ -261,6 +261,14 @@ ns.translations.fr = {
     ["Two builds measured"] = "Deux builds mesures",
     ["Enchants"] = "Enchantements",
     ["Gems"] = "Gemmes",
+
+    -- CONSOMMABLES. La categorie est decidee hors du jeu, sur les noms anglais de
+    -- l'API ; ici on ne traduit que l'etiquette.
+    ["Consumables"] = "Consommables",
+    ["Flask"] = "Flacon",
+    ["Food"] = "Nourriture",
+    ["Augment rune"] = "Rune d'augmentation",
+    ["Vantus rune"] = "Rune de Vantus",
     ["Trinkets"] = "Bijoux",
     ["Weapons (pair)"] = "Armes (paire)",
     ["No droptimizer imported yet."] = "Aucun droptimizer importe.",

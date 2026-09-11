@@ -567,6 +567,87 @@ local function layoutGems(top, width)
     return top
 end
 
+-- ---------------------------------------------------------- consommables
+
+-- L'ordre de la section suit celui des gestes avant un pull : on boit son flacon, on mange,
+-- on pose ses runes. Une categorie absente du relevé ne laisse pas de trou — sa ligne
+-- n'existe simplement pas.
+local CONSUMABLE_ORDER = { "flask", "food", "augment", "vantus" }
+local CONSUMABLE_LABEL = {
+    flask = "Flask", food = "Food", augment = "Augment rune", vantus = "Vantus rune",
+}
+
+--- CE QU'ILS PRENNENT, nomme.
+---
+--- La categorie vient du relevé, decidee hors du jeu sur les noms anglais de l'API. Ici on
+--- affiche le nom TRADUIT que le client connait, et le taux mesure.
+local function layoutConsumables(top, width)
+    local rows = ns.Meta.Consumables()
+    if not rows then return top end
+
+    local sample = ns.Meta.ConsumableSample()
+    if sample <= 0 then return top end
+
+    -- Regroupe par categorie, en gardant l'ordre d'adoption a l'interieur de chacune.
+    local byKind = {}
+    for _, entry in ipairs(rows) do
+        byKind[entry.kind] = byKind[entry.kind] or {}
+        table.insert(byKind[entry.kind], entry)
+    end
+
+    top = heading(top, width, ns.L["Consumables"])
+
+    for _, kind in ipairs(CONSUMABLE_ORDER) do
+        local list = byKind[kind]
+        if list then
+            for index, entry in ipairs(list) do
+                -- Une seule ligne par categorie, sauf les runes de Vantus : il y en a une
+                -- PAR BOSS, et les nommer toutes est le seul moyen d'etre utile.
+                if kind ~= "vantus" and index > 1 then break end
+
+                local row = pools.item:Acquire()
+                row:SetParent(view.content)
+                row:ClearAllPoints()
+                row:SetPoint("TOPLEFT", 0, top)
+                row:SetWidth(width)
+                ns.Theme.ApplyCard(row, index == 1 and ns.Theme.RGB.link or nil)
+
+                local icon
+                local getIcon = (C_Spell and C_Spell.GetSpellTexture) or GetSpellTexture
+                if getIcon then
+                    local ok, value = pcall(getIcon, entry.id)
+                    if ok then icon = value end
+                end
+                row.icon:SetTexture(icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+
+                row.name:SetWidth(math.max(80, width - 150))
+                row.name:SetText(hex("text")
+                    .. (ns.Meta.ConsumableName(entry) or ("#" .. tostring(entry.id))) .. "|r")
+
+                row.sub:SetWidth(math.max(60, width - 150))
+                row.sub:SetText(hex("muted") .. ns.L[CONSUMABLE_LABEL[kind] or kind] .. "|r")
+
+                row.share:SetText(string.format("%s%d%%|r",
+                    hex(index == 1 and "link" or "muted"), (entry.share or 0) * 100 + 0.5))
+
+                -- Ce sont des SORTS, pas des objets : l'infobulle d'objet n'a rien a dire.
+                row.itemID, row.itemLevel = nil, nil
+                row:SetScript("OnEnter", nil)
+                row:SetScript("OnLeave", nil)
+                row:Show()
+
+                top = top - ITEM_ROW_HEIGHT - 4
+            end
+        end
+    end
+
+    -- L'ECHANTILLON DES CONSOMMABLES EST PLUS PETIT que celui du relevé : les auras ne se
+    -- lisent que sur les joueurs dont le bloc de combat a pu etre recupere. Afficher le
+    -- nombre general a cote donnerait un pourcentage calcule sur autre chose.
+    return text(top - 2, width, hex("muted")
+        .. string.format(ns.L["measured on %d top players"], sample) .. "|r")
+end
+
 -- ------------------------------------------------------------- bijoux, en bref
 
 --- QUATRE bijoux, pas un de plus : deux du raid, deux des donjons.
@@ -703,6 +784,7 @@ function RecoView.Refresh()
         top = layoutStats(top, width)
         top = layoutEnchants(top, width)
         top = layoutGems(top, width)
+        top = layoutConsumables(top, width)
         top = layoutTrinkets(top, width)
     end
 

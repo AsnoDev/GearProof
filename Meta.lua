@@ -60,9 +60,12 @@ end
 -- demande une : quelle gemme poser. Ou la poser appartient au joueur — c'est deja la
 -- regle de l'onglet Recommandations. La table `sockets` reste generee et livree. Ils
 -- alimentaient deux categories de l'onglet Recommandations jugees sans valeur a l'usage.
--- Les donnees `auras`, `auraSample` et `tertiary` sont donc toujours generees et livrees
--- pour les 40 specialisations sans etre lues : le generateur peut cesser de les emettre,
--- ou ces lecteurs revenir. C'est un choix a faire, pas un oubli.
+-- `auras` a ete TRANCHE : le relevé brut cessait d'etre publie, et un bloc `consumables`
+-- le remplace — flacon, nourriture, runes, nommes. La source de l'aura ecarte les buffs de
+-- groupe, le nom et l'icone separent les consommables des passifs de spe. Cinquante-deux
+-- kilo-octets que personne ne lisait sont devenus une poignee de lignes qui repondent.
+--
+-- `tertiary` reste genere et non lu : le choix n'a pas encore ete fait.
 
 local scanner
 
@@ -310,6 +313,47 @@ function Meta.Builds(content)
     local data = block()
     local list = data and (content == "mythic" and data.buildsMythic or data.builds)
     return (type(list) == "table" and #list > 0) and list or nil
+end
+
+--- Consommables portes au pull : flacon, nourriture, runes.
+---
+--- NOMMES, pas a chercher. Le relevé publiait avant les auras BRUTES sous le titre « buffs
+--- au pull », en expliquant que rien ne distinguait un flacon d'une Intelligence arcanique.
+--- C'etait faux : la SOURCE de l'aura ecarte les buffs de groupe — ils viennent d'un autre
+--- joueur — et le nom et l'icone separent les consommables des passifs de specialisation.
+---
+--- La categorie est decidee HORS DU JEU, sur les noms anglais de l'API. Ici on ne fait que
+--- l'afficher, avec le nom traduit que le client donne.
+--- @return table|nil { { id, name, kind, count, share }, ... }
+function Meta.Consumables()
+    local data = block()
+    local list = data and data.consumables
+    return (type(list) == "table" and #list > 0) and list or nil
+end
+
+--- Nombre de joueurs chez qui les consommables ont ete releves.
+---
+--- Distinct de `Meta.Sample()` : les auras ne sont lues que sur les joueurs dont le bloc
+--- combatantinfo a pu etre recupere, ce qui est un sous-ensemble. Afficher l'echantillon
+--- general a cote d'un taux calcule sur celui-ci donnerait un pourcentage faux.
+function Meta.ConsumableSample()
+    local data = block()
+    return (data and data.consumableSample) or 0
+end
+
+--- Nom d'un consommable dans la langue du client, ou celui du relevé a defaut.
+---
+--- Le relevé porte le nom ANGLAIS : c'est celui que rend l'API, et c'est sur lui que la
+--- categorie a ete decidee. Le client, lui, connait le nom traduit.
+function Meta.ConsumableName(entry)
+    if not entry then return nil end
+    local getInfo = (C_Spell and C_Spell.GetSpellInfo) or GetSpellInfo
+    if type(getInfo) == "function" then
+        local ok, info = pcall(getInfo, entry.id)
+        if ok and type(info) == "table" and info.name then return info.name end
+        if ok and type(info) == "string" and info ~= "" then return info end
+    end
+    return entry.name
 end
 
 --- Objets FABRIQUES portes par le haut de tableau — donc les recettes qui valent la peine.

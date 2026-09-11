@@ -47,6 +47,7 @@ journal fichier reste la source de vérité de l'outil Python, pas de l'addon.
 | `Meta.lua` | Lecture du relevé + contrôle de version du format |
 | `Sim.lua` | Gains simulés, regroupement par rencontre, liens de butin |
 | `Recommendations.lua` | Façade : table éditable, sinon le relevé |
+| **Consommables** | `Meta.Consumables()` — flacon, nourriture, runes, **nommés**. La source de l'aura écarte les buffs de groupe (ils viennent d'un autre acteur) ; le nom et l'icône séparent les consommables des passifs de spé. La catégorie est décidée **hors du jeu**, sur les noms anglais de l'API |
 | `Weights.lua` | Poids de statistiques depuis une chaîne Pawn — **aucun repli dérivé** |
 | `Data/Meta.lua` | **Généré et livré** : relevé des 40 spés — ne jamais éditer à la main |
 | `Data/Sim.lua` | **Généré** depuis tes droptimizers — ne jamais éditer à la main |
@@ -105,9 +106,10 @@ et te place dedans. C'est ce qui distingue une cible d'un intervalle — « crit
 écart 8 points » veut dire vise, « écart 30 » veut dire que le haut de tableau ne
 s'accorde pas.
 
-Les ~66 clés de locale encore orphelines sont d'anciens libellés de cet onglet non
-repris par la reconstruction. `tools/check_locale.py` les signale : c'est attendu tant
-que la mise en page n'est pas figée.
+Les clés de locale orphelines ont été purgées : **300 clés, 259 référencées, zéro
+orpheline**. Ce n'était pas une question de poids — 88 avertissements à chaque passage
+noyaient le seul qui aurait compté, une traduction réellement manquante. Le prochain
+avertissement de `check_locale.py` voudra dire quelque chose.
 
 ## Régénérer le relevé
 
