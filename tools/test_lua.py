@@ -428,25 +428,44 @@ def test_traits_stream(report: Report) -> None:
     suite.equal("empreinte de l'arbre", hashed, list(range(1, 17)))
 
     at = 24 + 16 * 8
-    # Noeud 10 : pris, complet (1 sur 1), pas un choix.
+    # LE BIT « ACHETE » suit immediatement « pris ». Il manquait, et c'est tout ce qui
+    # separait notre chaine de celle du client — voir `test_import_roundtrip`.
+    #
+    # Noeud 10 : pris, achete, complet (1 sur 1), pas un choix.
     suite.equal("noeud 10 pris", read(bits, at, 1), 1)
-    suite.equal("noeud 10 complet", read(bits, at + 1, 1), 0)
-    suite.equal("noeud 10 sans choix", read(bits, at + 2, 1), 0)
-    at += 3
-    # Noeud 20 : pris, PARTIEL (2 sur 3), donc six bits de rang suivent.
+    suite.equal("noeud 10 achete", read(bits, at + 1, 1), 1)
+    suite.equal("noeud 10 complet", read(bits, at + 2, 1), 0)
+    suite.equal("noeud 10 sans choix", read(bits, at + 3, 1), 0)
+    at += 4
+    # Noeud 20 : pris, achete, PARTIEL (2 sur 3), donc six bits de rang suivent.
     suite.equal("noeud 20 pris", read(bits, at, 1), 1)
-    suite.equal("noeud 20 partiel", read(bits, at + 1, 1), 1)
-    suite.equal("noeud 20 rang", read(bits, at + 2, 6), 2)
-    suite.equal("noeud 20 sans choix", read(bits, at + 8, 1), 0)
-    at += 9
-    # Noeud 30 : pris, complet, A CHOIX — seconde option, donc index 1.
+    suite.equal("noeud 20 achete", read(bits, at + 1, 1), 1)
+    suite.equal("noeud 20 partiel", read(bits, at + 2, 1), 1)
+    suite.equal("noeud 20 rang", read(bits, at + 3, 6), 2)
+    suite.equal("noeud 20 sans choix", read(bits, at + 9, 1), 0)
+    at += 10
+    # Noeud 30 : pris, achete, complet, A CHOIX — seconde option, donc index 1.
     suite.equal("noeud 30 pris", read(bits, at, 1), 1)
-    suite.equal("noeud 30 complet", read(bits, at + 1, 1), 0)
-    suite.equal("noeud 30 a choix", read(bits, at + 2, 1), 1)
-    suite.equal("noeud 30 seconde option", read(bits, at + 3, 2), 1)
+    suite.equal("noeud 30 achete", read(bits, at + 1, 1), 1)
+    suite.equal("noeud 30 complet", read(bits, at + 2, 1), 0)
+    suite.equal("noeud 30 a choix", read(bits, at + 3, 1), 1)
+    suite.equal("noeud 30 seconde option", read(bits, at + 4, 2), 1)
 
-    # Un noeud NON pris ne coute qu'UN bit. C'est ce qui fait tenir soixante-dix noeuds
-    # dans une chaine courte, et un bit de trop decalerait tout ce qui suit.
+    # UN NOEUD ACCORDE PAR L'ARBRE ne coute que DEUX bits : pris, pas achete. Ni rang, ni
+    # choix. Ecrire la suite quand meme decalait tout ce qui venait apres — c'etait le bug.
+    granted = lua.eval("function(nodeID) if nodeID == 10 then return 1, nil, true end "
+                       "return 0 end")
+    text = serialize(shot, 2, 250, granted)
+    gbits = decode(str(text))
+    base = 24 + 16 * 8
+    suite.equal("accorde : pris", read(gbits, base, 1), 1)
+    suite.equal("accorde : pas achete", read(gbits, base + 1, 1), 0)
+    # Les deux noeuds suivants ne sont pas pris : un bit chacun, donc des zeros.
+    suite.equal("le noeud suivant reprend au bit d'apres", read(gbits, base + 2, 1), 0)
+    suite.equal("et celui d'apres aussi", read(gbits, base + 3, 1), 0)
+
+    # Un noeud NON pris ne coute qu'UN bit. C'est ce qui fait tenir deux cents noeuds dans
+    # une chaine courte, et un bit de trop decalerait tout ce qui suit.
     short = serialize(shot, 2, 250, lua.globals().GEARPROOF_EMPTY)
     header = 24 + 16 * 8
     useful = header + 3
@@ -493,6 +512,77 @@ def test_traits_split(report: Report) -> None:
     empty_main, empty_heroes = ns.Traits.SplitTrees(None)
     suite.equal("sans instantane, rien", len(empty_main), 0)
     suite.equal("et aucun heros", sorted(empty_heroes), [])
+
+    suite.done()
+
+
+def test_import_roundtrip(report: Report) -> None:
+    """L'ALLER-RETOUR SUR UNE CHAINE REELLE : la seule preuve de format sans le jeu.
+
+    Un joueur a colle deux chaines cote a cote — celle que son client produit, et celle que
+    GearProof produisait pour la meme configuration. L'entete etait identique ; la
+    divergence commencait trois bits apres, et l'ecart valait 78 bits pour 76 noeuds pris.
+    Un bit par noeud.
+
+    Ce bit est « ACHETE ». A zero, le noeud est ACCORDE par l'arbre et rien d'autre n'est
+    ecrit pour lui — ni rang, ni choix. Ecrire la suite quand meme decalait tout ce qui
+    venait apres.
+
+    `tools/import_sample.lua` est cette chaine, decodee noeud par noeud. Le test la
+    re-serialise et exige le meme texte AU CARACTERE PRES. La reference n'est pas
+    inventee : c'est Blizzard qui l'a produite.
+    """
+    suite = Suite(report, "Traits.roundtrip")
+    lua, ns, locals_ = new_runtime(["Spec.lua", "Traits.lua"],
+                                   expose={"Traits.lua": ["serialize"]})
+
+    sample_path = (ADDON_ROOT / "tools" / "import_sample.lua").as_posix()
+    lua.execute(f'dofile("{sample_path}")')
+    sample = lua.globals().GEARPROOF_IMPORT_SAMPLE
+    suite.truthy("echantillon charge", sample is not None)
+
+    lua.execute("""
+        Enum = Enum or {}
+        Enum.TraitNodeType = { Single = 0, Tiered = 1, Selection = 2 }
+        C_Traits = C_Traits or {}
+        C_Traits.GetTreeHash = function() return GEARPROOF_IMPORT_SAMPLE.hash end
+
+        -- L'arbre reconstruit depuis l'echantillon : meme ordre, memes maximums de rang,
+        -- meme nature de noeud. Un noeud a choix porte deux entrees pour que l'index
+        -- puisse designer la seconde.
+        local order, nodes = {}, {}
+        for index, row in ipairs(GEARPROOF_IMPORT_SAMPLE.nodes) do
+            order[index] = row.id
+            nodes[row.id] = {
+                id = row.id,
+                maxRanks = row.maxRanks,
+                type = row.choice and Enum.TraitNodeType.Selection or 0,
+                entryIDs = row.choice and { row.id * 10, row.id * 10 + 1 } or { row.id * 10 },
+            }
+        end
+        GEARPROOF_SHOT = { treeID = 1, order = order, nodes = nodes }
+
+        GEARPROOF_REPLAY = function(nodeID)
+            local row = GEARPROOF_IMPORT_SAMPLE.nodes[nodeID]
+            if not row or row.rank == 0 then return 0 end
+            if row.granted then return row.rank, nil, true end
+            local entryID = row.choice and (nodeID * 10 + row.choice - 1) or (nodeID * 10)
+            return row.rank, entryID, false
+        end
+    """)
+
+    produced = locals_["serialize"](lua.globals().GEARPROOF_SHOT,
+                                    int(sample["version"]), int(sample["specID"]),
+                                    lua.globals().GEARPROOF_REPLAY)
+    expected = str(sample["text"])
+
+    suite.equal("longueur", len(str(produced or "")), len(expected))
+    suite.equal("la chaine du client est reproduite", str(produced or ""), expected)
+
+    # ET DANS L'AUTRE SENS : sans le bit « achete », la chaine doit differer. C'est ce
+    # bit-la qui a ete trouve, et rien ne prouverait qu'il sert si son absence passait.
+    at = next((i for i, (a, b) in enumerate(zip(str(produced or ""), expected)) if a != b), None)
+    suite.equal("aucun caractere ne differe", at, None)
 
     suite.done()
 
@@ -1141,7 +1231,8 @@ def main() -> int:
                  test_prune_reports, test_csv_freshness, test_roster_freshness,
                  test_by_encounter_season, test_known_level,
                  test_crafts_and_trinkets, test_traits_stream,
-                 test_traits_selfcheck, test_traits_split):
+                 test_traits_selfcheck, test_traits_split,
+                 test_import_roundtrip):
         try:
             test(report)
         except Exception as error:  # noqa: BLE001 — un test qui casse est un constat

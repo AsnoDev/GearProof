@@ -184,6 +184,10 @@ function Traits.Snapshot()
                 entries = entries,
                 edges = edges,
                 ranksPurchased = info.ranksPurchased or 0,
+                -- ACCORDE PAR L'ARBRE : un rang actif sans rang achete. C'est une
+                -- propriete de l'ARBRE, pas du build — elle vaut donc aussi pour le build
+                -- du relevé, qu'on exporte avec la meme regle.
+                activeRank = info.activeRank or 0,
                 activeEntry = info.activeEntry,
                 name = name,
                 icon = icon,
@@ -297,10 +301,24 @@ end
 --   puis, POUR CHAQUE NOEUD dans l'ordre de `GetTreeNodes` :
 --     1 bit  : noeud pris ?
 --     si pris :
---       1 bit  : partiellement monte ?
---       si oui : 6 bits de rang
---       1 bit  : noeud a choix ?
---       si oui : 2 bits d'index de choix
+--       1 bit  : ACHETE ?
+--       si achete :
+--         1 bit  : partiellement monte ?
+--         si oui : 6 bits de rang
+--         1 bit  : noeud a choix ?
+--         si oui : 2 bits d'index de choix
+--       sinon (ACCORDE par l'arbre) : rien de plus n'est ecrit pour ce noeud
+--
+-- LE BIT « ACHETE » MANQUAIT, et c'est tout ce qui separait notre chaine de celle du
+-- client. Il n'a pas ete devine : un joueur a colle les deux, et la comparaison bit a bit
+-- les a departagees. L'entete — version 2, specID 250, seize octets d'empreinte — etait
+-- identique ; la divergence commencait trois bits apres, et l'ecart total valait 78 bits
+-- pour 76 noeuds pris. Un bit par noeud.
+--
+-- Restait a savoir ce que ce bit commande a zero. Deux lectures possibles : « on ecrit la
+-- suite quand meme », ou « le noeud est accorde par l'arbre et rien d'autre ne suit ».
+-- Seule la seconde termine le flux sur du remplissage a zero avec des rangs plausibles :
+-- 73 noeuds achetes, 3 accordes, 8 a choix, six bits de remplissage exactement.
 --
 -- CE FORMAT N'EST PAS UN CONTRAT. Il a change entre extensions et rien ne garantit qu'il
 -- ne changera plus. Ecrire une chaine fausse serait pire que de ne rien proposer : le
@@ -341,7 +359,8 @@ local function encode(stream)
     return table.concat(out)
 end
 
---- Serialise une selection. `reader(nodeID, node)` rend rang et identifiant d'entree.
+--- Serialise une selection.
+--- @param reader function rend `rang, entryID, accorde` pour un noeud donne
 local function serialize(shot, version, specID, reader)
     local hash = safe(C_Traits.GetTreeHash, shot.treeID)
     if type(hash) ~= "table" or #hash == 0 then return nil end
@@ -353,30 +372,38 @@ local function serialize(shot, version, specID, reader)
 
     for _, nodeID in ipairs(shot.order) do
         local node = shot.nodes[nodeID]
-        local rank, entryID = reader(nodeID, node)
+        local rank, entryID, granted = reader(nodeID, node)
         local selected = (rank or 0) > 0
 
         addValue(stream, selected and 1 or 0, 1)
         if selected then
-            local maxRanks = (node and node.maxRanks) or 1
-            local partial = rank ~= maxRanks
-            addValue(stream, partial and 1 or 0, 1)
-            if partial then addValue(stream, rank, RANK_BITS) end
+            -- ACHETE, ou accorde par l'arbre. Un noeud accorde ne coute que ces deux
+            -- bits : ni rang, ni choix. Ecrire la suite quand meme decalait tout ce qui
+            -- venait apres, et c'est exactement ce qui se passait.
+            addValue(stream, granted and 0 or 1, 1)
 
-            -- La valeur de reference est lue AVANT la comparaison. Ecrite en ligne,
-            -- elle vaut nil quand `Enum.TraitNodeType` n'existe pas, et `node.type == nil`
-            -- devient VRAI pour tout noeud sans type : chacun recevrait alors deux bits
-            -- d'index de choix et la chaine serait corrompue. Une comparaison ne doit
-            -- jamais changer de sens parce qu'un de ses membres a disparu.
-            local selection = Enum and Enum.TraitNodeType and Enum.TraitNodeType.Selection
-            local isChoice = selection ~= nil and node ~= nil and node.type == selection
-            addValue(stream, isChoice and 1 or 0, 1)
-            if isChoice then
-                local index = 0
-                for position, candidate in ipairs((node and node.entryIDs) or {}) do
-                    if candidate == entryID then index = position - 1 break end
+            if not granted then
+                local maxRanks = (node and node.maxRanks) or 1
+                local partial = rank ~= maxRanks
+                addValue(stream, partial and 1 or 0, 1)
+                if partial then addValue(stream, rank, RANK_BITS) end
+
+                -- La valeur de reference est lue AVANT la comparaison. Ecrite en ligne,
+                -- elle vaut nil quand `Enum.TraitNodeType` n'existe pas, et
+                -- `node.type == nil` devient VRAI pour tout noeud sans type : chacun
+                -- recevrait alors deux bits d'index de choix et la chaine serait
+                -- corrompue. Une comparaison ne doit jamais changer de sens parce qu'un
+                -- de ses membres a disparu.
+                local selection = Enum and Enum.TraitNodeType and Enum.TraitNodeType.Selection
+                local isChoice = selection ~= nil and node ~= nil and node.type == selection
+                addValue(stream, isChoice and 1 or 0, 1)
+                if isChoice then
+                    local index = 0
+                    for position, candidate in ipairs((node and node.entryIDs) or {}) do
+                        if candidate == entryID then index = position - 1 break end
+                    end
+                    addValue(stream, index, CHOICE_BITS)
                 end
-                addValue(stream, index, CHOICE_BITS)
             end
         end
     end
@@ -408,8 +435,13 @@ function Traits.SelfCheck()
     if not specID then return false, "no spec" end
 
     local ours = serialize(shot, version, specID, function(_, node)
-        if not node or (node.ranksPurchased or 0) <= 0 then return 0 end
-        return node.ranksPurchased, node.activeEntry and node.activeEntry.entryID
+        if not node then return 0 end
+        local purchased = node.ranksPurchased or 0
+        local active = node.activeRank or 0
+        if purchased <= 0 and active <= 0 then return 0 end
+        -- Un noeud ACCORDE porte un rang actif sans rang achete.
+        if purchased <= 0 then return active, nil, true end
+        return purchased, node.activeEntry and node.activeEntry.entryID, false
     end)
 
     if ours ~= expected then return false, "format mismatch", version, ours, expected end
@@ -441,9 +473,13 @@ function Traits.Export(match)
     local specID = ns.Spec.Active()
     if not shot or not specID or not match then return nil, "no selection" end
 
-    return serialize(shot, version, specID, function(nodeID)
+    return serialize(shot, version, specID, function(nodeID, node)
         local picked = match.selection[nodeID]
         if not picked then return 0 end
-        return picked.rank or 1, picked.entryID
+        -- Un noeud accorde par l'arbre l'est pour TOUT build : on reprend la propriete
+        -- telle que le client la rapporte sur la configuration en cours.
+        local granted = node and (node.ranksPurchased or 0) <= 0
+            and (node.activeRank or 0) > 0
+        return picked.rank or 1, picked.entryID, granted
     end)
 end
