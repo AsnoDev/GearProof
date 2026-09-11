@@ -49,8 +49,13 @@ DYNAMIC_KEYS = {
     "Haste", "Crit", "Mastery", "Versatility",
     # Gear.SLOTS[].hint
     "stat enchant", "leg armor", "weapon enchant",
-    # UI.TABS[].label
-    "Equipment", "Raid", "Guild", "Help",
+    # UI.TABS[].label. "Talents" n'y etait pas tant qu'un `L["Talents"]` litteral existait
+    # ailleurs ; il a disparu avec la liste de repli de l'onglet, et la cle est redevenue
+    # invisible sans cesser d'etre affichee.
+    "Equipment", "Raid", "Guild", "Help", "Talents",
+    # RecoView : CONSUMABLE_LABEL[kind] -> L[...]. La categorie vient du relevé, donc
+    # l'etiquette ne peut pas etre un litteral.
+    "Flask", "Food", "Augment rune", "Vantus rune",
     # GuildView : les deux ecrans, poses via `L[button.label]`
     "Roster", "Loot",
     # Options.lua : les libelles et infobulles passent par une variable

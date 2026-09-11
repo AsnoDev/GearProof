@@ -34,7 +34,6 @@ local NODE_GAP = 6
 -- dessins et non un seul qui deborde.
 local HERO_GAP = 24
 local BUILD_ROW = 38
-local TALENT_ROW = 22
 local SECTION_GAP = 18
 
 local view, pools
@@ -105,31 +104,6 @@ local function newBuildRow()
     row.tag:SetPoint("RIGHT", -10, 0)
     row.tag:SetJustifyH("RIGHT")
     row.tag:SetWordWrap(false)
-
-    return row
-end
-
---- Ligne de talent : nom, barre d'adoption, part. Le REPLI quand l'arbre n'est pas lisible.
-local function newTalentRow()
-    local row = CreateFrame("Frame", nil, view.content)
-    row:SetHeight(TALENT_ROW)
-
-    row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.name:SetPoint("LEFT", 8, 0)
-    row.name:SetJustifyH("LEFT")
-    row.name:SetWordWrap(false)
-
-    row.track = row:CreateTexture(nil, "BACKGROUND")
-    row.track:SetHeight(4)
-    row.track:SetColorTexture(0.16, 0.16, 0.17, 1)
-
-    row.fill = row:CreateTexture(nil, "ARTWORK")
-    row.fill:SetHeight(4)
-
-    row.share = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    row.share:SetPoint("RIGHT", -8, 0)
-    row.share:SetWidth(46)
-    row.share:SetJustifyH("RIGHT")
 
     return row
 end
@@ -449,59 +423,6 @@ local function layoutTree(top, width)
     return bottom - NODE_GAP
 end
 
-local function layoutTalentList(top, width)
-    local list = ns.Meta.Talents(content)
-    if not list then return top end
-
-    -- LES NOMS PASSENT PAR `C_Traits`, jamais par `GetSpellInfo`. Un identifiant de noeud
-    -- passe a `GetSpellInfo` rend le nom d'un sort SANS RAPPORT — un nom faux mais
-    -- plausible, ce qui est pire que pas de nom du tout.
-    local shot = ns.Traits.Snapshot()
-    local named = {}
-    for _, entry in ipairs(list) do
-        local name
-        if shot then
-            local nodeID = shot.byEntry[entry.id] or (shot.nodes[entry.id] and entry.id)
-            local node = nodeID and shot.nodes[nodeID]
-            name = node and node.name
-        end
-        if name then table.insert(named, { name = name, share = entry.share }) end
-        if #named >= 16 then break end
-    end
-    if #named == 0 then return top end
-
-    top = heading(top, width, L["Talents"])
-
-    local barLeft, barWidth = math.min(300, width - 220), 140
-    for _, entry in ipairs(named) do
-        local row = pools.talent:Acquire()
-        row:SetParent(view.content)
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", 0, top)
-        row:SetWidth(width)
-
-        row.name:SetWidth(barLeft - 16)
-        row.name:SetText(hex("text") .. entry.name .. "|r")
-
-        row.track:ClearAllPoints()
-        row.track:SetPoint("LEFT", row, "LEFT", barLeft, 0)
-        row.track:SetWidth(barWidth)
-
-        row.fill:ClearAllPoints()
-        row.fill:SetPoint("LEFT", row.track, "LEFT", 0, 0)
-        row.fill:SetWidth(math.max(1, barWidth * math.min(1, entry.share or 0)))
-        local r, g, b = unpack(ns.Theme.RGB.link)
-        row.fill:SetColorTexture(r, g, b, 1)
-
-        row.share:SetText(string.format("%s%d%%|r", hex("muted"), (entry.share or 0) * 100 + 0.5))
-
-        row:Show()
-        top = top - TALENT_ROW
-    end
-
-    return top
-end
-
 --- Quel build ressemble le plus a la repartition du joueur ?
 ---
 --- On compare des REPARTITIONS, pas des talents : rien ne garantit que le `talentID` de
@@ -682,7 +603,6 @@ function TalentView.Create(parent)
         edge = ns.Pool.New(newEdge),
         node = ns.Pool.New(newNode, resetNode),
         build = ns.Pool.New(newBuildRow),
-        talent = ns.Pool.New(newTalentRow),
         text = ns.Pool.New(newText),
     }
 
@@ -722,9 +642,12 @@ function TalentView.Refresh()
         if drawn then
             top = drawn
         else
-            -- On DIT pourquoi l'arbre n'est pas la, puis on montre ce qui reste vrai.
+            -- L'ARBRE OU RIEN. Une liste de noms classes par adoption tenait lieu de repli :
+            -- elle se lisait comme un choix de talents, alors qu'elle n'en etait pas un —
+            -- les seize talents les plus pris de l'echantillon ne forment aucun build reel,
+            -- et deux d'entre eux peuvent s'exclure. On DIT pourquoi l'arbre n'est pas la,
+            -- et on ne publie rien d'autre.
             top = text(top, width, hex("bis") .. reason .. "|r")
-            top = layoutTalentList(top, width)
         end
         top = layoutBuilds(top, width)
     end
