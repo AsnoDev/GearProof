@@ -311,6 +311,11 @@ def main() -> int:
             -- viderait et la page afficherait « le client n'a pas rendu d'arbre ».
             [60] = { posX = 5600, posY = 3800, maxRanks = 1, type = 0, entryIDs = { 600 },
                      ranksPurchased = 0, subTreeID = 0, visibleEdges = {} },
+            -- UN NOEUD QUE LE CLIENT NE SAIT PAS DECRIRE : sa definition ne rend rien.
+            -- Il appartient a une autre specialisation de la classe. Il ne doit pas etre
+            -- dessine — sinon on retrouve la grille de points d'interrogation.
+            [70] = { posX = 6200, posY = 4400, maxRanks = 1, type = 0, entryIDs = { 700 },
+                     ranksPurchased = 0, visibleEdges = {} },
         }
 
         C_ClassTalents = C_ClassTalents or {}
@@ -318,13 +323,16 @@ def main() -> int:
 
         C_Traits = C_Traits or {}
         C_Traits.GetConfigInfo = function() return { treeIDs = { 42 } } end
-        C_Traits.GetTreeNodes = function() return { 10, 20, 30, 40, 41, 50, 60 } end
+        C_Traits.GetTreeNodes = function() return { 10, 20, 30, 40, 41, 50, 60, 70 } end
         C_Traits.GetSubTreeInfo = function(_, subTreeID)
             return { name = "Heros " .. tostring(subTreeID) }
         end
         C_Traits.GetNodeInfo = function(_, nodeID) return NODES[nodeID] end
         C_Traits.GetEntryInfo = function(_, entryID) return { definitionID = entryID } end
         C_Traits.GetDefinitionInfo = function(definitionID)
+            -- 700 : aucune definition. C'est ainsi que le client repond pour un noeud
+            -- d'une autre specialisation.
+            if definitionID == 700 then return nil end
             return { overrideName = "Talent " .. definitionID,
                      overrideIcon = "Interface\\Icons\\INV_Misc_QuestionMark" }
         end

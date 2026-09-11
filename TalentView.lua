@@ -310,6 +310,35 @@ local function layoutTree(top, width)
         end
     end
 
+    --- LA COLONNE DU MILIEU, celle que le jeu laisse vide entre classe et specialisation.
+    ---
+    --- L'arbre de heros y vit — capture du jeu a l'appui : DEATH KNIGHT a gauche,
+    --- SAN'LAYN au centre, BLOOD a droite. Le poser sous l'arbre, comme on le faisait,
+    --- l'eloignait de sa place et allongeait la page pour rien.
+    ---
+    --- On ne devine pas la colonne : on cherche le plus grand TROU horizontal entre deux
+    --- positions voisines de l'arbre principal. Quand il n'y en a pas de franc — un pas de
+    --- grille suffit a l'expliquer — on retombe sous l'arbre, ou le dessin reste lisible.
+    local function middleColumn()
+        local xs, seen = {}, {}
+        for _, node in ipairs(main) do
+            if not seen[node.x] then seen[node.x] = true table.insert(xs, node.x) end
+        end
+        table.sort(xs)
+        if #xs < 3 then return nil end
+
+        local widest, at = 0, nil
+        for index = 2, #xs do
+            local hole = xs[index] - xs[index - 1]
+            if hole > widest then widest, at = hole, index end
+        end
+        -- Le trou doit valoir NETTEMENT plus qu'un pas de grille, sinon ce n'est pas une
+        -- colonne vide mais deux colonnes voisines.
+        local step = tightestGap(main)
+        if not step or widest < step * 2.5 then return nil end
+        return xs[at - 1], xs[at]
+    end
+
     local heroLabel
     if bestTree then
         local list = heroes[bestTree]
@@ -321,26 +350,42 @@ local function layoutTree(top, width)
         -- differentes sur la meme page ne se lisent pas comme un seul dessin.
         local heroScale = heroGap and (size + 4) / heroGap or scale
         local heroWidth = span * heroScale
-        local left = math.max(4, (width - heroWidth - size) / 2)
 
-        bottom = bottom - HERO_GAP
-        heroLabel = { top = bottom, name = ns.Traits.SubTreeName(bestTree) }
-        bottom = bottom - 18
+        local leftX, rightX = middleColumn()
+        local left, top0
+        if leftX then
+            -- Centre dans le trou, et aligne en HAUT de l'arbre : c'est la place du jeu.
+            local holeLeft = 4 + (leftX - minX) * scale + size
+            local holeRight = 4 + (rightX - minX) * scale
+            left = math.max(4, holeLeft + (holeRight - holeLeft - heroWidth - size) / 2)
+            top0 = origin
+        else
+            left = math.max(4, (width - heroWidth - size) / 2)
+            bottom = bottom - HERO_GAP
+            top0 = bottom
+        end
+
+        heroLabel = { top = top0, name = ns.Traits.SubTreeName(bestTree), left = left }
+        top0 = top0 - 18
 
         for _, node in ipairs(list) do
             placed[node.id] = {
                 x = left + (node.x - hminX) * heroScale,
-                y = bottom - (node.y - hminY) * heroScale,
+                y = top0 - (node.y - hminY) * heroScale,
             }
         end
-        bottom = bottom - (hmaxY - hminY) * heroScale - size
+        local heroBottom = top0 - (hmaxY - hminY) * heroScale - size
+        -- La page descend jusqu'au plus bas des deux dessins.
+        if heroBottom < bottom then bottom = heroBottom end
     end
 
     if heroLabel then
         local label = pools.text:Acquire()
         label:ClearAllPoints()
-        label:SetPoint("TOPLEFT", 2, heroLabel.top)
-        label:SetWidth(width - 4)
+        -- Le titre se pose AU-DESSUS de son arbre, pas a la marge : centre dans la
+        -- colonne, il dit de quel dessin il parle.
+        label:SetPoint("TOPLEFT", math.max(2, heroLabel.left), heroLabel.top)
+        label:SetWidth(math.max(80, width - heroLabel.left))
         label:SetText(hex("link") .. (heroLabel.name or L["Hero talents"]):upper() .. "|r")
     end
 

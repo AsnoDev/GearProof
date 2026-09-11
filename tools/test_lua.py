@@ -490,18 +490,24 @@ def test_traits_split(report: Report) -> None:
     lua, ns, _ = new_runtime(["Spec.lua", "Traits.lua"])
 
     shot = lua.eval("""{
-        order = { 10, 20, 30, 40 },
+        order = { 10, 20, 30, 40, 50 },
         nodes = {
-            [10] = { id = 10 },
-            [20] = { id = 20, subTree = 0 },
-            [30] = { id = 30, subTree = 5 },
-            [40] = { id = 40, subTree = 5 },
+            [10] = { id = 10, name = "A" },
+            [20] = { id = 20, subTree = 0, name = "B" },
+            [30] = { id = 30, subTree = 5, name = "C" },
+            [40] = { id = 40, subTree = 5, name = "D" },
+            -- SANS NOM : le client ne sait pas le decrire. `GetTreeNodes` rend tout
+            -- l'arbre de la CLASSE — mesure sur un cas reel, 210 noeuds la ou une spe en
+            -- montre une centaine — et les autres appartiennent aux deux autres spes.
+            -- Blizzard ne les dessine pas ; nous non plus.
+            [50] = { id = 50 },
         },
     }""")
     main, heroes = ns.Traits.SplitTrees(shot)
 
     got = sorted(int(main[i]["id"]) for i in range(1, len(main) + 1))
     suite.equal("zero reste dans l'arbre principal", got, [10, 20])
+    suite.falsy("un noeud sans nom est ecarte", 50 in got)
     # `#` sur une table indexee par identifiant rend ZERO : les cles ne sont pas une
     # sequence. On compte les cles, pas la longueur — le meme piege que cote Lua.
     trees = sorted(int(key) for key in heroes)

@@ -231,7 +231,18 @@ function Traits.SplitTrees(shot)
 
     for _, nodeID in ipairs(shot.order or {}) do
         local node = shot.nodes[nodeID]
-        if node then
+        -- ON NE DESSINE QUE CE QUE LE CLIENT SAIT NOMMER.
+        --
+        -- `GetTreeNodes` rend TOUT l'arbre de la classe : mesure sur un cas reel, 210
+        -- noeuds la ou une specialisation en montre une centaine. Les autres appartiennent
+        -- aux deux autres specialisations et aux arbres de heros qu'on ne joue pas. Le
+        -- client ne leur donne ni nom ni icone, et l'onglet les dessinait quand meme —
+        -- d'ou la grille de points d'interrogation au milieu de la page, la ou le jeu,
+        -- lui, place l'arbre de heros.
+        --
+        -- « Le client sait-il le decrire ? » est le seul critere qui ne suppose rien : si
+        -- la definition manque, Blizzard ne le dessine pas non plus.
+        if node and node.name then
             if node.subTree and node.subTree > 0 then
                 heroes[node.subTree] = heroes[node.subTree] or {}
                 table.insert(heroes[node.subTree], node)
