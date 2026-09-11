@@ -30,8 +30,9 @@ TABS = ["gear", "reco", "talent", "items", "raid", "guild", "help"]
 
 # Toutes les commandes du gestionnaire de `Core.lua`. Une commande qui leve est une
 # fonctionnalite morte que rien d'autre ne signale.
-COMMANDS = ["", "gear", "bags", "reco", "guild", "simc", "simcdiag", "droptimizer",
-            "theme", "options", "help", "minimap", "lang", "weights", "alerts", "debug"]
+COMMANDS = ["", "gear", "bags", "reco", "talents", "items", "guild", "simc", "simcdiag",
+            "droptimizer", "theme", "options", "help", "minimap", "lang", "weights",
+            "alerts", "debug"]
 
 # Un droptimizer minimal au format reel : la ligne sans separateur est le personnage nu,
 # les suivantes sont des profilesets zone/rencontre/difficulte/objet/ilvl/enchant/emplacement.
@@ -172,6 +173,21 @@ def main() -> int:
                      f"GEARPROOF_NS.UI.Show('{tab}')")
 
     step("RefreshNow", "GEARPROOF_NS.UI.RefreshNow()")
+
+    # UNE CLE D'ONGLET INCONNUE DOIT ETRE REFUSEE.
+    #
+    # Elle etait acceptee en silence, et le resultat etait pire qu'une erreur : aucun hote
+    # ne correspond donc aucun n'est affiche — fenetre vide — pendant que le dispatch
+    # rafraichit l'Aide qu'on ne voit pas. Une faute de frappe dans une commande donnait
+    # une fenetre blanche, et aucun test ne pouvait l'attraper puisque toutes les cles
+    # « marchaient ». C'est exactement ce qu'une regression volontaire a revele : elle
+    # n'avait rien casse.
+    lua.execute("GEARPROOF_OK_TAB = GEARPROOF_NS.UI.Show('reco')")
+    lua.execute("GEARPROOF_BAD_TAB = GEARPROOF_NS.UI.Show('talnet')")
+    if not lua.globals().GEARPROOF_OK_TAB:
+        report.error("onglets", "une cle connue est refusee")
+    if lua.globals().GEARPROOF_BAD_TAB:
+        report.error("onglets", "une cle inconnue est acceptee — la fenetre serait vide")
 
     # LES SECTIONS QUI DEPENDENT DU RELEVE LIVRE NE SE RENDENT PAS TOUTES SEULES.
     #

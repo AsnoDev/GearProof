@@ -321,7 +321,9 @@ local function usage()
     ns.Print("commands:")
     print("  " .. c .. "/gp|r — open the window")
     print("  " .. c .. "/gp gear|r — gear audit in the chat")
-    print("  " .. c .. "/gp reco|r — what to put on, by category")
+    print("  " .. c .. "/gp reco|r — what to put on: stats, enchants, gems")
+    print("  " .. c .. "/gp talents|r — the talent tree, raid or Mythic+")
+    print("  " .. c .. "/gp items|r — trinkets by source, and crafted gear")
     print("  " .. c .. "/gp simc|r — copy the SimulationCraft string")
     print("  " .. c .. "/gp droptimizer|r — droptimizer link and result paste")
     print("  " .. c .. "/gp weights <Pawn string>|r — store your stat weights")
@@ -393,6 +395,13 @@ SlashCmdList.GEARPROOF = function(input)
             ns.db.gearAlerts and "|cff00E676on|r" or "|cffFFC107off|r")
     elseif cmd == "reco" or cmd == "recommendations" or cmd == "conseils" then
         ns.UI.Show("reco")
+    -- Les deux onglets ajoutes lors de l'allegement de Recommandations. Les cinq
+    -- d'origine avaient leur commande ; ceux-la n'en avaient pas, donc la moitie de
+    -- l'interface n'etait atteignable qu'a la souris.
+    elseif cmd == "talents" or cmd == "talent" then
+        ns.UI.Show("talent")
+    elseif cmd == "items" or cmd == "objets" then
+        ns.UI.Show("items")
     elseif cmd == "options" or cmd == "config" or cmd == "reglages" then
         ns.Options.Open()
     elseif cmd == "help" then

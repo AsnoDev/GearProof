@@ -66,6 +66,10 @@ ns.translations.fr = {
 
     -- Onglets neufs.
     ["Items"] = "Objets",
+    ["Talents: the tree your spec's top players actually play, in raid or in Mythic+."] =
+        "Talents : l'arbre que jouent reellement les meilleurs de ta spe, en raid ou en mythique+.",
+    ["Items: which trinkets they wear and where those drop, plus the recipes worth ordering."] =
+        "Objets : quels bijoux ils portent et ou ils tombent, plus les recettes qui valent la commande.",
     ["Talents"] = "Talents",
     ["Mythic+"] = "Mythique+",
 

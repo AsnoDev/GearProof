@@ -158,6 +158,12 @@ function HelpView.Refresh()
         "",
         hex(COLORS.accent) .. L["Compared to a measured reference: the top ranked players of your spec, enchant by enchant, with their adoption rate."] .. "|r",
         "",
+        -- L'AIDE DECRIVAIT UNE INTERFACE A CINQ ONGLETS. Deux ont ete ajoutes en sortant
+        -- de Recommandations ce qui n'y avait pas sa place, et la seule page censee
+        -- expliquer l'addon ne les a jamais mentionnes.
+        L["Talents: the tree your spec's top players actually play, in raid or in Mythic+."],
+        L["Items: which trinkets they wear and where those drop, plus the recipes worth ordering."],
+        "",
         L["Nothing here is copied from a guide, and nothing is invented. A value that is not measured is shown as unmeasured."],
     }, "\n"))
 

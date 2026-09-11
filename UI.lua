@@ -239,6 +239,7 @@ function refresh()
     elseif activeTab == "guild" then
         ns.GuildView.Refresh()
     else
+        -- `UI.Show` refuse toute cle inconnue : seul « help » arrive ici.
         ns.HelpView.Refresh()
     end
 
@@ -531,10 +532,36 @@ function UI.Toggle()
     end
 end
 
+--- Ouvre la fenetre, eventuellement sur un onglet donne.
+---
+--- UNE CLE INCONNUE ETAIT ACCEPTEE EN SILENCE, et le resultat etait pire qu'une erreur :
+--- aucun hote ne correspond, donc AUCUN n'est affiche — fenetre vide — pendant que le
+--- dispatch retombe sur son `else` et rafraichit l'Aide qu'on ne voit pas. Une faute de
+--- frappe dans une commande donnait donc une fenetre blanche, et aucun test ne pouvait
+--- l'attraper puisque toutes les cles « marchaient ».
+---
+--- On refuse desormais ce qu'on ne connait pas, et on garde l'onglet courant. Le booleen
+--- rendu n'est pas un crochet de test : c'est le contrat normal d'une fonction qui peut
+--- refuser son argument.
+--- @return boolean l'onglet demande a-t-il ete accepte
 function UI.Show(tab)
     if not frame then createFrame() end
-    if tab then activeTab = tab end
+
+    local accepted = true
+    if tab then
+        accepted = false
+        for _, definition in ipairs(TABS) do
+            if definition.key == tab then accepted = true break end
+        end
+        if accepted then
+            activeTab = tab
+        else
+            ns.Debug("onglet inconnu : %s", tostring(tab))
+        end
+    end
+
     showFrame()
+    return accepted
 end
 
 
