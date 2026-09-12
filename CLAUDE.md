@@ -42,7 +42,7 @@ journal fichier reste la source de vérité de l'outil Python, pas de l'addon.
 | Fichier | Rôle |
 |---|---|
 | `Spec.lua` | Spés de la classe, spé active, spé regardée (aperçu) |
-| `Traits.lua` | **Seul** accès à `C_Traits` : arbre de la spé active, correspondance des identifiants du relevé, chaîne d'import et son garde-fou |
+| `Traits.lua` | **Seul** accès à `C_Traits` : arbre de la spé active, séparation classe/héros, correspondance des identifiants du relevé. Il ne **fabrique** plus de chaîne d'import — elle vient du relevé |
 | `Stats.lua` | Statistiques secondaires et paliers de rendement décroissant |
 | `Meta.lua` | Lecture du relevé + contrôle de version du format |
 | `Sim.lua` | Gains simulés, regroupement par rencontre, liens de butin |
@@ -159,29 +159,61 @@ Côté addon : `Spec.Role()` donne le rôle de la spé **regardée** (aperçu co
 ajoute endurance et armure pour un tank ; le second dit sur quoi le haut de tableau a été
 classé, écrit en toutes lettres en tête de l'onglet Recommandations.
 
+## D'où vient le relevé
+
+**Raider.IO est la source principale.** Il classe les *joueurs* par score mythique+, là où
+Warcraft Logs classe des *parses* par rencontre — et pour un public qui fait des clés avant
+de raider, c'est la bonne population. **Le raid n'est plus relevé du tout** : un joueur
+d'avant-raid ne peut ni reproduire ni côtoyer cette population, et un arbre de raid se
+règle *par boss* alors qu'on n'en publie qu'un par contenu.
+
+Warcraft Logs reste appelé pour **deux blocs seulement**, ceux qui se lisent dans le bloc
+de combat d'un pull et que Raider.IO n'expose pas : la répartition des statistiques
+secondaires et les consommables. Ce sont aussi les seuls blocs *chers* — un classement WCL
+coûte 2 points qu'il porte l'équipement ou non, donc tout le reste tiendrait dans une
+centaine de points.
+
+Deux pièges, tous deux mesurés :
+
+- le classement de *runs* de l'API v1 documentée **ne peut pas** porter la population :
+  cinq joueurs par run, les mêmes comps qui rejouent. Douze pages rendent 25 spés sur 40
+  et **cinq** avec vingt joueurs. Le classement de *personnages* du site (`api/`, sans
+  `/v1/`) en rend 40 sur 40. Il n'est pas documenté, d'où `assert_shape` : échouer
+  bruyamment plutôt que livrer quarante spés vides ;
+- un **slug de classe inconnu ne lève aucune erreur** — `class=deathknight` rend 92
+  Guerriers Armes. `verify_class` compare la classe rendue à celle demandée.
+
 ## Builds
 
-Deux vues, parce qu'aucune ne suffit seule :
+**On ne publie pas « le build le plus joué » : il n'existe pas.** Mesure sur dix spés, le
+groupe d'arbres identiques de tête rassemble **5 à 25 %** des joueurs, et six fois sur dix
+les vingt premiers jouent vingt arbres différents. Un point déplacé fait une autre chaîne,
+et les joueurs de clé ajustent au donjon et à la semaine.
 
-| Donnée | Ce qu'elle dit | Faiblesse |
-|---|---|---|
-| `builds` | groupes d'arbres **identiques**, chacun avec sa répartition de stats | le haut de tableau ne partage presque jamais un arbre au point près : le groupe dominant plafonne vers 25 % |
-| `talents` | taux d'adoption **par talent** | ne dit pas quels ensembles cohérents existent |
+| Donnée | Ce qu'elle dit |
+|---|---|
+| `buildsMythic[1]` | l'arbre du **premier au score** : réel, légal, importable — avec `distinct`/`sample`, « X arbres différents chez Y joueurs » |
+| `talentsMythic` | taux d'adoption **par entrée retenue** — ce qui fait vraiment consensus, talent par talent |
 
-C'est `builds` qui donne enfin un sens à `modes` : il disait « la maîtrise se joue à 21 %
-ou à 38 % » sans dire quel build était derrière chaque valeur.
+Le couple `distinct`/`sample` est ce qui empêche de lire le premier comme LE build. Et
+c'est l'**entrée** qui est comptée, pas le nœud : un nœud de choix est pris par 100 % des
+joueurs alors que le choix se joue parfois 3 contre 1.
 
-Les `talentID` de Warcraft Logs **ne sont pas des identifiants de sort**. Mesuré sur un
-relevé réel : ils vont de 96167 à 137635 avec des rangs 1 ou 2 — la signature d'un arbre
-`C_Traits`, nœuds ou entrées de nœud. `C_Spell.GetSpellInfo` rendait pourtant un nom, celui
-d'un sort sans rapport : l'onglet affichait des noms **faux mais plausibles**, ce qui est
-pire que pas de nom.
+**La chaîne d'import ne se fabrique plus.** L'addon la sérialisait lui-même : format
+binaire reconstitué en comparant deux chaînes réelles, bit « nœud acheté » trouvé à la
+main, garde-fou qui comparait notre sortie à celle du client pour refuser l'export en cas
+d'écart. Ça marchait, et c'était la pièce la plus fragile — un bit d'écart et le jeu
+refusait tout, sans que rien ne puisse l'expliquer au joueur. Raider.IO publie la chaîne
+déjà construite ; `Meta.BuildImport` la rend, la vue la recopie.
 
-Tout passe maintenant par `Traits.lua`, qui interroge `C_Traits`. **Quel espace exactement ?
-On ne suppose pas, on compte** : `Traits.Match` essaie les deux contre l'arbre du client et
-retient celui qui correspond le mieux ; en dessous de 80 %, la page refuse de dessiner et
-dit pourquoi. Une entrée est plus précise qu'un nœud — sur un nœud à choix, elle dit
-laquelle des deux branches a été prise.
+Les identifiants de nœuds du relevé sont désormais **ceux de Blizzard**, donc ceux de
+`C_Traits`. `Traits.Match` reste : il vérifie la correspondance avant de dessiner et
+refuse en dessous de 80 %, ce qui protège d'un relevé d'une autre extension.
+
+L'arbre dessiné est celui de la **spé active** : aucune API ne rend l'arbre d'une autre spé
+sans y basculer. Et il **se périme** — `Traits.Snapshot` met en cache, `TRAIT_CONFIG_UPDATED`
+l'invalide. Sans ça, un point déplacé laissait l'ancien arbre à l'écran jusqu'à la
+prochaine connexion, et rien ne le signalait : un arbre périmé ressemble à un arbre à jour.
 
 L'arbre dessiné est celui de la **spé active** : aucune API ne rend l'arbre d'une autre spé
 sans y basculer.
