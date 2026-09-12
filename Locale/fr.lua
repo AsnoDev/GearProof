@@ -105,9 +105,17 @@ ns.translations.fr = {
     -- L'ARBRE, et les trois raisons de ne pas pouvoir le dessiner — dites au joueur
     -- plutot que masquees derriere une page vide.
     ["Talent tree"] = "Arbre de talents",
+    ["Mythic+ only. Hover a node for its adoption among the top players."] =
+        "Mythique+ uniquement. Survole un noeud pour son taux chez les meilleurs.",
+    ["Against your tree"] = "Ecart avec ton arbre",
+    ["Identical to the published tree."] = "Identique a l'arbre publie.",
+    ["and %d more — you are playing a different build"] =
+        "et %d autres — tu joues un autre build",
+    ["to take"] = "a prendre",
+    ["to drop"] = "a retirer",
+    ["other rank"] = "autre rang",
+    ["other branch"] = "autre branche",
     ["Hero talents"] = "Talents de heros",
-    ["Top build: %d%% of the top players. Hover a node for its adoption."] =
-        "Build de tete : %d %% du haut de tableau. Survole un noeud pour son taux de prise.",
     ["taken by the top build"] = "pris par le build de tete",
     ["not taken by the top build"] = "pas pris par le build de tete",
     ["taken by"] = "pris par",
@@ -274,6 +282,9 @@ ns.translations.fr = {
     ["%d%% take one"] = "%d %% en prennent une",
     ["Trinkets"] = "Bijoux",
     ["Weapons (pair)"] = "Armes (paire)",
+    ["Weapon oil"] = "Huile d'arme",
+    ["measured on %d players carrying a weapon"] =
+        "mesure sur %d joueurs portant une arme",
     ["No droptimizer imported yet."] = "Aucun droptimizer importe.",
     ["Import a droptimizer"] = "Importer un droptimizer",
     ["droptimizer imported: %d items"] = "droptimizer importe : %d objets",

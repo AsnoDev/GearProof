@@ -335,6 +335,99 @@ def test_prune_reports(report: Report) -> None:
 
 # ------------------------------------------------ serialisation des talents
 
+def test_traits_compare(report: Report) -> None:
+    """L'ECART entre l'arbre publie et celui du joueur.
+
+    C'est la question a laquelle l'onglet ne repondait pas : il dessinait l'arbre du haut
+    de tableau, coloriait par adoption, et laissait le joueur comparer de tete avec sa
+    propre fenetre ouverte a cote.
+
+    Deux pieges, et les deux produiraient une liste FAUSSE plutot qu'une absence :
+    les noeuds ACCORDES par l'arbre — rang actif sans rang achete — ne sont pas des choix
+    et feraient des dizaines de differences identiques chez tout le monde ; et un noeud a
+    CHOIX peut etre pris des deux cotes sans que ce soit le meme talent.
+    """
+    suite = Suite(report, "Traits.Compare")
+    lua, ns, _ = new_runtime(["Spec.lua", "Traits.lua"])
+    lua.globals().GEARPROOF_NS = ns
+
+    lua.execute("""
+        Enum = Enum or {}
+        Enum.TraitNodeType = { Single = 0, Tiered = 1, Selection = 2 }
+
+        -- 10 : le joueur l'a, eux non.          -> a retirer
+        -- 20 : eux l'ont, le joueur non.        -> a prendre
+        -- 30 : les deux, rangs differents.      -> autre rang
+        -- 40 : les deux, branche differente.    -> autre branche
+        -- 50 : les deux, a l'identique.         -> rien
+        -- 60 : ACCORDE par l'arbre, jamais achete. -> rien, jamais
+        local NODES = {
+            [10] = { posX = 0, posY = 0, maxRanks = 1, type = 0, entryIDs = { 100 },
+                     ranksPurchased = 1, activeRank = 1,
+                     activeEntry = { entryID = 100, rank = 1 } },
+            [20] = { posX = 10, posY = 0, maxRanks = 1, type = 0, entryIDs = { 200 },
+                     ranksPurchased = 0, activeRank = 0 },
+            [30] = { posX = 20, posY = 0, maxRanks = 3, type = 1, entryIDs = { 300 },
+                     ranksPurchased = 1, activeRank = 1,
+                     activeEntry = { entryID = 300, rank = 1 } },
+            [40] = { posX = 30, posY = 0, maxRanks = 1, type = 2, entryIDs = { 400, 401 },
+                     ranksPurchased = 1, activeRank = 1,
+                     activeEntry = { entryID = 400, rank = 1 } },
+            [50] = { posX = 40, posY = 0, maxRanks = 1, type = 0, entryIDs = { 500 },
+                     ranksPurchased = 1, activeRank = 1,
+                     activeEntry = { entryID = 500, rank = 1 } },
+            [60] = { posX = 50, posY = 0, maxRanks = 1, type = 0, entryIDs = { 600 },
+                     ranksPurchased = 0, activeRank = 1,
+                     activeEntry = { entryID = 600, rank = 1 } },
+        }
+        C_ClassTalents = { GetActiveConfigID = function() return 7 end }
+        C_Traits = {
+            GetConfigInfo = function() return { treeIDs = { 42 } } end,
+            GetTreeNodes = function() return { 10, 20, 30, 40, 50, 60 } end,
+            GetNodeInfo = function(_, nodeID) return NODES[nodeID] end,
+            GetEntryInfo = function(_, entryID) return { definitionID = entryID } end,
+            GetDefinitionInfo = function(id) return { overrideName = "T" .. id } end,
+            GetSubTreeInfo = function() return nil end,
+        }
+    """)
+    ns.Spec.Active = lua.eval("function() return 250 end")
+
+    # Le relevé parle en ENTREES : c'est l'espace le plus precis, et le seul qui permette
+    # de voir un changement de branche.
+    lua.execute("""
+        GEARPROOF_NS.Traits.Invalidate()
+        GEARPROOF_MATCH = GEARPROOF_NS.Traits.Match(
+            { 200, 1, 300, 3, 401, 1, 500, 1, 600, 1 })
+        GEARPROOF_DIFF = GEARPROOF_NS.Traits.Compare(GEARPROOF_MATCH)
+    """)
+    diff = lua.globals().GEARPROOF_DIFF
+    rows = {str(diff[i]["name"]): diff[i] for i in range(1, len(diff) + 1)}
+
+    suite.equal("quatre ecarts, pas plus", len(diff), 4)
+    suite.equal("le joueur l'a, eux non", str(rows["T100"]["kind"]), "drop")
+    suite.equal("eux l'ont, le joueur non", str(rows["T200"]["kind"]), "take")
+    suite.equal("meme talent, autre rang", str(rows["T300"]["kind"]), "rank")
+    suite.equal("rang du joueur", int(rows["T300"]["mine"]), 1)
+    suite.equal("rang publie", int(rows["T300"]["theirs"]), 3)
+    suite.equal("meme noeud, autre branche", str(rows["T400"]["kind"]), "swap")
+    suite.truthy("un choix identique ne ressort pas", "T500" not in rows)
+    suite.truthy("un noeud ACCORDE ne ressort jamais", "T600" not in rows)
+
+    # « A prendre » en tete : c'est la ligne sur laquelle on agit.
+    suite.equal("les gains passent devant", str(diff[1]["kind"]), "take")
+
+    # Deux arbres identiques ne rendent PAS une liste vide : ils rendent nil, pour que la
+    # vue puisse dire « identique » au lieu d'afficher un titre suivi de rien.
+    lua.execute("""
+        GEARPROOF_SAME = GEARPROOF_NS.Traits.Compare(
+            GEARPROOF_NS.Traits.Match({ 100, 1, 300, 1, 400, 1, 500, 1 }))
+    """)
+    suite.truthy("arbres identiques : nil, pas une liste vide",
+                 lua.globals().GEARPROOF_SAME is None)
+
+    suite.done()
+
+
 def test_traits_split(report: Report) -> None:
     """Quel noeud appartient a quel arbre — et le piege du ZERO.
 
@@ -955,7 +1048,7 @@ def main() -> int:
                  test_prune_reports, test_csv_freshness, test_roster_freshness,
                  test_by_encounter_season, test_known_level,
                  test_crafts_and_trinkets, test_player_import_string,
-                 test_traits_split):
+                 test_traits_split, test_traits_compare):
         try:
             test(report)
         except Exception as error:  # noqa: BLE001 — un test qui casse est un constat

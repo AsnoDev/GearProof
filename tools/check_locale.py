@@ -56,6 +56,9 @@ DYNAMIC_KEYS = {
     # RecoView : CONSUMABLE_LABEL[kind] -> L[...]. La categorie vient du relevé, donc
     # l'etiquette ne peut pas etre un litteral.
     "Flask", "Food", "Augment rune", "Vantus rune",
+    # TalentView : DIFF_LABEL[entry.kind] -> L[...]. La nature de l'ecart est decidee par
+    # `Traits.Compare`, donc elle arrive par une variable.
+    "to take", "to drop", "other rank", "other branch",
     # GuildView : les deux ecrans, poses via `L[button.label]`
     "Roster", "Loot",
     # Options.lua : les libelles et infobulles passent par une variable

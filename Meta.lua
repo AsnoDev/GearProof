@@ -585,9 +585,41 @@ function Meta.ForgedLink(referenceLink, slot, enchantID)
     return ns.ItemLink.WithEnchant(referenceLink, enchantID)
 end
 
---- Nom lisible d'un enchantement, lu dans l'infobulle d'un objet reel dont on remplace
---- le champ d'enchantement. Retourne nil si l'objet de reference manque.
+--- Objet qui APPLIQUE un enchantement : parchemin, kit d'armure, huile.
+---
+--- Le relevé porte la table, globale parce que la correspondance l'est. Elle existe pour
+--- une seule raison : un enchantement n'a pas de nom lisible en jeu, un objet si.
+function Meta.EnchantItem(enchantID)
+    if not enchantID then return nil end
+    local data = reference()
+    local table_ = data and data._enchantItems
+    return type(table_) == "table" and table_[enchantID] or nil
+end
+
+--- Nom lisible d'un enchantement.
+---
+--- DEUX VOIES, et la premiere est la bonne. L'objet qui applique l'enchantement se resout
+--- en nom localise par le client : « Kit d'armure amani », pas « +41 Agilite/Force & +115
+--- Endurance ». La seconde voie — lire l'infobulle d'un objet enchante — ne marche que
+--- pour les enchantements qui ecrivent une ligne « Enchante : ». UN RENFORT DE JAMBES N'EN
+--- ECRIT PAS : il ne pose qu'une ligne verte de statistiques, et c'est elle qui s'affichait
+--- a la place du nom.
 function Meta.EnchantName(referenceLink, enchantID)
+    local itemID = Meta.EnchantItem(enchantID)
+    if itemID then
+        local facts = ns.ItemInfo.Get(itemID)
+        if facts and facts.name then return facts.name end
+        -- Pas encore en cache : on le demande, et `GET_ITEM_INFO_RECEIVED` rafraichira.
+        if C_Item and C_Item.RequestLoadItemDataByID then
+            pcall(C_Item.RequestLoadItemDataByID, itemID)
+        end
+    end
+    return Meta.EnchantNameFromTooltip(referenceLink, enchantID)
+end
+
+--- Repli : le nom lu dans l'infobulle d'un objet reel dont on remplace l'enchantement.
+--- Retourne nil si l'objet de reference manque.
+function Meta.EnchantNameFromTooltip(referenceLink, enchantID)
     local forged = Meta.ForgedLink(referenceLink, nil, enchantID)
     if not forged then return nil end
 
@@ -720,6 +752,27 @@ function Meta.GemName(gemID)
         pcall(C_Item.RequestLoadItemDataByID, gemID)
     end
     return nil
+end
+
+--- Huiles et pierres a aiguiser : l'enchantement TEMPORAIRE des armes.
+---
+--- Une arme en porte DEUX. Le permanent est une rune ou un enchantement d'arme, le second
+--- une huile qu'on repose regulierement — et le relevé ne gardait que le premier, donc la
+--- moitie de ce qu'un joueur pose sur son arme n'etait nulle part.
+--- @return table|nil { { id, count, share }, ... }
+function Meta.Oils()
+    local data = block()
+    local list = data and data.oils
+    return (type(list) == "table" and #list > 0) and list or nil
+end
+
+--- Nombre de joueurs PORTANT UNE ARME chez qui les huiles ont ete relevees.
+---
+--- Distinct de `Meta.Sample()` a dessein : un taux calcule sur l'echantillon general
+--- dirait « 70 % » pour un geste que tous les porteurs d'arme font.
+function Meta.OilSample()
+    local data = block()
+    return (data and data.oilSample) or 0
 end
 
 --- Texte de conseil pour un emplacement, ou nil.

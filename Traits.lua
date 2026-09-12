@@ -304,6 +304,76 @@ function Traits.Match(flat)
     return { mode = "node", selection = asNode, matched = nodeHits, total = total }
 end
 
+--- ECART entre l'arbre publie et celui que le joueur joue REELLEMENT.
+---
+--- C'est la question que l'onglet ne repondait pas. Il dessinait l'arbre du haut de tableau
+--- et coloriait les noeuds par adoption, mais le joueur devait comparer de tete, icone par
+--- icone, avec sa propre fenetre de talents ouverte a cote. Une liste de differences se lit
+--- en trois secondes.
+---
+--- LES NOEUDS ACCORDES SONT IGNORES : un rang actif sans rang achete est une propriete de
+--- l'arbre, pas un choix. Les compter afficherait des dizaines de fausses differences
+--- identiques chez tout le monde.
+---
+--- @param match resultat de `Traits.Match`
+--- @return table|nil { { id, name, icon, kind, mine, theirs } }, trie par nature d'ecart
+function Traits.Compare(match)
+    local shot = Traits.Snapshot()
+    if not shot or not match or not match.selection then return nil end
+
+    local byEntry = match.mode == "entry"
+    local found = {}
+
+    for _, nodeID in ipairs(shot.order) do
+        local node = shot.nodes[nodeID]
+        local want = match.selection[nodeID]
+        if node and node.name then
+            local mine = node.ranksPurchased or 0
+            local theirs = want and (want.rank or 1) or 0
+            local granted = (node.activeRank or 0) > mine and mine == 0
+
+            if not granted and (mine > 0 or theirs > 0) then
+                local kind
+                if theirs > 0 and mine == 0 then
+                    kind = "take"
+                elseif mine > 0 and theirs == 0 then
+                    kind = "drop"
+                elseif mine ~= theirs then
+                    kind = "rank"
+                elseif byEntry and want.entryID then
+                    -- MEME NOEUD, AUTRE BRANCHE. Un noeud a choix donne un talent sur
+                    -- deux ; deux joueurs peuvent l'avoir « pris » tous les deux et ne
+                    -- pas jouer la meme chose. C'est l'ecart le plus facile a rater.
+                    local picked = node.activeEntry and node.activeEntry.entryID
+                    if picked and picked ~= want.entryID then kind = "swap" end
+                end
+
+                if kind then
+                    table.insert(found, {
+                        id = nodeID,
+                        name = node.name,
+                        icon = node.icon,
+                        kind = kind,
+                        mine = mine,
+                        theirs = theirs,
+                    })
+                end
+            end
+        end
+    end
+
+    if #found == 0 then return nil end
+
+    -- « A prendre » d'abord : c'est ce sur quoi on agit. « A retirer » ensuite, parce que
+    -- c'est ce qui paie les points. Les rangs et les branches ferment la liste.
+    local ORDER = { take = 1, swap = 2, rank = 3, drop = 4 }
+    table.sort(found, function(a, b)
+        if ORDER[a.kind] ~= ORDER[b.kind] then return ORDER[a.kind] < ORDER[b.kind] end
+        return (a.name or "") < (b.name or "")
+    end)
+    return found
+end
+
 -- LE SERIALISEUR A ETE SUPPRIME ICI, ET C'EST UNE BONNE NOUVELLE.
 --
 -- L'addon fabriquait lui-meme la chaine d'import des talents : format binaire reconstitue

@@ -350,6 +350,15 @@ def main() -> int:
                        import = "CHAINE-DU-RELEVE", distinct = 17, sample = 20 } }
         end
         GEARPROOF_NS.Meta.ConsumableSample = function() return 20 end
+
+        -- HUILES : le second enchantement de l'arme. Sans elles la ligne ne rend pas, et
+        -- sans `GetWeaponEnchantInfo` la branche « le joueur en a une » reste morte.
+        GEARPROOF_NS.Meta.Oils = function()
+            return { { id = 8052, count = 15, share = 0.75 },
+                     { id = 7905, count = 3,  share = 0.15 } }
+        end
+        GEARPROOF_NS.Meta.OilSample = function() return 18 end
+        GEARPROOF_NS.Meta.EnchantItem = function(id) return id == 8159 and 244641 or nil end
         GEARPROOF_NS.Meta.Talents = function()
             return { { id = 10, count = 20, share = 1.0 },
                      { id = 20, count = 12, share = 0.6 } }
@@ -533,6 +542,24 @@ def main() -> int:
     if lua.globals().GEARPROOF_COPIED is not None:
         report.error("export", "propose une copie alors que le relevé ne porte pas de chaine")
     lua.execute("GEARPROOF_NS.Meta.BuildImport = GEARPROOF_META_IMPORT")
+
+    # L'HUILE DU JOUEUR, ou son absence. `GetWeaponEnchantInfo` est la SEULE facon de
+    # savoir si une huile est posee en ce moment — l'infobulle de l'arme ne le dit pas, et
+    # c'est le propre d'une huile d'expirer. Les deux etats sont des branches distinctes.
+    for label, stub in (
+        ("huile posee, la bonne",
+         "GetWeaponEnchantInfo = function() return true, 600, 5, 8052 end"),
+        ("huile posee, une autre",
+         "GetWeaponEnchantInfo = function() return true, 600, 5, 7905 end"),
+        ("aucune huile",
+         "GetWeaponEnchantInfo = function() return false end"),
+        ("API absente", "GetWeaponEnchantInfo = nil"),
+    ):
+        lua.execute(stub)
+        for pass_number in (1, 2):
+            step(f"huile d'arme ({label}), passe {pass_number}",
+                 "GEARPROOF_NS.UI.Show('reco')")
+    lua.execute("GetWeaponEnchantInfo = function() return true, 600, 5, 8052 end")
 
     # L'ARBRE DESSINE DOIT SE PERIMER. `Traits.Snapshot` met en cache, et son invalidateur
     # n'avait AUCUN appelant : un point deplace laissait l'ancien arbre a l'ecran jusqu'a la

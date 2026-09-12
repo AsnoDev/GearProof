@@ -218,9 +218,11 @@ local function layoutTree(top, width)
     local size = gap and math.max(14, math.min(NODE, gap * scale - 2)) or NODE
 
     top = heading(top, width, L["Talent tree"])
-    top = text(top, width, hex("muted") .. string.format(
-        L["Top build: %d%% of the top players. Hover a node for its adoption."],
-        (build.share or 0) * 100 + 0.5) .. "|r")
+    -- « Top build : 0 % des meilleurs joueurs » : la ligne lisait `build.share`, qui
+    -- n'existe plus depuis qu'on publie l'arbre du PREMIER AU SCORE et non un groupe. Elle
+    -- affichait donc zero — un chiffre faux, et le pire genre : plausible.
+    top = text(top, width, hex("muted")
+        .. L["Mythic+ only. Hover a node for its adoption among the top players."] .. "|r")
 
     -- Position finale de chaque noeud, tous arbres confondus. Les liaisons s'y reperent
     -- ensuite sans avoir a savoir de quel arbre vient chaque extremite.
@@ -390,6 +392,59 @@ local function layoutTree(top, width)
     return bottom - NODE_GAP
 end
 
+-- Au-dela, la liste cesse d'etre lisible et l'ecart n'est plus « quelques talents » mais
+-- « un autre build ». On le DIT plutot que de derouler quarante lignes.
+local DIFF_LIMIT = 10
+
+local DIFF_MARK = {
+    take = "+", drop = "-", rank = "~", swap = "/",
+}
+local DIFF_LABEL = {
+    take = "to take", drop = "to drop", rank = "other rank", swap = "other branch",
+}
+
+--- TON ARBRE CONTRE LE LEUR, ligne par ligne.
+---
+--- L'onglet dessinait l'arbre du haut de tableau et le coloriait par adoption, mais
+--- comparer restait a la charge du joueur : icone par icone, sa propre fenetre de talents
+--- ouverte a cote. La question qu'il se pose est « qu'est-ce que je change ? », et elle se
+--- repond en une liste.
+local function layoutDifferences(top, width)
+    local builds = ns.Meta.Builds(content)
+    local build = builds and builds[1]
+    if not build or not build.nodes then return top end
+    if ns.Spec.Selected() ~= ns.Spec.Active() then return top end
+
+    local match = ns.Traits.Match(build.nodes)
+    local diff = match and ns.Traits.Compare(match)
+
+    top = heading(top - SECTION_GAP, width, L["Against your tree"])
+    if not diff then
+        return text(top, width, hex("good") .. L["Identical to the published tree."] .. "|r")
+    end
+
+    for index, entry in ipairs(diff) do
+        if index > DIFF_LIMIT then
+            return text(top - 2, width, hex("muted") .. string.format(
+                L["and %d more — you are playing a different build"], #diff - DIFF_LIMIT)
+                .. "|r")
+        end
+        local tint = (entry.kind == "take" and "link") or (entry.kind == "drop" and "bis")
+            or "muted"
+        -- Le RANG n'est ecrit que quand il porte l'information : « 1 -> 2 » sur un talent
+        -- a plusieurs rangs, rien sur un talent binaire ou il ne dirait que « pris ».
+        local detail = ns.L[DIFF_LABEL[entry.kind] or entry.kind]
+        if entry.kind == "rank" then
+            detail = string.format("%s %d -> %d", detail, entry.mine, entry.theirs)
+        end
+        top = text(top, width, string.format("%s%s|r  %s%s|r  %s%s|r",
+            hex(tint), DIFF_MARK[entry.kind] or "?",
+            hex("text"), entry.name or ("#" .. entry.id),
+            hex("muted"), detail))
+    end
+    return top
+end
+
 --- CE QU'EST L'ARBRE AFFICHE, et a quel point il fait consensus.
 ---
 --- Une liste de builds classes par adoption a existe ici. Elle n'a plus d'objet : mesure
@@ -552,7 +607,7 @@ function TalentView.Refresh()
     else
         local drawn, reason = layoutTree(top, width)
         if drawn then
-            top = drawn
+            top = layoutDifferences(drawn, width)
         else
             -- L'ARBRE OU RIEN. Une liste de noms classes par adoption tenait lieu de repli :
             -- elle se lisait comme un choix de talents, alors qu'elle n'en etait pas un —

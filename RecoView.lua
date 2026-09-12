@@ -265,6 +265,20 @@ local function itemOnEnter(self)
     ns.Tooltip.SetKnownLevel(nil, nil)
 end
 
+--- Infobulle d'un consommable. CE SONT DES SORTS, pas des objets : c'est l'aura portee au
+--- pull qui a ete relevee, et l'infobulle d'objet n'aurait rien a dire d'un identifiant de
+--- sort. La ligne restait donc muette au survol, seule de la page a ne rien montrer.
+local function spellOnEnter(self)
+    if not self.spellID then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:ClearLines()
+    local setter = GameTooltip.SetSpellByID
+    if not (setter and pcall(setter, GameTooltip, self.spellID)) then
+        GameTooltip:AddLine("spell:" .. self.spellID)
+    end
+    GameTooltip:Show()
+end
+
 local function gemOnEnter(self)
     if not self.gemID then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -485,6 +499,37 @@ local function layoutEnchants(top, width)
         top = enchantRow(top, width, ns.L["Weapons (pair)"],
             table.concat(names, "  +  "), best.share, ok and true or false)
 
+        -- L'HUILE : le SECOND enchantement de l'arme, celui qu'on repose.
+        --
+        -- Une arme en porte deux — mesure sur le haut de tableau, 18 sur 28. Le relevé ne
+        -- gardait que le permanent, donc la moitie de ce qu'un joueur pose sur son arme
+        -- n'etait nulle part. Et contrairement a l'autre, celle-ci EXPIRE.
+        local oils = ns.Meta.Oils()
+        if oils then
+            local oil = oils[1]
+            -- `GetWeaponEnchantInfo` rend l'enchantement TEMPORAIRE de la main droite :
+            -- c'est la seule facon de savoir si le joueur en a une en ce moment, et la
+            -- seule information que l'infobulle de l'arme ne donne pas.
+            local hasOil, _, _, ownID
+            if type(GetWeaponEnchantInfo) == "function" then
+                local ok, a, _, _, d = pcall(GetWeaponEnchantInfo)
+                if ok then hasOil, ownID = a, d end
+            end
+
+            top = enchantRow(top, width, ns.L["Weapon oil"],
+                (main and ns.Meta.EnchantName(main.link, oil.id)) or ("#" .. oil.id),
+                oil.share, (hasOil and ownID == oil.id) and true or false)
+
+            -- L'ECHANTILLON DES HUILES COMPTE LES PORTEURS D'ARME, pas les joueurs
+            -- releves : un taux calcule sur les seconds dirait « 70 % » d'un geste que
+            -- tous les porteurs font.
+            local carriers = ns.Meta.OilSample()
+            if carriers > 0 and carriers ~= ns.Meta.Sample() then
+                top = text(top - 2, width, hex("muted") .. string.format(
+                    ns.L["measured on %d players carrying a weapon"], carriers) .. "|r")
+            end
+        end
+
         local mixed = 0
         for _, entry in ipairs(pairs_) do
             local ids = entry.ids or {}
@@ -662,10 +707,12 @@ local function layoutConsumables(top, width)
             row.share:SetText(string.format("%s%d%%|r", hex(named and "link" or "muted"),
                 (named and best.share or share) * 100 + 0.5))
 
-            -- Ce sont des SORTS, pas des objets : l'infobulle d'objet n'a rien a dire.
+            -- Ce sont des SORTS, pas des objets : `SetSpellByID`, pas `SetItemByID`. La
+            -- ligne restait muette au survol, seule de la page a ne rien montrer.
             row.itemID, row.itemLevel = nil, nil
-            row:SetScript("OnEnter", nil)
-            row:SetScript("OnLeave", nil)
+            row.spellID = named and best.id or nil
+            row:SetScript("OnEnter", row.spellID and spellOnEnter or nil)
+            row:SetScript("OnLeave", row.spellID and hideTooltip or nil)
             row:Show()
 
             top = top - ITEM_ROW_HEIGHT - 4
