@@ -342,9 +342,12 @@ def main() -> int:
 
         -- Le relevé parle en NOEUDS ici. L'autre espace — les entrees — est couvert plus
         -- bas : c'est `Traits.Match` qui tranche, et les deux branches comptent.
+        -- `import` vient de Raider.IO toute faite ; `distinct`/`sample` disent a quel
+        -- point l'arbre publie fait consensus. Ni l'un ni l'autre n'existait quand le
+        -- relevé venait de Warcraft Logs.
         GEARPROOF_NS.Meta.Builds = function()
-            return { { n = 5, share = 0.25, nodes = { 10, 1, 20, 2, 40, 1, 41, 1 },
-                       stats = { crit = 0.3, haste = 0.3, mastery = 0.2, versatility = 0.2 } } }
+            return { { nodes = { 10, 1, 20, 2, 40, 1, 41, 1 },
+                       import = "CHAINE-DU-RELEVE", distinct = 17, sample = 20 } }
         end
         GEARPROOF_NS.Meta.ConsumableSample = function() return 20 end
         GEARPROOF_NS.Meta.Talents = function()
@@ -399,6 +402,8 @@ def main() -> int:
     # doivent voir le cas le plus riche.
     lua.execute(CONSUMABLES["consensus"])
 
+    lua.execute("GEARPROOF_META_IMPORT = GEARPROOF_NS.Meta.BuildImport")
+    lua.execute("GEARPROOF_META_CONTENTS = GEARPROOF_NS.Meta.Contents")
     GEARPROOF_NS_TRAITS_RESET = "GEARPROOF_NS.Traits.Invalidate()"
     lua.execute(GEARPROOF_NS_TRAITS_RESET)
 
@@ -501,36 +506,71 @@ def main() -> int:
     lua.execute("GEARPROOF_NS.UI.Show('talent')")
     hover_rows("talents", "TalentView")
 
-    # LE CONTROLE DU FORMAT D'EXPORT. Le stub ne fournit pas `GenerateImportString` : le
-    # bouton doit donc rester MASQUE. Un export propose sans preuve produirait une chaine
-    # que le jeu refuse — ou, pire, accepte de travers.
+    # L'EXPORT NE SERIALISE PLUS RIEN. La chaine vient du relevé, telle que Raider.IO la
+    # publie. Il n'y a donc plus de « format non reconnu » a diagnostiquer : soit le relevé
+    # porte la chaine, soit il ne la porte pas, et les deux cas se disent.
     #
-    # `SelfCheck` rend DEUX valeurs, et `lua.eval` en fait un tuple — toujours vrai cote
-    # Python, meme quand la premiere valeur est `false`. Meme piege que `select(1, a, b)`
-    # deux cents lignes plus haut : on passe par une globale, ou chaque valeur reste une
-    # valeur. Le cas PASSANT de `SelfCheck` se teste dans `test_lua.py`, ou le serialiseur
-    # est atteignable et peut fabriquer la chaine de reference.
-    lua.execute("GEARPROOF_OK, GEARPROOF_WHY = GEARPROOF_NS.Traits.SelfCheck()")
-    if lua.globals().GEARPROOF_OK:
-        report.error("export", "propose alors que le format n'est pas verifie")
-    elif str(lua.globals().GEARPROOF_WHY) != "no reference string":
-        report.error("export", "refuse pour la mauvaise raison : "
-                     + str(lua.globals().GEARPROOF_WHY))
-
-    # Et le bouton lui-meme doit etre masque, pas seulement la fonction rendre faux.
+    # On intercepte `Copy.Show` plutot que de se fier a l'absence d'erreur : un bouton qui
+    # ne plante pas mais n'ouvre rien passerait pour bon.
+    lua.execute("""
+        GEARPROOF_COPIED = nil
+        GEARPROOF_NS.Copy.Show = function(_, value) GEARPROOF_COPIED = value end
+    """)
     lua.execute("GEARPROOF_NS.UI.Show('talent')")
-    if lua.eval("GEARPROOF_NS.TalentView.Create(nil).export:IsShown()"):
-        report.error("export", "le bouton reste visible sans format verifie")
+    step("export de la chaine d'import",
+         'GEARPROOF_NS.TalentView.Create(nil).export:Fire("OnClick")')
+    if str(lua.globals().GEARPROOF_COPIED or "") != "CHAINE-DU-RELEVE":
+        report.error("export", "la chaine du relevé n'est pas celle proposee a la copie : "
+                     + str(lua.globals().GEARPROOF_COPIED))
+
+    # Relevé SANS chaine : le bouton doit le dire, pas ouvrir une fenetre vide.
+    lua.execute("""
+        GEARPROOF_COPIED = nil
+        GEARPROOF_NS.Meta.BuildImport = function() return nil end
+    """)
+    step("export sans chaine dans le relevé",
+         'GEARPROOF_NS.TalentView.Create(nil).export:Fire("OnClick")')
+    if lua.globals().GEARPROOF_COPIED is not None:
+        report.error("export", "propose une copie alors que le relevé ne porte pas de chaine")
+    lua.execute("GEARPROOF_NS.Meta.BuildImport = GEARPROOF_META_IMPORT")
+
+    # L'ARBRE DESSINE DOIT SE PERIMER. `Traits.Snapshot` met en cache, et son invalidateur
+    # n'avait AUCUN appelant : un point deplace laissait l'ancien arbre a l'ecran jusqu'a la
+    # prochaine connexion. Un arbre perime ressemble a un arbre a jour, donc rien ne le
+    # signalait — on verifie donc que la photo change vraiment, pas seulement que
+    # l'evenement ne plante pas.
+    lua.execute("""
+        GEARPROOF_SHOT_A = GEARPROOF_NS.Traits.Snapshot()
+        GEARPROOF_SHOT_B = GEARPROOF_NS.Traits.Snapshot()
+    """)
+    if lua.eval("GEARPROOF_SHOT_A ~= GEARPROOF_SHOT_B"):
+        report.error("traits", "la photo de l'arbre n'est pas mise en cache")
+
+    step("TRAIT_CONFIG_UPDATED",
+         'GEARPROOF_NS.events:Fire("OnEvent", "TRAIT_CONFIG_UPDATED")')
+    lua.execute("GEARPROOF_SHOT_C = GEARPROOF_NS.Traits.Snapshot()")
+    if lua.eval("GEARPROOF_SHOT_A == GEARPROOF_SHOT_C"):
+        report.error("traits", "un changement de talents ne perime pas l'arbre dessine")
+
+    # LE SELECTEUR SUIT LE RELEVE. Un seul contenu disponible : pas de selecteur, car un
+    # bouton unique ne selectionne rien. Les deux etats sont des branches distinctes.
+    for label, contents in (("un seul contenu", '{ "mythic" }'),
+                            ("deux contenus", '{ "raid", "mythic" }')):
+        lua.execute(f"GEARPROOF_NS.Meta.Contents = function() return {contents} end")
+        for pass_number in (1, 2):
+            step(f"selecteur de contenu ({label}), passe {pass_number}",
+                 "GEARPROOF_NS.UI.Show('talent')")
+    lua.execute("GEARPROOF_NS.Meta.Contents = GEARPROOF_META_CONTENTS")
 
     # LES QUATRE RAISONS DE NE PAS DESSINER, une par une : chacune emprunte une branche
     # differente, et chacune doit rendre la page lisible plutot que vide.
     FAILURES = {
         "sans arbre client": "C_ClassTalents.GetActiveConfigID = function() return nil end",
         "sans arbre dans le relevé":
-            "GEARPROOF_NS.Meta.Builds = function() return { { n = 5, share = 0.25 } } end",
+            "GEARPROOF_NS.Meta.Builds = function() return { { distinct = 17, sample = 20 } } end",
         "identifiants inconnus":
             "GEARPROOF_NS.Meta.Builds = function() "
-            "return { { n = 5, share = 0.25, nodes = { 999, 1, 998, 1 } } } end",
+            "return { { distinct = 17, sample = 20, nodes = { 999, 1, 998, 1 } } } end",
     }
     for label, setup in FAILURES.items():
         lua.execute(setup)

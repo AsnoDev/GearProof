@@ -315,6 +315,51 @@ function Meta.Builds(content)
     return (type(list) == "table" and #list > 0) and list or nil
 end
 
+--- Contenus pour lesquels le relevé porte vraiment un arbre.
+---
+--- Le relevé ne decrit plus le raid : la population du haut de tableau raid ne peut etre ni
+--- reproduite ni cotoyee par un joueur d'avant-raid, et un arbre de raid se regle par boss
+--- alors qu'on n'en publie qu'un par contenu. Plutot que de cabler « mythique+ uniquement »
+--- dans la vue, on DEMANDE au relevé ce qu'il porte : si un relevé de raid revient un jour,
+--- le selecteur reapparait sans qu'une ligne change.
+--- @return table liste de cles de contenu, de la plus generale a la plus precise
+function Meta.Contents()
+    local found = {}
+    for _, key in ipairs({ "raid", "mythic" }) do
+        -- `Meta.Builds` ne traite specialement que "mythic" : tout le reste lit le raid.
+        if Meta.Builds(key) then
+            table.insert(found, key)
+        end
+    end
+    return found
+end
+
+--- Chaine d'import Blizzard de l'arbre publie, ou nil.
+---
+--- Elle vient TOUTE FAITE de Raider.IO. L'addon la serialisait lui-meme a partir des
+--- noeuds, avec un format binaire reconstitue par comparaison de chaines reelles ; c'etait
+--- la piece la plus fragile de la chaine, et elle echouait en bloc sur un client dont le
+--- format differait d'un bit.
+function Meta.BuildImport(content)
+    local builds = Meta.Builds(content)
+    local build = builds and builds[1]
+    local text = build and build.import
+    return (type(text) == "string" and text ~= "") and text or nil
+end
+
+--- Combien d'arbres DIFFERENTS pour combien de joueurs releves.
+---
+--- « 20 arbres pour 20 joueurs » et « 2 pour 20 » ne se lisent pas pareil : le premier dit
+--- que le choix est ouvert, le second qu'il est fige. Sans ce couple, l'arbre publie —
+--- celui du premier au score — se lirait comme LE build de la specialisation.
+--- @return number|nil arbres distincts, number|nil joueurs
+function Meta.BuildSpread(content)
+    local builds = Meta.Builds(content)
+    local build = builds and builds[1]
+    if not build or not build.distinct or not build.sample then return nil end
+    return build.distinct, build.sample
+end
+
 --- Consommables portes au pull : flacon, nourriture, runes.
 ---
 --- NOMMES, pas a chercher. Le relevé publiait avant les auras BRUTES sous le titre « buffs

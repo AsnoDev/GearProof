@@ -52,6 +52,12 @@ ns.translations.fr = {
 
     -- Onglet Recommandations : sections Builds et Statistiques.
     ["Builds"] = "Builds",
+    ["This tree is the one played by the best-ranked player."] =
+        "Cet arbre est celui du joueur le mieux classe.",
+    ["%d different trees among the %d players measured"] =
+        "%d arbres differents chez les %d joueurs releves",
+    ["The reference does not carry an import string for this content."] =
+        "Le relevé ne porte pas de chaine d'import pour ce contenu.",
 
     -- Section CRAFTS. Rien en jeu ne distingue un objet fabrique d'un butin sans ouvrir
     -- sa recette : c'est le seul bloc qui dise quoi faire hors du combat.
@@ -118,8 +124,6 @@ ns.translations.fr = {
     -- chaine fausse ferait coller un arbre qui n'est pas celui qu'on regarde.
     ["Copy import string"] = "Copier la chaine d'import",
     ["Talent import string"] = "Chaine d'import des talents",
-    ["import string refused: %s"] = "chaine d'import refusee : %s",
-    ["This client's format is not the one GearProof writes. Send these two lines to the author."] =
         "Le format de ce client n'est pas celui qu'ecrit GearProof. Envoie ces deux lignes a l'auteur.",
 
     -- Fenetre Droptimizer : le parcours en trois etapes, dans une seule fenetre.
@@ -160,9 +164,6 @@ ns.translations.fr = {
     ["Stamina"] = "Endurance",
     ["Armor"] = "Armure",
     ["Secondary stats"] = "Statistiques secondaires",
-    ["closest to yours"] = "le plus proche de toi",
-    ["stats not measured for this group"] = "statistiques non mesurees pour ce groupe",
-    ["%d players grouped by identical talent tree"] =
         "%d joueurs regroupes par arbre de talents identique",
     ["The band is where the top players sit, the mark is you. A wide band means the choice is open."] =
         "La bande est la ou se tient le haut de tableau, le repere c'est toi. Une bande large veut dire que le choix est ouvert.",

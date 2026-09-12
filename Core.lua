@@ -213,6 +213,7 @@ end)
 -- poids changent, les enchantements attendus changent. On oublie le cache et l'apercu.
 local function specChanged()
     ns.Spec.Invalidate()
+    ns.Traits.Invalidate()
     ns.db.viewSpec = nil
     ns.Spec.Register()
     if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
@@ -223,6 +224,19 @@ end
 ns.On("ACTIVE_TALENT_GROUP_CHANGED", specChanged)
 ns.On("PLAYER_SPECIALIZATION_CHANGED", function(unit)
     if unit == "player" then specChanged() end
+end)
+
+-- L'ARBRE DESSINE ETAIT FIGE A VIE. `Traits.Snapshot` met en cache — il lit deux cents
+-- noeuds — et `Traits.Invalidate` existait sans qu'AUCUN appelant ne s'en serve : un joueur
+-- qui deplacait un point gardait l'ancien arbre a l'ecran jusqu'a sa prochaine connexion,
+-- rangs et branches choisies comprises. Rien ne le signalait, parce qu'un arbre perime
+-- ressemble exactement a un arbre a jour.
+--
+-- Le changement de specialisation le remet a zero par `specChanged` ci-dessus ; celui-ci
+-- couvre le cas bien plus frequent, un point deplace dans la meme specialisation.
+ns.On("TRAIT_CONFIG_UPDATED", function()
+    ns.Traits.Invalidate()
+    if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
 end)
 
 -- La specialisation n'est pas toujours connue a PLAYER_LOGIN : sur un client lent ou au

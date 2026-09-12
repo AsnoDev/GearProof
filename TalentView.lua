@@ -33,7 +33,6 @@ local NODE_GAP = 6
 -- Espace entre l'arbre principal et celui de heros. Assez large pour qu'on lise deux
 -- dessins et non un seul qui deborde.
 local HERO_GAP = 24
-local BUILD_ROW = 38
 local SECTION_GAP = 18
 
 local view, pools
@@ -74,38 +73,6 @@ local function newNode()
     button.rank:SetPoint("BOTTOMRIGHT", 1, 0)
 
     return button
-end
-
-local function newBuildRow()
-    local row = CreateFrame("Frame", nil, view.content, "BackdropTemplate")
-    row:SetHeight(BUILD_ROW)
-    row:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-
-    row.rank = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    row.rank:SetPoint("LEFT", 10, 0)
-    row.rank:SetWidth(28)
-    row.rank:SetJustifyH("LEFT")
-
-    row.share = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    row.share:SetPoint("LEFT", 40, 0)
-    row.share:SetWidth(64)
-    row.share:SetJustifyH("LEFT")
-
-    row.stats = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.stats:SetPoint("LEFT", 110, 0)
-    row.stats:SetJustifyH("LEFT")
-    row.stats:SetWordWrap(false)
-
-    row.tag = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.tag:SetPoint("RIGHT", -10, 0)
-    row.tag:SetJustifyH("RIGHT")
-    row.tag:SetWordWrap(false)
-
-    return row
 end
 
 local function newText()
@@ -423,79 +390,27 @@ local function layoutTree(top, width)
     return bottom - NODE_GAP
 end
 
---- Quel build ressemble le plus a la repartition du joueur ?
+--- CE QU'EST L'ARBRE AFFICHE, et a quel point il fait consensus.
 ---
---- On compare des REPARTITIONS, pas des talents : rien ne garantit que le `talentID` de
---- Warcraft Logs vive dans le meme espace que celui du client, alors que la repartition
---- secondaire est mesuree des deux cotes avec la meme definition. D'ou « le plus proche »,
---- et jamais « c'est ton build ».
-local function closestBuild(builds)
-    local mine = ns.Stats.Current()
-    if not mine then return nil end
-
-    local total = 0
-    for _, definition in ipairs(ns.Stats.LIST) do
-        total = total + ((mine[definition.key] or {}).rating or 0)
-    end
-    if total <= 0 then return nil end
-
-    local best, bestGap
-    for index, build in ipairs(builds) do
-        if type(build.stats) == "table" then
-            local gap = 0
-            for _, definition in ipairs(ns.Stats.LIST) do
-                local share = ((mine[definition.key] or {}).rating or 0) / total
-                gap = gap + math.abs(share - (build.stats[definition.key] or 0))
-            end
-            if not bestGap or gap < bestGap then best, bestGap = index, gap end
-        end
-    end
-    return best
-end
-
+--- Une liste de builds classes par adoption a existe ici. Elle n'a plus d'objet : mesure
+--- sur dix specialisations, le groupe de tete rassemble de 5 % a 25 % des joueurs, et six
+--- fois sur dix les vingt premiers jouent vingt arbres differents. Publier des parts dans
+--- ces eaux-la revenait a presenter l'arbre d'un seul joueur comme un consensus.
+---
+--- Ce qui reste vrai tient en deux phrases : cet arbre est celui du premier au score, et
+--- voici combien d'arbres differents on a comptes. Le second chiffre est exactement ce qui
+--- empeche de lire le premier comme LE build de la specialisation.
 local function layoutBuilds(top, width)
-    local builds = ns.Meta.Builds(content)
-    if not builds then
+    local distinct, sample = ns.Meta.BuildSpread(content)
+    if not distinct then
         return text(top, width, hex("muted") .. L["No build recorded for this content."] .. "|r")
     end
 
     top = heading(top, width, L["Builds"])
-    local closest = closestBuild(builds)
-
-    for index, build in ipairs(builds) do
-        local row = pools.build:Acquire()
-        row:SetParent(view.content)
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", 0, top)
-        row:SetWidth(width)
-        ns.Theme.ApplyCard(row, index == closest and ns.Theme.RGB.link or nil)
-
-        row.rank:SetText(hex("muted") .. index .. "|r")
-        row.share:SetText(string.format("%s%d%%|r", hex("text"), (build.share or 0) * 100 + 0.5))
-
-        local parts = {}
-        for _, definition in ipairs(ns.Stats.LIST) do
-            local value = build.stats and build.stats[definition.key]
-            if value then
-                table.insert(parts, string.format("%s %d%%", L[definition.label], value * 100 + 0.5))
-            end
-        end
-        row.stats:SetWidth(math.max(80, width - 230))
-        row.stats:SetText(#parts > 0
-            and (hex("text") .. table.concat(parts, "   ") .. "|r")
-            -- Les builds de donjon n'emportent PAS de repartition : elle couterait une
-            -- requete par joueur, soit un doublement du relevé, pour une colonne de plus.
-            or (hex("muted") .. L["stats not measured for this group"] .. "|r"))
-
-        row.tag:SetText(index == closest
-            and (hex("link") .. L["closest to yours"] .. "|r") or "")
-
-        row:Show()
-        top = top - BUILD_ROW - 4
-    end
-
+    top = text(top, width, hex("text")
+        .. L["This tree is the one played by the best-ranked player."] .. "|r")
     return text(top - 2, width, hex("muted") .. string.format(
-        L["%d players grouped by identical talent tree"], ns.Meta.Sample()) .. "|r")
+        L["%d different trees among the %d players measured"], distinct, sample) .. "|r")
 end
 
 -- ------------------------------------------------------------------- public
@@ -507,45 +422,20 @@ end
 --- qu'une fonctionnalite existait ni pourquoi elle manquait. Un bouton qui explique vaut
 --- mieux qu'une absence qui se devine.
 local function exportBuild()
-    local builds = ns.Meta.Builds(content)
-    local build = builds and builds[1]
-    local nodes = build and build.nodes
-    if not nodes then
-        ns.Print("%s%s|r", hex("bis"),
-            L["The reference does not carry a full tree for this content."])
-        return
-    end
-
-    local match = ns.Traits.Match(nodes)
-    if not match then
-        ns.Print("%s%s|r", hex("bis"),
-            L["The reference talent ids do not match this client's tree."])
-        return
-    end
-
-    local text, reason = ns.Traits.Export(match)
+    local text = ns.Meta.BuildImport(content)
     if text then
         ns.Copy.Show(L["Talent import string"], text)
         return
     end
 
-    -- « FORMAT NON RECONNU » SANS LES CHAINES EST UN CUL-DE-SAC. Personne ne peut corriger
-    -- un serialiseur sans voir en quoi sa sortie differe de celle du client. On ouvre donc
-    -- les deux cote a cote : celle du jeu est la verite, la notre est ce que ce code a
-    -- produit, et l'ecart entre les deux est exactement ce qu'il faut pour le reparer.
-    if reason == "format mismatch" then
-        local client, ours = ns.Traits.Diagnose()
-        ns.Copy.Show(L["Talent import string"], table.concat({
-            L["This client's format is not the one GearProof writes. Send these two lines to the author."],
-            "",
-            "client: " .. tostring(client),
-            "gearproof: " .. tostring(ours),
-        }, "\n"))
-        return
-    end
-
+    -- IL N'Y A PLUS DE SERIALISEUR DERRIERE CE BOUTON. L'addon reconstruisait la chaine a
+    -- partir des noeuds, avec un format binaire retrouve en comparant des chaines reelles :
+    -- un bit de difference et le jeu refusait tout, sans que rien ne puisse l'expliquer au
+    -- joueur. Le relevé porte desormais la chaine telle que Raider.IO la publie, donc soit
+    -- elle est la, soit le relevé ne la porte pas — et il n'y a pas de troisieme cas a
+    -- diagnostiquer.
     ns.Print("%s%s|r", hex("bis"),
-        string.format(L["import string refused: %s"], tostring(reason)))
+        L["The reference does not carry an import string for this content."])
 end
 
 function TalentView.Create(parent)
@@ -602,7 +492,6 @@ function TalentView.Create(parent)
     pools = {
         edge = ns.Pool.New(newEdge),
         node = ns.Pool.New(newNode, resetNode),
-        build = ns.Pool.New(newBuildRow),
         text = ns.Pool.New(newText),
     }
 
@@ -613,16 +502,39 @@ function TalentView.Refresh()
     if not view then return end
     ns.Pool.ResetAll(pools)
 
+    -- LE SELECTEUR NE PROPOSE QUE CE QUE LE RELEVE PORTE. Le raid n'est plus releve : un
+    -- bouton « Raid » ouvrirait un ecran dont tout le contenu serait l'explication de son
+    -- propre vide. On ne cable pas « mythique+ uniquement » pour autant — c'est le relevé
+    -- qu'on interroge, donc un relevé de raid qui reviendrait ferait reapparaitre le bouton
+    -- sans qu'une ligne change ici.
+    local available = ns.Meta.Contents()
+    local offered = {}
+    for _, key in ipairs(available) do offered[key] = true end
+
+    -- Le contenu regarde doit exister. Sans ce repli, un onglet ouvert sur « Raid » avant
+    -- une mise a jour du relevé resterait bloque sur un ecran vide.
+    if not offered[content] then content = available[1] or "mythic" end
+
+    local shown = 0
     for _, button in ipairs(view.modes) do
-        local active = button.key == content
-        ns.Theme.ApplyCard(button, active and ns.Theme.RGB.link or nil)
-        button.text:SetText((active and hex("link") or hex("muted")) .. L[button.label] .. "|r")
+        if offered[button.key] and #available > 1 then
+            -- Un seul contenu disponible : un selecteur a un bouton ne selectionne rien.
+            button:ClearAllPoints()
+            button:SetPoint("TOPLEFT", shown * 100, -2)
+            shown = shown + 1
+            local active = button.key == content
+            ns.Theme.ApplyCard(button, active and ns.Theme.RGB.link or nil)
+            button.text:SetText(
+                (active and hex("link") or hex("muted")) .. L[button.label] .. "|r")
+            button:Show()
+        else
+            button:Hide()
+        end
     end
 
-    -- LE BOUTON NE FAIT PAS DE CONTROLE ICI. `SelfCheck` serialise l'arbre entier ; le
-    -- faire a chaque rafraichissement d'onglet coute pour rien, et le masquer quand il
-    -- echoue laissait le joueur devant une absence inexplicable. Le controle se fait au
-    -- CLIC, et son echec s'explique.
+    -- Le bouton d'export suit : sans selecteur, il n'a plus a lui laisser la place.
+    view.export:ClearAllPoints()
+    view.export:SetPoint("TOPLEFT", shown * 100 + (shown > 0 and 10 or 0), -2)
 
     view.intro:SetWidth(math.max(120, (view:GetWidth() or 600) - 410))
     view.intro:SetText(hex("muted") .. (content == "mythic"
