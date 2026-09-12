@@ -55,11 +55,21 @@ message dans le chat et avertissement central. Mieux vaut l'apprendre avant le p
 Aucune API du jeu n'expose « le meilleur enchantement du patch ». Le classement, lui,
 est mesurable : on regarde ce qui est posé sur les personnages du haut de tableau.
 
-Le relevé est produit **hors du jeu**, depuis l'API Warcraft Logs, et **livré avec
-l'addon** — 40 spécialisations. Pour chacune : les enchantements par emplacement avec
-leur part, les gemmes par rang de châsse, les combinaisons d'enchantements d'armes, la
-répartition des statistiques secondaires. Chaque version apporte un relevé neuf ;
-l'onglet Aide affiche l'âge de celui qui est installé.
+Le relevé est produit **hors du jeu** et **livré avec l'addon** — 40 spécialisations.
+Pour chacune : les enchantements par emplacement avec leur part, les gemmes par rang de
+châsse, les combinaisons d'enchantements d'armes, les recettes à faire, les bijoux, le
+flacon et la nourriture, l'arbre de talents et sa chaîne d'import, la répartition des
+statistiques secondaires. Chaque version apporte un relevé neuf ; l'onglet Aide affiche
+l'âge de celui qui est installé.
+
+La population est celle du **classement mythique+ de Raider.IO** : les vingt meilleurs
+joueurs de chaque spécialisation, par score. C'est délibéré — GearProof s'adresse à
+quelqu'un qui fait des clés avant de raider, et **le raid n'est pas relevé**. Un joueur
+d'avant-raid ne peut ni reproduire ni côtoyer le haut de tableau d'un raid mythique, et
+un build de raid se règle boss par boss.
+
+Warcraft Logs reste la source de deux blocs, les seuls qui se lisent dans le journal de
+combat d'un pull : la **répartition des statistiques** et les **consommables**.
 
 **Trois règles tenues partout dans l'interface :**
 
