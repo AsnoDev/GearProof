@@ -17,8 +17,22 @@ REM Planifier (a executer UNE fois, dans un terminal administrateur) :
 REM
 REM   schtasks /create /tn "GearProof - releve hebdo" /tr "C:\Claude\lua\projets\GearProof\tools\refresh_meta.cmd" /sc weekly /d WED /st 06:00
 REM
-REM Quota Warcraft Logs : 3600 points par heure, ~80 par specialisation. Une passe
-REM complete des 40 tient, deux non — d'ou l'hebdomadaire et non le quotidien.
+REM LA SOURCE PRINCIPALE EST RAIDER.IO, pas Warcraft Logs. Raider.IO classe les JOUEURS
+REM par score mythique+, ce qui est la population utile pour un public qui fait des cles
+REM avant de raider, et il publie la chaine d'import des talents deja construite. Le raid
+REM n'est plus releve du tout : sa population ne peut etre ni reproduite ni cotoyee par ce
+REM public, et un arbre de raid se regle par boss alors qu'on n'en publie qu'un par contenu.
+REM
+REM Warcraft Logs reste appele par --with-stats, pour les deux seuls blocs que Raider.IO ne
+REM peut pas donner : la repartition des statistiques secondaires et les consommables. Les
+REM deux se lisent dans le bloc de combat d'un pull, et Raider.IO n'expose aucune donnee de
+REM combat.
+REM
+REM COMPTER ENVIRON 45 MINUTES : un appel de profil par joueur, volontairement espace. Ce
+REM n'est pas une limite connue — les reponses de Raider.IO ne portent AUCUN en-tete de
+REM quota — donc on reste loin plutot que de s'en approcher au plus pres.
+REM
+REM Quota Warcraft Logs : 3600 points par heure. Une passe complete des 40 tient.
 
 setlocal
 set PY=C:\Claude\python\projets\specanalyser\.venv\Scripts\python.exe
@@ -35,7 +49,7 @@ set SPECANALYSER_ADDON_DIR=%REPO%
 
 echo [%date% %time%] regeneration du releve>> "%LOG%"
 pushd "%TOOL%"
-"%PY%" -m specanalyser wcl meta --zone latest --all --with-stats --to-addon>> "%LOG%" 2>&1
+"%PY%" -m specanalyser rio meta --sample 20 --with-stats --to-addon>> "%LOG%" 2>&1
 set CODE=%ERRORLEVEL%
 popd
 

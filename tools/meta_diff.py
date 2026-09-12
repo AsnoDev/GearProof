@@ -65,7 +65,11 @@ def load_reference(source: str) -> dict:
             "gem": _first_id(block["gems"]),
             "weapons": _first_ids(block["weapons"]),
             "priority": _priority(block["stats"]),
-            "build": _first_ids(block["builds"], field="differs"),
+            # L'ARBRE SE COMPARE PAR SA CHAINE D'IMPORT. Le champ `differs` a disparu avec
+            # la liste de builds groupes ; le comparer encore aurait rendu ce script
+            # AVEUGLE aux changements d'arbre — il aurait lu deux tables vides et conclu
+            # « rien n'a bouge » a chaque passe.
+            "build": _import_string(block["builds"]),
             # Deux sections de plus sur lesquelles un joueur AGIT : la recette qu'il fait
             # faire, et le bijou qu'il porte. Sans elles, ce script pouvait conclure « rien
             # n'a bouge » alors que la recette a commander avait change — exactement le
@@ -74,7 +78,7 @@ def load_reference(source: str) -> dict:
             "trinket": _first_id(block["trinkets"]),
             # Le build de DONJON separement : c'est une decision distincte de celle du
             # raid, et un joueur qui fait des cles la prend chaque semaine.
-            "buildMythic": _first_ids(block["buildsMythic"], field="differs"),
+            "buildMythic": _import_string(block["buildsMythic"]),
             # Les CONSOMMABLES sont trois decisions de plus, prises chaque soir : ce qu'on
             # boit, ce qu'on mange, la rune qu'on pose. Un flacon qui change et une
             # publication qui ne part pas laisserait l'addon recommander l'ancien.
@@ -122,6 +126,19 @@ def _first_of_kind(table, kind: str) -> int | None:
     return None
 
 
+def _import_string(table) -> str | None:
+    """Chaine d'import de l'arbre publié — un arbre change ssi sa chaîne change.
+
+    C'est une égalité exacte et c'est voulu : la chaîne encode la sélection entière, rang
+    par rang. Deux arbres qui diffèrent d'un point donnent deux chaînes, et c'est
+    précisément le changement qu'un joueur verrait en important.
+    """
+    if table is None or len(table) == 0:
+        return None
+    value = table[1]["import"]
+    return str(value) if value else None
+
+
 def _first_ids(table, field: str = "ids") -> tuple:
     if table is None or len(table) == 0:
         return ()
@@ -151,10 +168,10 @@ FIELDS = [
     ("gem", "gemme recommandee"),
     ("weapons", "paire d'armes"),
     ("priority", "ordre de priorite des stats"),
-    ("build", "build le plus joue"),
+    ("build", "arbre de raid publie"),
     ("craft", "recette recommandee"),
     ("trinket", "bijou le plus porte"),
-    ("buildMythic", "build de donjon le plus joue"),
+    ("buildMythic", "arbre de donjon publie"),
     ("flask", "flacon recommande"),
     ("food", "nourriture recommandee"),
     ("augment", "rune d'augmentation recommandee"),
