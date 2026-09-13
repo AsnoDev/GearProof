@@ -425,7 +425,7 @@ local function layoutStats(top, width)
 
     -- Une seule phrase de lecture, sous les quatre lignes, jamais repetee par ligne.
     top = text(top - 4, width, hex("muted")
-        .. ns.L["The band is where the top players sit, the mark is you. A wide band means the choice is open."] .. "|r")
+        .. ns.L["The band is where the top players sit, the mark is you — as a share of your secondary budget, not the percentage on your character sheet. A wide band means the choice is open."] .. "|r")
     return top
 end
 

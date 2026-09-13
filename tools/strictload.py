@@ -423,6 +423,11 @@ def main() -> int:
 
     # Chaine du client. Sans elle, la correction de l'en-tete d'infobulle ne peut pas
     # reconnaitre la ligne de niveau, donc ne tourne jamais sous test.
+    GEARPROOF_BUILDS_SAME = (
+        "GEARPROOF_NS.Meta.Builds = function() "
+        "return { { nodes = { 10, 1, 20, 2, 40, 1, 41, 1 }, "
+        "import = 'CHAINE-DU-RELEVE', distinct = 17, sample = 20 } } end"
+    )
     lua.execute('ITEM_LEVEL = "Item Level %d"')
     lua.execute("GEARPROOF_META_IMPORT = GEARPROOF_NS.Meta.BuildImport")
     lua.execute("GEARPROOF_META_CONTENTS = GEARPROOF_NS.Meta.Contents")
@@ -573,6 +578,10 @@ def main() -> int:
                  "GEARPROOF_NS.UI.Show('reco')")
         hover_rows(f"consommables ({label})", "RecoView")
 
+    # Une arme EQUIPEE, sans quoi l'audit de l'huile sort avant d'avoir rien fait : le
+    # dernier etat applique par la boucle d'equipement est « aucun equipement ».
+    lua.execute(STATES["equipement complet"])
+
     # L'HUILE DU JOUEUR, ou son absence. `GetWeaponEnchantInfo` est la SEULE facon de
     # savoir si une huile est posee en ce moment — l'infobulle de l'arme ne le dit pas, et
     # c'est le propre d'une huile d'expirer. Les deux etats sont des branches distinctes.
@@ -586,9 +595,14 @@ def main() -> int:
         ("API absente", "GetWeaponEnchantInfo = nil"),
     ):
         lua.execute(stub)
+        # L'onglet EQUIPEMENT autant que Recommandations : l'audit de l'huile vit dans
+        # `Gear.Scan`, et une huile absente doit compter comme une correction en attente.
+        # La boucle ne montrait que Recommandations, donc l'audit ne tournait jamais.
+        lua.execute("if GEARPROOF_NS.Gear.Invalidate then GEARPROOF_NS.Gear.Invalidate() end")
         for pass_number in (1, 2):
-            step(f"huile d'arme ({label}), passe {pass_number}",
-                 "GEARPROOF_NS.UI.Show('reco')")
+            for tab in ("reco", "gear"):
+                step(f"huile d'arme ({label}), onglet {tab}, passe {pass_number}",
+                     f"GEARPROOF_NS.UI.Show('{tab}')")
     lua.execute("GetWeaponEnchantInfo = function() return true, 600, 5, 8052 end")
 
     # L'ARBRE DESSINE DOIT SE PERIMER. `Traits.Snapshot` met en cache, et son invalidateur
@@ -608,6 +622,24 @@ def main() -> int:
     lua.execute("GEARPROOF_SHOT_C = GEARPROOF_NS.Traits.Snapshot()")
     if lua.eval("GEARPROOF_SHOT_A == GEARPROOF_SHOT_C"):
         report.error("traits", "un changement de talents ne perime pas l'arbre dessine")
+
+    # L'ECART AVEC TON ARBRE, ET SON ABSENCE. Le personnage simule joue EXACTEMENT
+    # l'arbre publie — c'est un etat valide, et c'est celui qui rend « identique ». Mais
+    # tant qu'il etait le seul, ni le marquage des noeuds ni la liste des differences ne
+    # tournaient : deux sections entieres jamais executees.
+    DIVERGENT = (
+        "GEARPROOF_NS.Meta.Builds = function() "
+        # 10 absent chez eux (a rendre), 30 present chez eux et pas chez moi (a prendre),
+        # 20 a un autre rang, 41 sur une autre branche que la mienne.
+        "return { { nodes = { 30, 1, 20, 3, 41, 1 }, import = 'CHAINE-DU-RELEVE', "
+        "distinct = 17, sample = 20 } } end"
+    )
+    for label, setup in (("ecart", DIVERGENT), ("identique", GEARPROOF_BUILDS_SAME)):
+        lua.execute(setup)
+        lua.execute(GEARPROOF_NS_TRAITS_RESET)
+        for pass_number in (1, 2):
+            step(f"arbre compare ({label}), passe {pass_number}",
+                 "GEARPROOF_NS.UI.Show('talent')")
 
     # LE SELECTEUR SUIT LE RELEVE. Un seul contenu disponible : pas de selecteur, car un
     # bouton unique ne selectionne rien. Les deux etats sont des branches distinctes.

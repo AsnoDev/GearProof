@@ -115,6 +115,7 @@ ns.translations.fr = {
     ["to drop"] = "a retirer",
     ["other rank"] = "autre rang",
     ["other branch"] = "autre branche",
+    ["other rank or branch"] = "autre rang ou branche",
     ["Hero talents"] = "Talents de heros",
     ["taken by the top build"] = "pris par le build de tete",
     ["not taken by the top build"] = "pas pris par le build de tete",
@@ -173,8 +174,8 @@ ns.translations.fr = {
     ["Armor"] = "Armure",
     ["Secondary stats"] = "Statistiques secondaires",
         "%d joueurs regroupes par arbre de talents identique",
-    ["The band is where the top players sit, the mark is you. A wide band means the choice is open."] =
-        "La bande est la ou se tient le haut de tableau, le repere c'est toi. Une bande large veut dire que le choix est ouvert.",
+    ["The band is where the top players sit, the mark is you — as a share of your secondary budget, not the percentage on your character sheet. A wide band means the choice is open."] =
+        "La bande est la fourchette du haut de tableau, le repere c'est toi — en PART de ton budget secondaire, pas en pourcentage de feuille de personnage. Une bande large veut dire que le choix est ouvert.",
 
     -- Bloc gemmes de l'onglet Equipement. Il repond a « quelle gemme je pose » : le nom
     -- d'abord, puis combien de chasses et lesquelles. Il listait auparavant chaque chasse
@@ -186,6 +187,7 @@ ns.translations.fr = {
     ["Nothing to fix"] = "Rien a corriger",
     ["Everything is enchanted, socketed and in shape."] = "Tout est enchante, serti et en etat.",
     ["SECONDARY STATS"] = "STATISTIQUES SECONDAIRES",
+    ["character sheet"] = "feuille de personnage",
     ["Haste"] = "Hate",
     ["Crit"] = "Critique",
     ["Mastery"] = "Maitrise",
@@ -284,6 +286,7 @@ ns.translations.fr = {
     ["Weapons (pair)"] = "Armes (paire)",
     ["Weapon oil"] = "Huile d'arme",
     ["no enchant"] = "sans enchantement",
+    ["no weapon oil"] = "pas d'huile sur l'arme",
     ["measured on %d players carrying a weapon"] =
         "mesure sur %d joueurs portant une arme",
     ["No droptimizer imported yet."] = "Aucun droptimizer importe.",

@@ -35,6 +35,22 @@ local NODE_GAP = 6
 local HERO_GAP = 24
 local SECTION_GAP = 18
 
+-- COULEURS DE L'ECART, partagees par l'arbre et la liste. Une meme nature d'ecart doit
+-- porter la meme couleur aux deux endroits, sinon la liste ne sert pas de legende.
+local DIFF_RGB = {
+    take = { 0, 0.9, 0.46 },
+    drop = { 0.95, 0.35, 0.35 },
+    rank = { 1, 0.66, 0.2 },
+    swap = { 1, 0.66, 0.2 },
+}
+
+--- Un code couleur d'ecart, en hexadecimal, pour les libelles.
+local function diffHex(kind)
+    local rgb = DIFF_RGB[kind]
+    if not rgb then return "|cffB0B0B0" end
+    return string.format("|cff%02x%02x%02x", rgb[1] * 255, rgb[2] * 255, rgb[3] * 255)
+end
+
 local view, pools
 local content = "raid"
 
@@ -168,6 +184,17 @@ local function layoutTree(top, width)
     end
 
     local shares = shareByID()
+
+    -- L'ECART, MARQUE SUR L'ARBRE LUI-MEME.
+    --
+    -- La liste en dessous disait « Assimilation : a prendre » et laissait le joueur
+    -- chercher l'icone correspondante dans cent noeuds. Le geste qu'on lui demande est
+    -- « clique ici », et un arbre sait le montrer : un liisere vert sur ce qu'il doit
+    -- prendre, rouge sur ce qu'il doit rendre, orange sur une branche ou un rang a changer.
+    local diffKind = {}
+    for _, entry in ipairs(ns.Traits.Compare(match) or {}) do
+        diffKind[entry.id] = entry.kind
+    end
 
     -- DEUX ARBRES, DEUX REPERES.
     --
@@ -374,7 +401,11 @@ local function layoutTree(top, width)
         -- l'information ici non plus, le rang l'ecrit en chiffres.
         button.icon:SetDesaturated(not picked)
         button.icon:SetAlpha(picked and 1 or 0.3)
-        ns.Theme.ApplyCard(button, picked and ns.Theme.RGB.link or nil)
+        -- Le liisere dit l'ECART avec ton arbre ; a defaut, il dit « pris par le build ».
+        -- L'ecart passe devant : c'est la seule information sur laquelle on agit.
+        local kind = diffKind[nodeID]
+        ns.Theme.ApplyCard(button, (kind and DIFF_RGB[kind])
+            or (picked and ns.Theme.RGB.link) or nil)
 
         local maxRanks = node.maxRanks or 1
         button.rank:SetText((picked and maxRanks > 1)
@@ -419,6 +450,14 @@ local function layoutDifferences(top, width)
     local diff = match and ns.Traits.Compare(match)
 
     top = heading(top - SECTION_GAP, width, L["Against your tree"])
+    if diff then
+        -- La legende du marquage, une fois, sous le titre. Les couleurs sont celles des
+        -- liseres de l'arbre juste au-dessus.
+        top = text(top, width, string.format("%s+ %s|r   %s- %s|r   %s~ / %s|r",
+            diffHex("take"), ns.L["to take"],
+            diffHex("drop"), ns.L["to drop"],
+            diffHex("rank"), ns.L["other rank or branch"]))
+    end
     if not diff then
         return text(top, width, hex("good") .. L["Identical to the published tree."] .. "|r")
     end
@@ -429,17 +468,18 @@ local function layoutDifferences(top, width)
                 L["and %d more — you are playing a different build"], #diff - DIFF_LIMIT)
                 .. "|r")
         end
-        local tint = (entry.kind == "take" and "link") or (entry.kind == "drop" and "bis")
-            or "muted"
+        -- MEME COULEUR QUE SUR L'ARBRE. Sans ca, le liisere vert la-haut et la ligne
+        -- ici-bas ne se rattachent pas l'un a l'autre, et le marquage ne se decode pas.
+        local tint = diffHex(entry.kind)
         -- Le RANG n'est ecrit que quand il porte l'information : « 1 -> 2 » sur un talent
         -- a plusieurs rangs, rien sur un talent binaire ou il ne dirait que « pris ».
         local detail = ns.L[DIFF_LABEL[entry.kind] or entry.kind]
         if entry.kind == "rank" then
             detail = string.format("%s %d -> %d", detail, entry.mine, entry.theirs)
         end
-        top = text(top, width, string.format("%s%s|r  %s%s|r  %s%s|r",
-            hex(tint), DIFF_MARK[entry.kind] or "?",
-            hex("text"), entry.name or ("#" .. entry.id),
+        top = text(top, width, string.format("%s%s  %s|r  %s%s|r",
+            tint, DIFF_MARK[entry.kind] or "?",
+            entry.name or ("#" .. entry.id),
             hex("muted"), detail))
     end
     return top
@@ -597,7 +637,15 @@ function TalentView.Refresh()
         or L["Talent trees played on raid bosses."]) .. "|r")
 
     local available = math.max(360, (view.scroll:GetWidth() or 700) - 8)
+
+    -- L'ARBRE PREND TOUTE LA LARGEUR, le texte non.
+    --
+    -- Les deux partageaient un plafond de 760 px pense pour des lignes de texte — au-dela
+    -- une phrase devient illisible. Un arbre, lui, n'a pas cette limite : sur une fenetre
+    -- de 1040 il restait tasse a gauche avec un tiers de page vide, et des noeuds trop
+    -- petits pour qu'on distingue les icones. Deux besoins opposes, donc deux largeurs.
     local width = math.min(760, available)
+    local treeWidth = available
     view.content:SetWidth(available)
 
     local top = 0
@@ -605,7 +653,7 @@ function TalentView.Refresh()
         top = text(top, width, hex("muted")
             .. L["no top-build reference for this spec yet"] .. "|r")
     else
-        local drawn, reason = layoutTree(top, width)
+        local drawn, reason = layoutTree(top, treeWidth)
         if drawn then
             top = layoutDifferences(drawn, width)
         else

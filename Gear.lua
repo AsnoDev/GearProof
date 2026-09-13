@@ -124,6 +124,38 @@ local function auditWeaponPair(bySlot, summary)
         ns.Meta.Sample()))
 end
 
+--- L'HUILE MANQUANTE EST UNE CORRECTION, pas une remarque.
+---
+--- Elle s'affichait dans Recommandations, en rouge, avec son taux d'adoption — et
+--- l'onglet Equipement annoncait « 2 corrections en attente » sans la compter. Un joueur
+--- qui suit la liste des corrections ne la posait donc jamais.
+---
+--- C'est une propriete de l'ARME, donc le probleme se range sur la main droite : la liste
+--- des corrections, son tri et son compte fonctionnent sans rien changer.
+---
+--- Une huile EXPIRE. C'est la seule correction de cette liste qui reviendra, et c'est
+--- exactement pour ca qu'elle merite d'y etre : les autres se font une fois.
+local function auditOil(bySlot, summary)
+    summary.missingOil = 0
+
+    local main = bySlot.MainHandSlot
+    if not main or not main.link or main.ignored then return end
+
+    local oils = ns.Meta.Oils()
+    local best = oils and oils[1]
+    if not best then return end
+
+    -- `GetWeaponEnchantInfo` est la SEULE source : une huile est un enchantement
+    -- temporaire, elle n'est ni dans la chaine d'objet ni dans l'infobulle.
+    if type(GetWeaponEnchantInfo) ~= "function" then return end
+    local ok, has = pcall(GetWeaponEnchantInfo)
+    if not ok or has then return end
+
+    summary.missingOil = 1
+    main.missingOil = true
+    table.insert(main.problems, L["no weapon oil"])
+end
+
 --- Un hors-main vide n'est legitime que si la main droite le justifie.
 ---
 --- La boucle de scan sautait `SecondaryHandSlot` des qu'il etait vide, sans regarder ce
@@ -162,6 +194,7 @@ local function rawScan()
     local entries = {}
     local summary = {
         missingEnchants = 0,
+        missingOil = 0,
         emptySockets = 0,
         emptySlots = 0,
         damaged = 0,
@@ -276,9 +309,10 @@ local function rawScan()
     -- n'est connue qu'une fois toutes les pieces parcourues.
     auditOffHand(bySlot, summary)
     auditWeaponPair(bySlot, summary)
+    auditOil(bySlot, summary)
 
     summary.problems = summary.missingEnchants + summary.emptySockets + summary.emptySlots
-        + summary.damaged + summary.weaponPair
+        + summary.damaged + summary.weaponPair + (summary.missingOil or 0)
 
     return entries, summary
 end

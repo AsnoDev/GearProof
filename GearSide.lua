@@ -328,7 +328,15 @@ function GearSide.Create(parent)
 
     view.statsTitle = view:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     view.statsTitle:SetPoint("TOPLEFT", view, "TOPLEFT", 0, -152)
-    view.statsTitle:SetText(hex(COLORS.accent) .. L["SECONDARY STATS"] .. "|r")
+    -- L'UNITE EST ECRITE, et ce n'est pas un detail de style.
+    --
+    -- Cette colonne montrait « Hate 28,4 % » pendant que l'onglet Recommandations montrait
+    -- « Hate 38 % » sous le MEME titre. Les deux sont justes et mesurent des choses
+    -- differentes : ici le pourcentage de la feuille de personnage, la-bas la part du
+    -- budget secondaire — la seule grandeur comparable a la fourchette du relevé. Sans
+    -- l'unite, l'addon avait l'air de se contredire, et c'est ce qui a ete rapporte.
+    view.statsTitle:SetText(hex(COLORS.accent) .. L["SECONDARY STATS"] .. "|r"
+        .. "  " .. hex(COLORS.minor) .. L["character sheet"] .. "|r")
 
     view.priority = view:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     view.priority:SetJustifyH("LEFT")
