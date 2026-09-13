@@ -91,13 +91,18 @@ end
 --- doit jamais servir de reference a un Devourer. Un fichier de l'ancien format (un seul
 --- bloc a plat, sans dimension de spe) est rattache a la spe active plutot que rejete, pour
 --- ne pas casser une installation existante.
-local function block()
+--- @param wanted number|nil identifiant de spe force ; a defaut, la spe regardee
+local function block(wanted)
     if not formatIsReadable() then return nil end
     local data = reference()
     if data.sample then return data end
     if not ns.Spec then return nil end
 
-    local specID = ns.Spec.Selected()
+    -- LA SPE PEUT ETRE CELLE D'UN AUTRE. Le relevé porte les quarante, identiques chez
+    -- tous les membres d'une guilde : c'est ce qui permet de mesurer le personnage de
+    -- quelqu'un d'autre sans rien lui demander de plus qu'un identifiant. Sans ce
+    -- parametre, les quarante blocs ne servaient qu'a leur porteur.
+    local specID = wanted or ns.Spec.Selected()
 
     -- Cle de secours, insensible a la langue : l'identifiant Blizzard, quand le releve le
     -- connait. C'est la voie preferee.
@@ -111,6 +116,12 @@ local function block()
     -- la langue ; le nom de spe, lui, est traduit, donc cette voie ne vaut que pour un
     -- client anglais. Elle evite d'attendre un /reload pour une spe dont l'identifiant
     -- n'est pas encore connu de l'outil.
+    --
+    -- ELLE NE VAUT QUE POUR LA SPE DU CLIENT : `ClassSlug` interroge le personnage du
+    -- joueur. L'appliquer a la spe d'un tiers rendrait le bloc du LECTEUR sous le nom
+    -- d'un autre — la pire erreur possible ici, puisqu'elle est invisible.
+    if wanted then return nil end
+
     local classSlug = ns.Spec.ClassSlug()
     local specName = ns.Spec.Name(specID)
     if classSlug and specName then
@@ -120,6 +131,58 @@ local function block()
     end
 
     return nil
+end
+
+--- LECTEUR DU RELEVE POUR LA SPE D'UN AUTRE.
+---
+--- C'est la piece qui rend exploitable ce que l'addon embarque depuis toujours : les
+--- quarante blocs de `Data/Meta.lua` sont IDENTIQUES chez tous les membres d'une guilde.
+--- Un camarade n'a donc pas besoin de nous envoyer le nom de son enchantement manquant —
+--- il suffit qu'il envoie son identifiant de specialisation et un numero d'emplacement,
+--- et c'est NOTRE client qui detend l'index en texte nomme, chiffre et traduit.
+---
+--- Volontairement ETROIT. Les accesseurs publics de ce fichier restent lies a la spe
+--- regardee : ouvrir les vingt-cinq d'un coup ferait porter a chacun une question qu'un
+--- seul appelant se pose. On expose ici ce dont la tournee de guilde a besoin, et rien de
+--- plus ; la liste s'allongera quand un besoin reel la reclamera.
+---
+--- @param specID number
+--- @return table|nil lecteur, ou nil si le relevé ne connait pas cette specialisation
+function Meta.For(specID)
+    if type(specID) ~= "number" then return nil end
+    local data = block(specID)
+    if not data or (data.sample or 0) <= 0 then return nil end
+
+    local reader = {}
+
+    --- Enchantement recommande pour un emplacement. @return id, part
+    function reader.Enchant(slot)
+        local list = (data.enchants or {})[slot]
+        local best = list and list[1]
+        if not best then return nil end
+        return best.id, best.share or 0
+    end
+
+    --- Gemme la plus posee. @return id, part
+    function reader.Gem()
+        local best = (data.gems or {})[1]
+        if not best then return nil end
+        return best.id, best.share or 0
+    end
+
+    --- Huile la plus posee. @return id, part
+    function reader.Oil()
+        local best = (data.oils or {})[1]
+        if not best then return nil end
+        return best.id, best.share or 0
+    end
+
+    --- Taille de l'echantillon qui a servi a mesurer cette specialisation.
+    function reader.Sample()
+        return data.sample or 0
+    end
+
+    return reader
 end
 
 function Meta.Available()

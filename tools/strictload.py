@@ -712,7 +712,61 @@ def main() -> int:
             card.gains = gains
             GEARPROOF_ROSTER[card.name] = card
         end
+
+        -- LE DETAIL DES CORRECTIFS, sous ses TROIS etats. Sans eux, l'infobulle ne rend
+        -- que l'ancien resume et tout le dispositif de detente d'index reste mort.
+        --
+        --   Ashaya  : spe connue du relevé  -> lignes NOMMEES, avec leur taux
+        --   Morwen  : spe inconnue          -> emplacements, sans conseil invente
+        --   Ysmir   : relevé d'un autre format -> AUCUNE ligne, et la raison
+        GEARPROOF_ROSTER["Ashaya"].specID = 1467
+        GEARPROOF_ROSTER["Ashaya"].stamp = { format = 2, generatedAt = "2026-09-13" }
+        GEARPROOF_ROSTER["Ashaya"].detail = {
+            { slot = 4, kind = "enchant", qty = 1 },
+            { slot = 9, kind = "sockets", qty = 2 },
+            { slot = 15, kind = "oil", qty = 1 },
+            { slot = 6, kind = "durability", qty = 1 },
+        }
+        GEARPROOF_ROSTER["Morwen"].specID = 99999
+        GEARPROOF_ROSTER["Morwen"].stamp = { format = 2, generatedAt = "2026-09-13" }
+        GEARPROOF_ROSTER["Morwen"].detail = { { slot = 1, kind = "empty", qty = 1 } }
+        GEARPROOF_ROSTER["Ysmir"].specID = 1467
+        GEARPROOF_ROSTER["Ysmir"].stamp = { format = 99, generatedAt = "2030-01-01" }
+        GEARPROOF_ROSTER["Ysmir"].detail = { { slot = 2, kind = "enchant", qty = 1 } }
+
+        GEARPROOF_NS.Meta.Stamp = function()
+            return { format = 2, generatedAt = "2026-09-13" }
+        end
+        -- Le NOMMAGE est teste ailleurs (Meta.EnchantName, scan d'infobulle) : ici on
+        -- eprouve la DETENTE d'un index, donc on rend le nommage deterministe.
+        GEARPROOF_NS.Meta.EnchantName = function(_, id) return "ENCH" .. tostring(id) end
+        GEARPROOF_NS.Meta.GemName = function(id) return "GEM" .. tostring(id) end
+        GEARPROOF_NS.Meta.For = function(specID)
+            if specID ~= 1467 then return nil end
+            return {
+                Enchant = function() return 7991, 0.62 end,
+                Gem = function() return 240983, 0.55 end,
+                Oil = function() return 8052, 0.60 end,
+                Sample = function() return 20 end,
+            }
+        end
     """)
+
+    # L'ANNONCE SPONTANEE : elle part quand on colle un droptimizer frais, pas quand on
+    # la demande. Les trois refus comptent autant que le cas passant.
+    for label, setup in (
+        ("partage actif", "GEARPROOF_NS.db.shareWithGuild = true"),
+        ("partage coupe", "GEARPROOF_NS.db.shareWithGuild = false"),
+    ):
+        lua.execute(setup)
+        step(f"annonce de guilde ({label})", "GEARPROOF_ANNOUNCED = GEARPROOF_NS.Guild.Announce()")
+    lua.execute("GEARPROOF_NS.db.shareWithGuild = true")
+
+    # LES LIGNES DE MEMBRES SE SURVOLENT. C'est la seule facon d'atteindre l'infobulle, et
+    # donc la detente des index en texte nomme — le coeur du dispositif. Sans ce survol, le
+    # detail voyageait, arrivait, et n'etait jamais lu.
+    lua.execute("GEARPROOF_NS.UI.Show('guild')")
+    hover_rows("guilde, roster", "GuildView")
 
     # La fenetre Droptimizer est derriere un bouton, donc invisible d'un simple Show().
     # Ses DEUX branches se PILOTENT, elles ne se posent pas a la main : poser

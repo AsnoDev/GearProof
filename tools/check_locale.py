@@ -56,6 +56,10 @@ DYNAMIC_KEYS = {
     # RecoView : CONSUMABLE_LABEL[kind] -> L[...]. La categorie vient du relevé, donc
     # l'etiquette ne peut pas etre un litteral.
     "Flask", "Food",
+    # GuildView : PROBLEM_TEXT[line.kind] -> L[...]. La nature du correctif arrive par le
+    # canal sous forme de LETTRE : le libelle est choisi chez le lecteur, donc traduit chez
+    # lui. C est tout l interet du dispositif, et ca le rend invisible au scanner.
+    "worn out",
     # TalentView : DIFF_LABEL[entry.kind] -> L[...]. La nature de l'ecart est decidee par
     # `Traits.Compare`, donc elle arrive par une variable.
     "to take", "to drop", "other rank", "other branch",

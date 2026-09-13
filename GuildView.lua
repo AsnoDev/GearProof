@@ -247,6 +247,16 @@ local function memberOnClick(self)
     end
 end
 
+-- Nature d'un correctif -> libelle. La nature arrive par le canal sous forme de lettre :
+-- ce qui est ecrit a l'ecran est decide ICI, donc traduit chez le lecteur.
+local PROBLEM_TEXT = {
+    empty = "empty slot",
+    enchant = "missing enchant",
+    sockets = "1 empty socket",
+    durability = "worn out",
+    oil = "no weapon oil",
+}
+
 local function memberOnEnter(self)
     local card = self.card
     if not card then return end
@@ -257,6 +267,34 @@ local function memberOnEnter(self)
     if card.spec ~= "" then GameTooltip:AddLine(card.spec, 0.54, 0.54, 0.54) end
 
     GameTooltip:AddLine(" ")
+
+    -- QUOI, PAS COMBIEN. « ! 3 » ne se corrige pas : l'officier chuchotait « tu as trois
+    -- trucs » sans pouvoir dire lesquels, alors que le detail existait chez l'interesse.
+    -- Il voyage desormais sous forme d'index, et c'est ce client-ci qui le nomme, dans sa
+    -- langue, contre la reference de la specialisation de l'autre.
+    local detail, refused = ns.Guild.Explain(card)
+    if detail then
+        for _, line in ipairs(detail) do
+            local what = L[PROBLEM_TEXT[line.kind] or line.kind]
+            if line.kind == "sockets" and line.qty > 1 then
+                what = string.format(L["%d empty sockets"], line.qty)
+            end
+            GameTooltip:AddDoubleLine(L[line.label], what,
+                0.91, 0.91, 0.91, 1, 0.42, 0.42)
+            -- LE GESTE, quand le relevé sait le nommer. Sans lui la ligne dit encore
+            -- « il manque », c'est-a-dire ce que fait tout le marche.
+            if line.advice then
+                GameTooltip:AddLine(string.format("      %s%s", line.advice,
+                    line.share and string.format("   %d%%", line.share * 100 + 0.5) or ""),
+                    0, 0.69, 1)
+            end
+        end
+        GameTooltip:AddLine(" ")
+    elseif refused then
+        GameTooltip:AddLine(refused, 0.89, 0.64, 0.36, true)
+        GameTooltip:AddLine(" ")
+    end
+
     if (card.fixes or 0) > 0 then
         GameTooltip:AddDoubleLine(L["Fixes pending"], tostring(card.fixes),
             0.54, 0.54, 0.54, 1, 0.42, 0.42)

@@ -1014,6 +1014,127 @@ def test_roster_freshness(report: Report) -> None:
 
 # ------------------------------------------------------------ format du canal guilde
 
+def test_guild_detail(report: Report) -> None:
+    """Le DETAIL des correctifs : l'index part, la phrase arrive.
+
+    C'est la piece qui distingue GearProof du marche. Tout le monde sait dire « il manque
+    un enchantement » ; personne ne sait dire LEQUEL sur le personnage de quelqu'un
+    d'autre, parce qu'il faudrait embarquer une reference par specialisation. GearProof
+    l'embarque, et elle est identique chez tous les membres : on envoie donc un numero
+    d'emplacement et une lettre, et c'est le RECEPTEUR qui nomme, chiffre et traduit.
+
+    C'est un FORMAT DE FIL, donc une derive s'y voit trop tard. Et un piege propre a
+    celui-ci : detendre un index contre un relevé d'un autre format produirait un nom pris
+    dans la mauvaise table — faux, plausible, et silencieux.
+    """
+    suite = Suite(report, "Guild.detail")
+    lua, ns, locals_ = new_runtime(
+        ["Spec.lua", "Sim.lua", "Guild.lua"],
+        expose={"Guild.lua": ["serializeDetail", "deserializeDetail"]})
+    lua.globals().GEARPROOF_NS = ns
+    lua.execute("GEARPROOF_NS.db = { shareWithGuild = true, sim = {} }")
+
+    # Le relevé du LECTEUR : c'est lui qui nomme.  est la table d'index
+    # partagee : ce qui voyage est une POSITION dedans, pas un libelle.
+    lua.execute("""
+        GEARPROOF_NS.Meta = GEARPROOF_NS.Meta or {}
+        GEARPROOF_NS.Gear = GEARPROOF_NS.Gear or {}
+        --  lit MON equipement pour servir de gabarit au nommage : un objet
+        -- reel du bon emplacement suffit a nommer un enchantement que le relevé ne
+        -- rattache a aucun objet. Ici on ne teste pas le nommage, donc rien a porter.
+        GEARPROOF_NS.Gear.Scan = function() return {}, {} end
+        GEARPROOF_NS.Gear.SLOTS = {
+            { slot = "HeadSlot", label = "Head" }, { slot = "NeckSlot", label = "Neck" },
+            { slot = "ShoulderSlot", label = "Shoulders" }, { slot = "BackSlot", label = "Cloak" },
+            { slot = "ChestSlot", label = "Chest" }, { slot = "WristSlot", label = "Wrists" },
+            { slot = "HandsSlot", label = "Hands" }, { slot = "WaistSlot", label = "Waist" },
+            { slot = "LegsSlot", label = "Legs" }, { slot = "FeetSlot", label = "Feet" },
+            { slot = "Finger0Slot", label = "Ring 1" }, { slot = "Finger1Slot", label = "Ring 2" },
+            { slot = "Trinket0Slot", label = "Trinket 1" }, { slot = "Trinket1Slot", label = "Trinket 2" },
+            { slot = "MainHandSlot", label = "Weapon" }, { slot = "SecondaryHandSlot", label = "Off hand" },
+        }
+        GEARPROOF_NS.Meta.Stamp = function() return { format = 2, generatedAt = "2026-09-13" } end
+        GEARPROOF_NS.Meta.For = function(specID)
+            if specID ~= 250 then return nil end
+            return {
+                Enchant = function(slot)
+                    if slot == "BackSlot" then return 7991, 0.62 end
+                    return nil
+                end,
+                Gem = function() return 240983, 0.55 end,
+                Oil = function() return 8052, 0.60 end,
+                Sample = function() return 20 end,
+            }
+        end
+        GEARPROOF_NS.Meta.EnchantName = function(_, id) return "ENCH" .. id end
+        GEARPROOF_NS.Meta.GemName = function(id) return "GEM" .. id end
+    """)
+
+    detail = lua.eval("""{
+        { slot = 4,  kind = "enchant",    qty = 1 },
+        { slot = 9,  kind = "sockets",    qty = 2 },
+        { slot = 15, kind = "oil",        qty = 1 },
+        { slot = 6,  kind = "durability", qty = 1 },
+    }""")
+
+    wire = locals_["serializeDetail"](250, detail)
+    suite.truthy("le message tient dans le budget", len(str(wire)) <= 240)
+    suite.truthy("il s'annonce comme un detail", str(wire).startswith("EXT~"))
+
+    back = locals_["deserializeDetail"](wire)
+    suite.equal("la spe survit au fil", int(back["specID"]), 250)
+    suite.equal("le sceau survit", int(back["format"]), 2)
+    suite.equal("quatre correctifs relus", len(back["detail"]), 4)
+    suite.equal("la QUANTITE de chasses survit", int(back["detail"][2]["qty"]), 2)
+    suite.equal("une quantite de 1 n'est pas ecrite mais se relit",
+                int(back["detail"][1]["qty"]), 1)
+
+    # L'expansion : d'un index a une phrase NOMMEE.
+    lua.globals().GEARPROOF_CARD = lua.eval("""{
+        name = "Autre", specID = 250,
+        stamp = { format = 2, generatedAt = "2026-09-13" },
+    }""")
+    lua.globals().GEARPROOF_CARD.detail = back["detail"]
+    lua.execute("GEARPROOF_LINES, GEARPROOF_WHY = GEARPROOF_NS.Guild.Explain(GEARPROOF_CARD)")
+    lines = lua.globals().GEARPROOF_LINES
+    suite.truthy("quatre lignes rendues", lines is not None and len(lines) == 4)
+
+    by_kind = {str(lines[i]["kind"]): lines[i] for i in range(1, len(lines) + 1)}
+    suite.equal("l'emplacement est nomme", str(by_kind["enchant"]["label"]), "Cloak")
+    suite.equal("l'enchantement est NOMME, pas compte",
+                str(by_kind["enchant"]["advice"]), "ENCH7991")
+    suite.equal("et son taux voyage", round(float(by_kind["enchant"]["share"]), 2), 0.62)
+    suite.equal("la gemme aussi", str(by_kind["sockets"]["advice"]), "GEM240983")
+    suite.equal("l'huile aussi", str(by_kind["oil"]["advice"]), "ENCH8052")
+    # La durabilite ne se recommande pas : il n'y a rien a poser, juste a reparer.
+    suite.truthy("la durabilite n'invente pas de conseil",
+                 by_kind["durability"]["advice"] is None)
+
+    # LE SCEAU. Un relevé d'un autre format ne doit detendre AUCUN index.
+    lua.execute("""
+        GEARPROOF_CARD.stamp = { format = 99, generatedAt = "2030-01-01" }
+        GEARPROOF_LINES, GEARPROOF_WHY = GEARPROOF_NS.Guild.Explain(GEARPROOF_CARD)
+    """)
+    suite.truthy("format different : aucune ligne", lua.globals().GEARPROOF_LINES is None)
+    suite.truthy("et une raison, pas un silence", lua.globals().GEARPROOF_WHY is not None)
+
+    # Spe inconnue du relevé : on sait QUOI manque, pas contre quoi le mesurer.
+    lua.execute("""
+        GEARPROOF_CARD.stamp = { format = 2 }
+        GEARPROOF_CARD.specID = 999
+        GEARPROOF_LINES = GEARPROOF_NS.Guild.Explain(GEARPROOF_CARD)
+    """)
+    lines = lua.globals().GEARPROOF_LINES
+    suite.truthy("les emplacements restent rendus", lines is not None and len(lines) == 4)
+    suite.truthy("mais sans conseil invente", lines[1]["advice"] is None)
+
+    # Un message tronque ou etranger ne doit jamais rendre une demi-liste.
+    suite.truthy("un autre type est refuse",
+                 locals_["deserializeDetail"]("REP~Nom~Havoc~684~3~~0~") is None)
+
+    suite.done()
+
+
 def test_guild_payload(report: Report) -> None:
     """Aller-retour de la charge utile de guilde : encodage, decoupage, reconstruction.
 
@@ -1128,7 +1249,7 @@ def main() -> int:
     report = Report("tests Lua")
     for test in (test_all_files_load,
                  test_item_link, test_weights, test_weapon_pair, test_chunk_payload,
-                 test_guild_payload, test_simc_item_line, test_schema_migration,
+                 test_guild_payload, test_guild_detail, test_simc_item_line, test_schema_migration,
                  test_prune_reports, test_csv_freshness, test_roster_freshness,
                  test_by_encounter_season, test_known_level, test_fix_level_line,
                  test_crafts_and_trinkets, test_player_import_string,

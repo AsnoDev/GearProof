@@ -28,6 +28,19 @@ local REQUEST = "REQ"
 local REPLY = "REP"
 local ITEMS = "ITM"
 
+-- LE DETAIL DES CORRECTIFS. Un type a part, jamais des champs de plus dans `REP`.
+--
+-- Deux raisons, et la seconde est la plus dure a rattraper. `REP` se termine par la liste
+-- de rencontres, qui est TRONQUEE quand le message deborde : un champ intercale avant elle
+-- serait relu comme un identifiant de rencontre par un client d'une autre version, et la
+-- table de butin deviendrait fausse EN SILENCE. Un champ ajoute apres elle, lui, sort du
+-- budget sans que rien ne le voie — `serialize` calcule la troncature sur l'en-tete seul,
+-- et le client jette un message trop long sans un mot.
+--
+-- Un type inconnu, au contraire, est proprement ignore : un ancien client teste `ITM`,
+-- echoue, tombe dans `deserialize` et rejette sur `parts[1] ~= REPLY`.
+local EXTRA = "EXT"
+
 -- Delai minimal entre deux tournees LANCEES par ce client.
 local THROTTLE = 5
 
@@ -60,6 +73,8 @@ local INCOMING_TTL = 30
 local MESSAGE_LIMIT = 240
 
 local roster, lastRequest, lastReply = {}, 0, 0
+-- Detail arrive avant sa fiche. Meme cas que les gains, meme remede.
+local pendingDetail = {}
 local incoming = {}
 
 --- Nom de l'expediteur, sans le royaume. Un roster de guilde est mono-royaume.
@@ -336,6 +351,214 @@ local function absorb(name, index, total, chunk)
     return byEncounter
 end
 
+-- Index d'emplacement -> lettre, et retour. Ce qui voyage est un NUMERO d'emplacement et
+-- une lettre, pas un libelle : `Gear.SLOTS` est identique chez tout le monde, comme le
+-- relevé lui-meme. Dix problemes tiennent dans soixante octets.
+local PROBLEM_CODE = {
+    empty = "v", enchant = "e", sockets = "s", durability = "d", oil = "o",
+}
+local CODE_PROBLEM = {}
+for kind, code in pairs(PROBLEM_CODE) do CODE_PROBLEM[code] = kind end
+
+--- Position d'un emplacement dans `Gear.SLOTS`, construite une fois.
+local slotIndex
+local function indexOfSlot(slot)
+    if not slotIndex then
+        slotIndex = {}
+        for index, definition in ipairs(ns.Gear.SLOTS) do slotIndex[definition.slot] = index end
+    end
+    return slotIndex[slot]
+end
+
+--- Ce qui cloche chez MOI, sous forme d'index.
+---
+--- L'audit produit deja tout cela en local (`Gear.Scan`) ; seul le TOTAL voyageait, et un
+--- officier lisait « ! 3 » sans pouvoir dire lesquels. On envoie donc les index, et c'est
+--- le recepteur qui les detend contre SA copie du relevé — dans sa langue, sur la spe de
+--- l'autre, sans rien demander de plus.
+--- @return table { { slot = index, kind = string, qty = number } }
+function Guild.LocalDetail()
+    local entries = ns.Gear.Scan()
+    local found = {}
+    for _, entry in ipairs(entries or {}) do
+        local index = indexOfSlot(entry.slot)
+        -- Une piece IGNOREE volontairement n'est pas un correctif : la signaler a la
+        -- guilde reviendrait a denoncer un choix.
+        if index and not entry.skipped and not entry.ignored then
+            if entry.empty then
+                table.insert(found, { slot = index, kind = "empty", qty = 1 })
+            else
+                if entry.missingEnchant then
+                    table.insert(found, { slot = index, kind = "enchant", qty = 1 })
+                end
+                if (entry.emptySockets or 0) > 0 then
+                    table.insert(found, { slot = index, kind = "sockets",
+                                          qty = entry.emptySockets })
+                end
+                if entry.damaged then
+                    table.insert(found, { slot = index, kind = "durability", qty = 1 })
+                end
+                if entry.missingOil then
+                    table.insert(found, { slot = index, kind = "oil", qty = 1 })
+                end
+            end
+        end
+    end
+    return found
+end
+
+--- Le message de detail : identite de spe, sceau du relevé, puis les index.
+---
+--- LE SCEAU N'EST PAS DECORATIF. Detendre un index contre un relevé d'un autre format
+--- produirait du texte faux avec aplomb — un nom d'enchantement pris dans la mauvaise
+--- table. Le recepteur compare, et s'il ne reconnait pas le format il n'en detend AUCUN.
+local function serializeDetail(specID, detail)
+    local stamp = ns.Meta.Stamp() or {}
+    local head = table.concat({
+        EXTRA, specID or 0, stamp.format or 0, encode(stamp.generatedAt or ""),
+    }, "~")
+
+    local parts = {}
+    for _, item in ipairs(detail or {}) do
+        local code = PROBLEM_CODE[item.kind]
+        if code then
+            table.insert(parts, item.slot .. code .. ((item.qty or 1) > 1 and item.qty or ""))
+        end
+    end
+
+    -- Le budget se calcule sur l'en-tete REEL, pas sur un chiffre rond : c'est la faute qui
+    -- faisait jeter les fiches aux noms longs.
+    local codes = table.concat(parts, ",")
+    if #head + 1 + #codes > MESSAGE_LIMIT then
+        codes = codes:sub(1, math.max(0, MESSAGE_LIMIT - #head - 1)):match("^.*,") or ""
+        codes = codes:gsub(",$", "")
+    end
+    return head .. "~" .. codes
+end
+
+--- Lecture d'un message de detail. Rend nil sur tout ce qui ne se relit pas exactement.
+local function deserializeDetail(message)
+    local tag, specID, format, date, codes = strsplit("~", message, 5)
+    if tag ~= EXTRA then return nil end
+
+    local found = {}
+    for slot, code, qty in string.gmatch(codes or "", "(%d+)(%a)(%d*)") do
+        local kind = CODE_PROBLEM[code]
+        local index = tonumber(slot)
+        if kind and index and ns.Gear.SLOTS[index] then
+            table.insert(found, { slot = index, kind = kind, qty = tonumber(qty) or 1 })
+        end
+    end
+
+    return {
+        specID = tonumber(specID) or nil,
+        format = tonumber(format) or 0,
+        --  ne fait que retirer les separateurs : il n'y a rien a defaire.
+        generatedAt = date or "",
+        detail = found,
+    }
+end
+
+--- L'INDEX DEVIENT UNE PHRASE.
+---
+--- C'est le coeur du dispositif, et il tient a une propriete qu'aucun concurrent n'a : les
+--- quarante blocs de `Data/Meta.lua` sont IDENTIQUES chez tous les membres. Le camarade
+--- n'envoie donc pas « il me manque l'Enchantement de cape - Souffle du Neant » — il envoie
+--- « emplacement 4, enchantement » — et c'est NOTRE client qui nomme, chiffre et traduit,
+--- contre la reference de SA specialisation a lui.
+---
+--- Un site ne peut pas le faire : il ne verrait ni le sac ni la durabilite, et il aurait un
+--- jour de retard. Un addon de roster ne peut pas le faire : il n'embarque pas de relevé.
+---
+--- SCEAU D'ABORD. Si le relevé d'en face n'est pas du meme format que le notre, on ne
+--- detend AUCUN index : un nom pris dans la mauvaise table serait faux avec aplomb, et
+--- rien ne le signalerait. On rend la raison plutot qu'une liste.
+---
+--- @return table|nil lignes { label, advice, share, kind, qty }, string|nil raison
+function Guild.Explain(card)
+    if not card or not card.detail or #card.detail == 0 then return nil end
+
+    local mine = ns.Meta.Stamp() or {}
+    local theirs = card.stamp or {}
+    if (theirs.format or 0) ~= (mine.format or 0) then
+        return nil, L["their reference is not in the format this addon reads"]
+    end
+
+    -- Sans identifiant de spe, on sait QUOI manque mais pas contre quelle population le
+    -- mesurer. On rend quand meme les emplacements : c'est deja plus que le total.
+    local reader = card.specID and ns.Meta.For(card.specID) or nil
+
+    -- MON PROPRE OBJET SERT DE GABARIT. `Meta.EnchantName` sait nommer un enchantement de
+    -- deux facons : par l'objet qui l'applique quand le relevé le connait, sinon en lisant
+    -- l'infobulle d'un objet REEL dans lequel il injecte l'enchantement. La seconde voie
+    -- couvre les vingt enchantements sur quarante-huit que le relevé ne sait pas rattacher
+    -- a un objet — mais il lui faut un objet, n'importe lequel du bon emplacement.
+    --
+    -- Celui de l'AUTRE, on ne l'a pas : rien de son equipement ne voyage. Le notre suffit,
+    -- puisque seul le champ d'enchantement compte.
+    local worn = {}
+    for _, entry in ipairs(ns.Gear.Scan() or {}) do
+        if entry.link then worn[entry.slot] = entry.link end
+    end
+
+    local lines = {}
+    for _, item in ipairs(card.detail) do
+        local definition = ns.Gear.SLOTS[item.slot]
+        if definition then
+            local advice, share
+            if reader then
+                local template = worn[definition.slot]
+                if item.kind == "enchant" then
+                    local id, part = reader.Enchant(definition.slot)
+                    advice, share = id and ns.Meta.EnchantName(template, id), part
+                elseif item.kind == "sockets" then
+                    local id, part = reader.Gem()
+                    advice, share = id and ns.Meta.GemName(id), part
+                elseif item.kind == "oil" then
+                    local id, part = reader.Oil()
+                    advice, share = id and ns.Meta.EnchantName(template, id), part
+                end
+            end
+            table.insert(lines, {
+                label = definition.label,
+                kind = item.kind,
+                qty = item.qty or 1,
+                advice = advice,
+                share = share,
+            })
+        end
+    end
+
+    return (#lines > 0) and lines or nil
+end
+
+--- Annonce spontanee : « j'ai du neuf ».
+---
+--- Le protocole est un APPEL/REPONSE, et c'est une bonne chose : personne n'emet en
+--- continu, rien ne circule tant qu'on ne demande rien. Mais il laissait un trou —
+--- celui qui rafraichit ses donnees reste affiche avec les anciennes jusqu'a la prochaine
+--- tournee, c'est-a-dire au pire moment.
+---
+--- On emet donc la FICHE et le DETAIL, jamais les gains : c'est ce qui change l'etat lu
+--- par un officier, et ca tient en deux messages courts. Les gains, eux, coutent jusqu'a
+--- quarante morceaux — ils restent reserves a une vraie tournee.
+---
+--- Le meme verrou de partage et le meme etranglement que pour une reponse : une annonce
+--- est une reponse dont le declencheur est « j'ai du neuf » au lieu de « on m'a demande ».
+--- @return boolean vrai si quelque chose est parti
+function Guild.Announce()
+    if not IsInGuild() then return false end
+    if ns.db.shareWithGuild ~= true then return false end
+
+    local now = GetTime()
+    if (now - lastReply) < REPLY_THROTTLE then return false end
+    lastReply = now
+
+    post(serialize(Guild.LocalCard()))
+    post(serializeDetail(ns.Spec.Active(), Guild.LocalDetail()))
+    return true
+end
+
 --- Demande a la guilde de se declarer.
 function Guild.Request()
     if not IsInGuild() then
@@ -347,6 +570,7 @@ function Guild.Request()
 
     roster = {}
     incoming = {}
+    pendingDetail = {}
     outbox = {}
     local card = Guild.LocalCard()
     -- Ses propres gains sont lus directement, sans passer par le canal.
@@ -585,6 +809,7 @@ ns.On("CHAT_MSG_ADDON", function(prefix, message, channel, sender)
         lastReply = now
 
         post(serialize(Guild.LocalCard()))
+        post(serializeDetail(ns.Spec.Active(), Guild.LocalDetail()))
         sendSim()
         return
     end
@@ -603,6 +828,22 @@ ns.On("CHAT_MSG_ADDON", function(prefix, message, channel, sender)
             -- Les gains sont arrives avant la fiche : on les garde pour elle, avec un
             -- horodatage pour que la purge puisse les oublier.
             incoming[who] = { resolved = gains, total = 0, parts = {}, seen = 0, at = GetTime() }
+        end
+        return
+    end
+
+    -- Detail des correctifs. Il peut arriver AVANT ou APRES la fiche : on le range dans la
+    -- fiche quand elle est la, et on le garde de cote sinon — meme regle que les gains.
+    if message:sub(1, #EXTRA + 1) == EXTRA .. "~" then
+        local extra = deserializeDetail(message)
+        if not extra then return end
+        if roster[who] then
+            roster[who].specID = extra.specID
+            roster[who].stamp = { format = extra.format, generatedAt = extra.generatedAt }
+            roster[who].detail = extra.detail
+            if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+        else
+            pendingDetail[who] = extra
         end
         return
     end
@@ -629,6 +870,16 @@ ns.On("CHAT_MSG_ADDON", function(prefix, message, channel, sender)
     if pending and pending.resolved then
         card.gains = pending.resolved
         incoming[who] = nil
+    end
+
+    -- Le detail aussi : les trois messages partent a la suite, mais rien ne garantit
+    -- l'ordre d'arrivee.
+    local extra = pendingDetail[who]
+    if extra then
+        card.specID = extra.specID
+        card.stamp = { format = extra.format, generatedAt = extra.generatedAt }
+        card.detail = extra.detail
+        pendingDetail[who] = nil
     end
 
     roster[who] = card

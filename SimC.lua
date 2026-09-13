@@ -491,6 +491,13 @@ function SimC.HandlePaste(text)
         ns.Print("%s%s|r", ns.Theme.C("good"),
             string.format(ns.L["droptimizer imported: %d items"], result))
         if ns.UI and ns.UI.RefreshNow then ns.UI.RefreshNow() end
+        -- LA GUILDE APPREND LE NEUF SANS ATTENDRE QU'ON LUI DEMANDE.
+        --
+        -- La tournee est un APPEL : personne ne publie, chacun repond quand on l'interroge.
+        -- Un joueur qui mettait son droptimizer a jour restait donc affiche avec ses
+        -- donnees de la veille jusqu'a ce qu'un officier relance — exactement au moment ou
+        -- il vient de faire l'effort de les rafraichir.
+        ns.Guild.Announce()
         return true, "csv"
     end
 
