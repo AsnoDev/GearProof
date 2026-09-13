@@ -353,6 +353,13 @@ def main() -> int:
         -- L'echantillon des GEMMES est distinct : il compte les porteurs de gemme, et les
         -- parts s'y rapportent sans totaliser cent.
         GEARPROOF_NS.Meta.GemSample = function() return 17 end
+        -- PAIRE D'ARMES DONT UNE MAIN NE PORTE RIEN. `{ 0, 8689 }` apparait 17 fois dans
+        -- le relevé reel : un bouclier ne prend pas d'enchantement d'arme. Zero n'est pas
+        -- un identifiant, et `EnchantName(0)` ne rend rien.
+        GEARPROOF_NS.Meta.WeaponPairs = function()
+            return { { ids = { 0, 8689 }, count = 12, share = 0.60 },
+                     { ids = { 8689, 8689 }, count = 5, share = 0.25 } }
+        end
 
         -- HUILES : le second enchantement de l'arme. Sans elles la ligne ne rend pas, et
         -- sans `GetWeaponEnchantInfo` la branche « le joueur en a une » reste morte.

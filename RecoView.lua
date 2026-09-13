@@ -524,9 +524,19 @@ local function layoutEnchants(top, width)
         local main, off = bySlot.MainHandSlot, bySlot.SecondaryHandSlot
         local ok = ns.Meta.WeaponPairAdvice(main and main.enchantID, off and off.enchantID)
 
+        -- ZERO N'EST PAS UN ENCHANTEMENT, c'est une main qui n'en porte pas. Le relevé
+        -- publie des paires comme { 0, 8689 } — 17 fois sur les quarante specialisations —
+        -- et c'est une mesure JUSTE : un bouclier ou une main gauche de statistiques ne
+        -- prend pas d'enchantement d'arme. Mais `EnchantName(0)` ne rend rien, donc la
+        -- ligne affichait « #0  +  Rune de X ». On dit ce que zero veut dire.
         local names = {}
         for _, id in ipairs(best.ids or {}) do
-            table.insert(names, (main and ns.Meta.EnchantName(main.link, id)) or ("#" .. id))
+            if id == 0 then
+                table.insert(names, ns.L["no enchant"])
+            else
+                table.insert(names,
+                    (main and ns.Meta.EnchantName(main.link, id)) or ("#" .. id))
+            end
         end
 
         top = enchantRow(top, width, ns.L["Weapons (pair)"],

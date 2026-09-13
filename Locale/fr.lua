@@ -283,6 +283,7 @@ ns.translations.fr = {
     ["Trinkets"] = "Bijoux",
     ["Weapons (pair)"] = "Armes (paire)",
     ["Weapon oil"] = "Huile d'arme",
+    ["no enchant"] = "sans enchantement",
     ["measured on %d players carrying a weapon"] =
         "mesure sur %d joueurs portant une arme",
     ["No droptimizer imported yet."] = "Aucun droptimizer importe.",
