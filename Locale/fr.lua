@@ -276,8 +276,8 @@ ns.translations.fr = {
     ["Consumables"] = "Consommables",
     ["Flask"] = "Flacon",
     ["Food"] = "Nourriture",
-    ["Augment rune"] = "Rune d'augmentation",
-    ["Vantus rune"] = "Rune de Vantus",
+    ["The game's spell tooltip shows base values, not a real flask."] =
+        "L'infobulle de sort du jeu montre les valeurs de base, pas un vrai flacon.",
     ["no agreement on which one"] = "le choix est partage",
     ["%d%% take one"] = "%d %% en prennent une",
     ["Trinkets"] = "Bijoux",

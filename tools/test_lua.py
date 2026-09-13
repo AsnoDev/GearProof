@@ -679,6 +679,90 @@ def test_crafts_and_trinkets(report: Report) -> None:
 
 # ------------------------------------------- le niveau reel d'une piece de butin
 
+def test_fix_level_line(report: Report) -> None:
+    """L'EN-TETE de l'infobulle, celui qu'on lit en premier.
+
+    Les lignes ajoutees par GearProof disaient deja la verite — « simule au niveau 344 »,
+    « +33 contre l'equipe » — mais l'en-tete du jeu continuait d'annoncer « Niveau d'objet
+    219 », celui du MODELE. Deux chiffres contradictoires dans la meme infobulle, dont le
+    plus visible est le faux.
+
+    La reconnaissance passe par `ITEM_LEVEL`, la chaine du client : elle doit marcher quelle
+    que soit la langue, et ne RIEN toucher quand le niveau affiche est deja le bon.
+    """
+    suite = Suite(report, "Tooltip.FixLevelLine")
+    lua, ns, _ = new_runtime(["ItemLink.lua", "ItemInfo.lua", "Spec.lua", "Sim.lua",
+                              "Tooltip.lua"])
+    lua.globals().GEARPROOF_NS = ns
+
+    lua.execute("""
+        GEARPROOF_LINES = {}
+        local function fakeLine(text)
+            local line = {}
+            function line:GetText() return text end
+            function line:SetText(value) text = value end
+            return line
+        end
+        function GEARPROOF_BUILD(...)
+            local texts = { ... }
+            GEARPROOF_LINES = {}
+            for index, text in ipairs(texts) do
+                GEARPROOF_LINES[index] = fakeLine(text)
+                _G["FakeTipTextLeft" .. index] = GEARPROOF_LINES[index]
+            end
+            local tip = {}
+            function tip:GetName() return "FakeTip" end
+            function tip:NumLines() return #texts end
+            return tip
+        end
+    """)
+
+    def build(*lines):
+        lua.globals().GEARPROOF_TIP = lua.globals().GEARPROOF_BUILD(*lines)
+
+    def line(index):
+        return str(lua.globals().GEARPROOF_LINES[index].GetText())
+
+    lua.execute('ITEM_LEVEL = "Item Level %d"')
+
+    # Sans contexte de niveau connu, on ne touche a rien : l'infobulle du jeu fait foi.
+    build("Baleful Breastplate", "Item Level 219")
+    lua.execute("GEARPROOF_NS.Tooltip.SetKnownLevel(nil, nil)")
+    suite.truthy("sans niveau connu : aucune reecriture",
+                 not lua.eval("GEARPROOF_NS.Tooltip.FixLevelLine(GEARPROOF_TIP)"))
+    suite.equal("la ligne est intacte", line(2), "Item Level 219")
+
+    # Le cas reel : le modele annonce 219, le droptimizer sait 344.
+    lua.execute("GEARPROOF_NS.Tooltip.SetKnownLevel(12345, 344)")
+    build("Baleful Breastplate", "Item Level 219", "Binds when picked up")
+    suite.truthy("le gabarit est corrige",
+                 lua.eval("GEARPROOF_NS.Tooltip.FixLevelLine(GEARPROOF_TIP)"))
+    suite.equal("l'en-tete dit le vrai niveau", line(2), "Item Level 344")
+    suite.equal("les autres lignes sont intactes", line(3), "Binds when picked up")
+
+    # Deja juste : on ne reecrit pas, et on le DIT — l'appelant s'en sert pour decider s'il
+    # faut avertir que le niveau affiche est celui du modele.
+    build("Baleful Breastplate", "Item Level 344")
+    suite.truthy("un niveau deja juste ne compte pas comme une correction",
+                 not lua.eval("GEARPROOF_NS.Tooltip.FixLevelLine(GEARPROOF_TIP)"))
+
+    # Aucune ligne de niveau : rien a corriger, et surtout rien a casser.
+    build("Flacon", "Utilisation : boire")
+    suite.truthy("sans ligne de niveau : faux, sans erreur",
+                 not lua.eval("GEARPROOF_NS.Tooltip.FixLevelLine(GEARPROOF_TIP)"))
+
+    # AUTRE LANGUE. La chaine du client porte le libelle ET l'ordre : la reconnaissance ne
+    # doit pas dependre du mot « Item ».
+    lua.execute("ITEM_LEVEL = \"Niveau d'objet %d\"")
+    build("Plastron", "Niveau d'objet 219")
+    suite.truthy("client francais : corrige aussi",
+                 lua.eval("GEARPROOF_NS.Tooltip.FixLevelLine(GEARPROOF_TIP)"))
+    suite.equal("libelle localise conserve", line(2), "Niveau d'objet 344")
+
+    lua.execute("GEARPROOF_NS.Tooltip.SetKnownLevel(nil, nil)")
+    suite.done()
+
+
 def test_known_level(report: Report) -> None:
     """L'infobulle d'un butin dit-elle la verite quand le journal n'a pas rendu le lien ?
 
@@ -1046,7 +1130,7 @@ def main() -> int:
                  test_item_link, test_weights, test_weapon_pair, test_chunk_payload,
                  test_guild_payload, test_simc_item_line, test_schema_migration,
                  test_prune_reports, test_csv_freshness, test_roster_freshness,
-                 test_by_encounter_season, test_known_level,
+                 test_by_encounter_season, test_known_level, test_fix_level_line,
                  test_crafts_and_trinkets, test_player_import_string,
                  test_traits_split, test_traits_compare):
         try:

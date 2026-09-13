@@ -350,6 +350,9 @@ def main() -> int:
                        import = "CHAINE-DU-RELEVE", distinct = 17, sample = 20 } }
         end
         GEARPROOF_NS.Meta.ConsumableSample = function() return 20 end
+        -- L'echantillon des GEMMES est distinct : il compte les porteurs de gemme, et les
+        -- parts s'y rapportent sans totaliser cent.
+        GEARPROOF_NS.Meta.GemSample = function() return 17 end
 
         -- HUILES : le second enchantement de l'arme. Sans elles la ligne ne rend pas, et
         -- sans `GetWeaponEnchantInfo` la branche « le joueur en a une » reste morte.
@@ -411,6 +414,9 @@ def main() -> int:
     # doivent voir le cas le plus riche.
     lua.execute(CONSUMABLES["consensus"])
 
+    # Chaine du client. Sans elle, la correction de l'en-tete d'infobulle ne peut pas
+    # reconnaitre la ligne de niveau, donc ne tourne jamais sous test.
+    lua.execute('ITEM_LEVEL = "Item Level %d"')
     lua.execute("GEARPROOF_META_IMPORT = GEARPROOF_NS.Meta.BuildImport")
     lua.execute("GEARPROOF_META_CONTENTS = GEARPROOF_NS.Meta.Contents")
     GEARPROOF_NS_TRAITS_RESET = "GEARPROOF_NS.Traits.Invalidate()"
@@ -542,6 +548,23 @@ def main() -> int:
     if lua.globals().GEARPROOF_COPIED is not None:
         report.error("export", "propose une copie alors que le relevé ne porte pas de chaine")
     lua.execute("GEARPROOF_NS.Meta.BuildImport = GEARPROOF_META_IMPORT")
+
+    # L'INFOBULLE D'UN CONSOMMABLE A DEUX CHEMINS, et le second n'est pas un cas d'erreur.
+    # L'objet porte le meme nom que le buff et donne la vraie infobulle ; quand il n'est pas
+    # dans le cache du client, on compose la notre plutot que de rendre l'infobulle de SORT,
+    # qui affiche les valeurs de base de l'aura — « hate +38 » pour un flacon qui en donne
+    # des milliers.
+    for label, stub in (
+        ("objet en cache",
+         'C_Item.GetItemInfo = function(name) return name, "|cffitem|h[" .. name .. "]|h|r" end'),
+        ("objet absent du cache", "C_Item.GetItemInfo = function() return nil end"),
+        ("API absente", "C_Item.GetItemInfo = nil"),
+    ):
+        lua.execute(stub)
+        for pass_number in (1, 2):
+            step(f"infobulle de consommable ({label}), passe {pass_number}",
+                 "GEARPROOF_NS.UI.Show('reco')")
+        hover_rows(f"consommables ({label})", "RecoView")
 
     # L'HUILE DU JOUEUR, ou son absence. `GetWeaponEnchantInfo` est la SEULE facon de
     # savoir si une huile est posee en ce moment — l'infobulle de l'arme ne le dit pas, et

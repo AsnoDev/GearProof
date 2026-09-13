@@ -109,6 +109,10 @@ local function itemOnEnter(self)
         GameTooltip:AddLine("item:" .. self.itemID)
     end
 
+    -- L'EN-TETE EST CE QU'ON LIT EN PREMIER : sans correction il annonce le niveau du
+    -- MODELE pendant que nos lignes annoncent le vrai.
+    local fixed = ns.Tooltip.FixLevelLine(GameTooltip)
+
     if self.itemLevel and self.itemLevel > 0 then
         GameTooltip:AddLine(" ")
         GameTooltip:AddDoubleLine(L["worn at ilvl"], tostring(self.itemLevel),
@@ -120,11 +124,12 @@ local function itemOnEnter(self)
         -- du drop » ne veut rien dire : il n'y a pas de drop. La phrase etait du bruit sur
         -- toute la section Artisanat, ou le repli sur le modele est le cas NORMAL — aucun
         -- craft ne figure dans une table de butin.
-        if not shown and ns.Journal.ItemSource(self.itemID) then
+        if not shown and not fixed and ns.Journal.ItemSource(self.itemID) then
             GameTooltip:AddLine(L["the item level above is the base template, not the drop"],
                 0.54, 0.54, 0.54, true)
         end
     end
+
     GameTooltip:Show()
     ns.Tooltip.SetKnownLevel(nil, nil)
 end

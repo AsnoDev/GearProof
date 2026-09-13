@@ -245,6 +245,12 @@ local function itemOnEnter(self)
         GameTooltip:AddLine("item:" .. self.itemID)
     end
 
+    -- L'EN-TETE EST CE QU'ON LIT EN PREMIER. Sans cette correction il annonce le niveau du
+    -- MODELE pendant que nos lignes annoncent le vrai, et le plus visible est le faux.
+    -- Corrige AVANT nos lignes : l'avertissement qui suit ne doit pas designer un chiffre
+    -- devenu juste.
+    local fixed = ns.Tooltip.FixLevelLine(GameTooltip)
+
     if self.itemLevel and self.itemLevel > 0 then
         GameTooltip:AddLine(" ")
         GameTooltip:AddDoubleLine(ns.L["worn at ilvl"], tostring(self.itemLevel),
@@ -256,11 +262,12 @@ local function itemOnEnter(self)
         -- du drop » ne veut rien dire : il n'y a pas de drop. La phrase etait du bruit sur
         -- toute la section Artisanat, ou le repli sur le modele est le cas NORMAL — aucun
         -- craft ne figure dans une table de butin.
-        if not shown and ns.Journal.ItemSource(self.itemID) then
+        if not shown and not fixed and ns.Journal.ItemSource(self.itemID) then
             GameTooltip:AddLine(ns.L["the item level above is the base template, not the drop"],
                 0.54, 0.54, 0.54, true)
         end
     end
+
     GameTooltip:Show()
     ns.Tooltip.SetKnownLevel(nil, nil)
 end
@@ -272,10 +279,36 @@ local function spellOnEnter(self)
     if not self.spellID then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:ClearLines()
-    local setter = GameTooltip.SetSpellByID
-    if not (setter and pcall(setter, GameTooltip, self.spellID)) then
-        GameTooltip:AddLine("spell:" .. self.spellID)
+
+    -- L'OBJET D'ABORD, ET C'EST IMPORTANT. L'infobulle de SORT rend les valeurs de base de
+    -- l'aura, sans lanceur ni qualite : « augmente votre hate de 38 pendant 1 heure » pour
+    -- un flacon qui en donne des milliers. Un chiffre faux de trois ordres de grandeur est
+    -- pire qu'une absence d'infobulle.
+    --
+    -- Le flacon et son buff portent le MEME NOM. `GetItemInfo` accepte un nom et rend un
+    -- lien quand l'objet est dans le cache du client — ce qui est le cas des consommables
+    -- courants. C'est le seul pont disponible : le relevé ne porte que l'identifiant de
+    -- l'aura, et aucune API ne remonte de l'aura a l'objet.
+    if self.consumableName and C_Item and C_Item.GetItemInfo then
+        local ok, _, link = pcall(C_Item.GetItemInfo, self.consumableName)
+        if ok and link and pcall(GameTooltip.SetHyperlink, GameTooltip, link) then
+            GameTooltip:Show()
+            return
+        end
     end
+
+    -- Repli : CE QU'ON A MESURE, sans chiffre du jeu. On ne rend pas l'infobulle de sort
+    -- plutot que de rendre un chiffre qu'on sait faux.
+    GameTooltip:AddLine(self.consumableName or ("spell:" .. self.spellID), 1, 1, 1)
+    if self.consumableKind then
+        GameTooltip:AddLine(ns.L[self.consumableKind], 0.6, 0.6, 0.6)
+    end
+    if self.consumableShare then
+        GameTooltip:AddLine(string.format("%d%%", self.consumableShare * 100 + 0.5),
+            0.4, 0.7, 1)
+    end
+    GameTooltip:AddLine(ns.L["The game's spell tooltip shows base values, not a real flask."],
+        0.6, 0.6, 0.6, true)
     GameTooltip:Show()
 end
 
@@ -590,8 +623,12 @@ local function layoutGems(top, width)
         top = top - GEM_ROW_HEIGHT - 4
     end
 
-    top = text(top - 2, width, hex("muted")
-        .. string.format(ns.L["measured on %d top players"], ns.Meta.Sample()) .. "|r")
+    -- L'ECHANTILLON DES GEMMES EST LE SIEN : il compte les joueurs PORTEURS d'au moins une
+    -- gemme. Les parts s'y rapportent, et elles ne totalisent plus cent — un joueur porte
+    -- plusieurs gemmes differentes, donc il compte dans plusieurs lignes.
+    top = text(top - 2, width, hex("muted") .. string.format(
+        ns.L["measured on %d top players"],
+        (ns.Meta.GemSample() > 0 and ns.Meta.GemSample()) or ns.Meta.Sample()) .. "|r")
 
     -- Le seul detail par emplacement qui merite d'etre garde : ou il MANQUE une gemme.
     -- Le reste — quelle gemme dans quelle chasse — appartient au joueur.
@@ -617,10 +654,12 @@ end
 -- L'ordre de la section suit celui des gestes avant un pull : on boit son flacon, on mange,
 -- on pose ses runes. Une categorie absente du relevé ne laisse pas de trou — sa ligne
 -- n'existe simplement pas.
-local CONSUMABLE_ORDER = { "flask", "food", "augment", "vantus" }
-local CONSUMABLE_LABEL = {
-    flask = "Flask", food = "Food", augment = "Augment rune", vantus = "Vantus rune",
-}
+-- DEUX CATEGORIES. Les runes ont ete publiees puis retirees sur mesure : la rune
+-- d'augmentation rassemble un quart du haut de tableau et sa tete fait 15 %, la rune de
+-- Vantus depend du boss qu'on progresse. Aucune des deux ne dit a un joueur quoi faire,
+-- et elles occupaient une ligne chacune dans une section voulue sobre.
+local CONSUMABLE_ORDER = { "flask", "food" }
+local CONSUMABLE_LABEL = { flask = "Flask", food = "Food" }
 
 -- QUAND A-T-ON LE DROIT DE NOMMER ? Mesure sur les quarante specialisations du relevé :
 -- le flacon de tete fait 68 % de mediane et depasse 40 % PARTOUT, la nourriture 85 %. Mais
@@ -711,6 +750,9 @@ local function layoutConsumables(top, width)
             -- ligne restait muette au survol, seule de la page a ne rien montrer.
             row.itemID, row.itemLevel = nil, nil
             row.spellID = named and best.id or nil
+            row.consumableName = named and ns.Meta.ConsumableName(best) or nil
+            row.consumableKind = CONSUMABLE_LABEL[kind]
+            row.consumableShare = named and best.share or share
             row:SetScript("OnEnter", row.spellID and spellOnEnter or nil)
             row:SetScript("OnLeave", row.spellID and hideTooltip or nil)
             row:Show()

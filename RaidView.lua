@@ -92,6 +92,10 @@ local function lootOnEnter(self)
         GameTooltip:AddLine("item:" .. item.id)
     end
 
+    -- L'EN-TETE EST CE QU'ON LIT EN PREMIER. Sans cette correction il annonce le niveau du
+    -- MODELE pendant que nos lignes annoncent le vrai, et le plus visible est le faux.
+    ns.Tooltip.FixLevelLine(GameTooltip)
+
     GameTooltip:AddLine(" ")
     if item.percent then
         GameTooltip:AddDoubleLine(L["simulated (% DPS)"],

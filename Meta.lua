@@ -376,6 +376,16 @@ function Meta.Consumables()
     return (type(list) == "table" and #list > 0) and list or nil
 end
 
+--- Nombre de joueurs PORTEURS DE GEMME chez qui les gemmes ont ete relevees.
+---
+--- Les parts des gemmes ne totalisent plus cent : elles comptent les joueurs portant AU
+--- MOINS UNE de chaque gemme, et un joueur en porte plusieurs differentes. C'est la seule
+--- facon de ne pas plafonner une gemme unique-equipee a une chasse sur cinq.
+function Meta.GemSample()
+    local data = block()
+    return (data and data.gemSample) or 0
+end
+
 --- Nombre de joueurs chez qui les consommables ont ete releves.
 ---
 --- Distinct de `Meta.Sample()` : les auras ne sont lues que sur les joueurs dont le bloc

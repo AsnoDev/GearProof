@@ -62,6 +62,7 @@ UPPER_READ = re.compile(r"(?<![.:\w])([A-Z][A-Z0-9_]{2,})\b(?!\s*=[^=])")
 WOW_CONSTANTS = {
     "ENCHANTED_TOOLTIP_LINE",       # modele d'infobulle « Enchante : %s »
     "ITEM_QUALITY_COLORS",          # couleurs de qualite d'objet
+    "ITEM_LEVEL",                   # « Niveau d'objet %d », chaine localisee du client
     "NORMAL_FONT_COLOR",
     "UISpecialFrames",              # fermeture a Echap — casse mixte, hors motif
     "SOUNDKIT",

@@ -55,7 +55,7 @@ DYNAMIC_KEYS = {
     "Equipment", "Raid", "Guild", "Help", "Talents",
     # RecoView : CONSUMABLE_LABEL[kind] -> L[...]. La categorie vient du relevé, donc
     # l'etiquette ne peut pas etre un litteral.
-    "Flask", "Food", "Augment rune", "Vantus rune",
+    "Flask", "Food",
     # TalentView : DIFF_LABEL[entry.kind] -> L[...]. La nature de l'ecart est decidee par
     # `Traits.Compare`, donc elle arrive par une variable.
     "to take", "to drop", "other rank", "other branch",

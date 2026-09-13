@@ -64,6 +64,46 @@ function Tooltip.SetKnownLevel(itemID, itemLevel)
         and { id = itemID, level = itemLevel } or nil
 end
 
+--- Corrige la ligne « Niveau d'objet N » de l'infobulle du jeu.
+---
+--- LES LIGNES AJOUTEES NE SUFFISAIENT PAS. Quand le journal des aventures ne rend pas le
+--- lien complet, l'infobulle retombe sur le MODELE : « Niveau d'objet 219 » en tete, sur
+--- une piece qui tombe a 344. Nos propres lignes disaient bien « simule au niveau 344 » et
+--- « +33 contre l'equipe », mais l'en-tete continuait d'annoncer 219 — et c'est l'en-tete
+--- qu'on lit en premier. Deux chiffres contradictoires dans la meme infobulle, dont le
+--- plus visible est le faux.
+---
+--- On reecrit donc la ligne, pas l'objet. `ITEM_LEVEL` est la chaine du client — « Item
+--- Level %d », « Niveau d'objet %d » — donc la reconnaissance et la reecriture sont toutes
+--- deux insensibles a la langue.
+---
+--- @return boolean vrai si une ligne a ete corrigee
+function Tooltip.FixLevelLine(tooltip)
+    if not known or not tooltip or type(ITEM_LEVEL) ~= "string" then return false end
+
+    local name = tooltip.GetName and tooltip:GetName()
+    if not name then return false end
+
+    -- « Niveau d'objet %d » -> motif Lua. On echappe le texte fixe et on capture le nombre.
+    local pattern = "^" .. ITEM_LEVEL:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+                                    :gsub("%%%%d", "(%%d+)")
+    local wanted = ITEM_LEVEL:format(known.level)
+
+    for index = 2, math.min(tooltip:NumLines() or 0, 8) do
+        local line = _G[name .. "TextLeft" .. index]
+        local text = line and line.GetText and line:GetText()
+        local shown = text and text:match(pattern)
+        if shown then
+            -- Deja juste : on ne touche a rien. Reecrire a l'identique serait invisible,
+            -- mais rendrait vrai le message d'avertissement qui suit.
+            if tonumber(shown) == known.level then return false end
+            line:SetText(wanted)
+            return true
+        end
+    end
+    return false
+end
+
 --- Lignes que GearProof ajoute pour un objet donne.
 --- @return table|nil { { text, r, g, b }, ... }
 function Tooltip.LinesFor(link)

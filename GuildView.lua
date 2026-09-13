@@ -308,11 +308,17 @@ local function lootOnEnter(self)
         GameTooltip:AddLine("item:" .. item.id)
     end
 
+    -- L'EN-TETE EST CE QU'ON LIT EN PREMIER. Sans cette correction, il annonce le niveau
+    -- du modele pendant que nos lignes annoncent le vrai — et le plus visible est le faux.
+    local fixed = ns.Tooltip.FixLevelLine(GameTooltip)
+
     if item.ilvl and item.ilvl > 0 then
         GameTooltip:AddLine(" ")
         GameTooltip:AddDoubleLine(L["simulated at ilvl"], tostring(item.ilvl),
             0, 0.69, 1, 0.91, 0.91, 0.91)
-        if not shown then
+        -- L'avertissement n'a plus lieu d'etre quand l'en-tete a ete corrige : il
+        -- designerait un chiffre devenu juste.
+        if not shown and not fixed then
             GameTooltip:AddLine(L["the item level above is the base template, not the drop"],
                 0.54, 0.54, 0.54, true)
         end
