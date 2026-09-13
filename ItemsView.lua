@@ -248,6 +248,24 @@ local function layoutTrinkets(top, width)
         top = text(top - 4, width, hex("text") .. L["Drops in the raid"] .. "|r")
         top = layoutItems(top - 2, width, raid, false)
     end
+    -- POURQUOI CETTE LISTE EST SI COURTE, dit une fois plutot que devine.
+    --
+    -- La question « quel bijou de donjon prendre si je ne raide pas » a ete posee, et la
+    -- donnee ne peut PAS y repondre. Mesure sur le classement mythique+ : 32 des 40
+    -- meilleurs Chevaliers de la mort sang et 40 sur 40 des Mages arcane ont des boss
+    -- mythiques a leur actif. Ils portent donc des bijoux de raid, et les rares bijoux de
+    -- donjon qu'on leur voit sont portes par un ou deux joueurs — trop peu pour etre
+    -- classes. Elargir l'echantillon n'y change rien : de 20 a 60 joueurs, le Mage arcane
+    -- reste a QUATRE bijoux distincts.
+    --
+    -- Inventer un classement la-dessus serait la faute qu'on a deja corrigee ailleurs :
+    -- nommer un gagnant qui n'existe pas. On dit ce qu'on sait, et on renvoie vers ce qui
+    -- est mesurable sans raider — l'artisanat, juste en dessous.
+    if #dungeon <= 2 then
+        top = text(top - 4, width, hex("muted")
+            .. L["The best-ranked Mythic+ players nearly all raid, so few dungeon trinkets are measured. The crafted gear below needs no raid."] .. "|r")
+    end
+
     if #dungeon > 0 then
         top = text(top - 4, width, hex("text") .. L["Drops in Mythic+ dungeons"] .. "|r")
         top = text(top, width, hex("muted")

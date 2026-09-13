@@ -91,6 +91,8 @@ ns.translations.fr = {
     ["Drops in Mythic+ dungeons"] = "Tombe en donjon mythique+",
     ["Obtainable without setting foot in the raid."] =
         "Obtenables sans mettre un pied en raid.",
+    ["The best-ranked Mythic+ players nearly all raid, so few dungeon trinkets are measured. The crafted gear below needs no raid."] =
+        "Les joueurs les mieux classes en mythique+ raident presque tous : peu de bijoux de donjon sont mesures. L'artisanat ci-dessous ne demande aucun raid.",
     ["Source unknown for now: the adventure guide has not answered yet. Reopen this tab."] =
         "Provenance inconnue pour l'instant : le journal des aventures n'a pas encore repondu. Rouvre cet onglet.",
     ["Full lists, and the crafted gear, are on the Items tab."] =
