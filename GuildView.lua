@@ -55,7 +55,14 @@ local NAME_MIN = 90
 
 local view, pools
 local screen = "roster"
-local expanded = false
+-- REPLI DE LA SECTION « rien a signaler ».
+--
+-- C'etait une variable de fichier, donc remise a faux a chaque /reload : un officier qui
+-- la depliait la retrouvait fermee a chaque session. L'etat d'un panneau est une
+-- preference, pas un detail de rendu.
+local function isExpanded()
+    return ns.db and ns.db.guildExpanded == true
+end
 local selectedEncounter
 
 local function hex(key)
@@ -317,7 +324,7 @@ local function memberOnEnter(self)
 end
 
 local function sectionOnClick()
-    expanded = not expanded
+    ns.db.guildExpanded = not isExpanded()
     GuildView.Refresh()
 end
 
@@ -521,8 +528,8 @@ local function refreshRoster(width)
 
     if #done > 0 then
         top = top - 6
-        section(L["NOTHING TO REPORT"], #done, expanded and L["collapse"] or L["expand"])
-        if expanded then
+        section(L["NOTHING TO REPORT"], #done, isExpanded() and L["collapse"] or L["expand"])
+        if isExpanded() then
             for _, card in ipairs(done) do memberRow(card) end
         end
     end
@@ -850,12 +857,22 @@ function GuildView.Refresh()
 
     -- L'etat vide passe APRES le remplissage : un ecran replie ne doit jamais afficher
     -- « personne n'a repondu » alors que vingt personnes ont repondu.
+    -- LE PANNEAU VIDE RECOUVRAIT SA PROPRE LIGNE.
+    --
+    -- Il est ancre sur toute la zone sous l'en-tete, et il s'affiche APRES que les lignes
+    -- ont ete posees : avec un seul repondant — toi — le message « personne n'a repondu »
+    -- se peignait par-dessus ta propre ligne, lisible en transparence dessous.
+    --
+    -- On ne deplace pas le panneau, on cache ce qu'il remplace. Les deux ne doivent jamais
+    -- etre visibles ensemble, c'est ce que « etat vide » veut dire.
     if count and count <= 1 then
+        view.scroll:Hide()
         view.empty:Show()
         view.emptyTitle:SetText(hex("text") .. L["Nobody has answered yet."] .. "|r")
         view.emptyBody:SetText(hex("muted") .. (message
             or L["Run the roll call: every guild member running GearProof answers with their spec, item level and pending fixes. Nothing is sent from your client unless you tick sharing."]) .. "|r")
     else
         view.empty:Hide()
+        view.scroll:Show()
     end
 end

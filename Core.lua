@@ -42,6 +42,9 @@ local defaults = {
     gearAlerts = true,
     ignoredSlots = {},
     shareWithGuild = false,
+    -- Repli de la section « rien a signaler » de l'onglet Guilde. Une preference, donc
+    -- elle survit au /reload — elle etait une variable de fichier.
+    guildExpanded = false,
     language = "en",
     -- Droptimizers colles par le joueur, par identifiant de rapport. Ils vivent dans les
     -- SavedVariables et non dans `Data/Sim.lua` : ce fichier appartient a l'outil Python,
