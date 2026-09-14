@@ -737,6 +737,21 @@ function GuildView.Create(parent)
         GameTooltip:AddLine(L["Share my data"])
         GameTooltip:AddLine(L["Members running GearProof answer the roll call. Nothing is sent unless sharing is on."],
             0.8, 0.8, 0.9, true)
+
+        -- MOT POUR MOT. Un reglage qui decrit une INTENTION ne se verifie pas, et le doute
+        -- d'un seul joueur est paye par toute la guilde : une case decochee, et l'officier
+        -- perd une ligne pour toujours. On montre donc les messages EXACTS.
+        local card, detail = ns.Guild.OutgoingLine()
+        if card then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine(L["What leaves this client, word for word:"], 0, 0.69, 1)
+            GameTooltip:AddLine(card, 0.65, 0.65, 0.65, true)
+            if detail then GameTooltip:AddLine(detail, 0.65, 0.65, 0.65, true) end
+            GameTooltip:AddLine(" ")
+            -- CE QUI NE SORT PAS compte autant, et ne se devine pas non plus.
+            GameTooltip:AddLine(L["Never sent: your bags, your gold, anything about anyone else. The addon channel is a DATA channel — none of this shows in guild chat, and players without the addon see nothing."],
+                0.45, 0.78, 0.62, true)
+        end
         GameTooltip:Show()
     end)
     view.share:SetScript("OnLeave", hideTooltip)

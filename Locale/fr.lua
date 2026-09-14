@@ -290,6 +290,13 @@ ns.translations.fr = {
     ["no enchant"] = "sans enchantement",
     ["no weapon oil"] = "pas d'huile sur l'arme",
     ["in their bags"] = "· dans ses sacs",
+    ["GearProof — guild audit"] = "GearProof — audit de guilde",
+    ["no sim"] = "pas de sim",
+    ["fix"] = "correctif(s)",
+    ["d"] = "j",
+    ["What leaves this client, word for word:"] = "Ce qui sort de ce poste, mot pour mot :",
+    ["Never sent: your bags, your gold, anything about anyone else. The addon channel is a DATA channel — none of this shows in guild chat, and players without the addon see nothing."] =
+        "Jamais envoye : le contenu de tes sacs, ton or, quoi que ce soit sur les autres. Le canal addon est un canal de DONNEES — rien de tout ceci n'apparait dans le chat de guilde, et un joueur sans l'addon ne voit rien.",
     ["%d answered out of %d online (%d members)"] =
         "%d reponses sur %d connectes (%d membres)",
     ["not in their bags"] = "· a acheter",

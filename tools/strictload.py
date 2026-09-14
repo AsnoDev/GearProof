@@ -781,6 +781,18 @@ def main() -> int:
                  "GEARPROOF_NS.UI.Show('guild')")
     lua.execute("GetNumGuildMembers = function() return 45, 31, 33 end")
 
+    # CE QUI SORT DE CE POSTE. L'infobulle du reglage de partage montre les messages
+    # EXACTS, et ses deux etats sont des branches distinctes : partage coupe, elle n'a rien
+    # a montrer et ne doit surtout pas inventer un exemple.
+    for label, setup in (("partage actif", "GEARPROOF_NS.db.shareWithGuild = true"),
+                         ("partage coupe", "GEARPROOF_NS.db.shareWithGuild = false")):
+        lua.execute(setup)
+        lua.execute("GEARPROOF_NS.UI.Show('guild')")
+        step(f"infobulle de partage ({label})",
+             'local t = GEARPROOF_NS.GuildView.Create(nil).share '
+             'if t.GetScript and t:GetScript("OnEnter") then t:Fire("OnEnter") t:Fire("OnLeave") end')
+    lua.execute("GEARPROOF_NS.db.shareWithGuild = true")
+
     # LES LIGNES DE MEMBRES SE SURVOLENT. C'est la seule facon d'atteindre l'infobulle, et
     # donc la detente des index en texte nomme — le coeur du dispositif. Sans ce survol, le
     # detail voyageait, arrivait, et n'etait jamais lu.

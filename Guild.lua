@@ -586,6 +586,23 @@ function Guild.Explain(card)
     return (#lines > 0) and lines or nil
 end
 
+--- CE QUI SORT DE CE POSTE, MOT POUR MOT.
+---
+--- Le reglage de partage decrivait une INTENTION — « partager mes donnees » — et le joueur
+--- n'avait aucun moyen de verifier ce que ca recouvre. Le doute d'un seul est paye par
+--- toute la guilde : une case decochee, et l'officier perd une ligne pour toujours.
+---
+--- On montre donc les messages EXACTS, ceux qui partiraient a la prochaine tournee. Pas un
+--- resume, pas une reformulation : les chaines elles-memes.
+--- @return string|nil fiche, string|nil detail
+function Guild.OutgoingLine()
+    if ns.db.shareWithGuild ~= true then return nil end
+    local ok, card = pcall(Guild.LocalCard)
+    if not ok or not card then return nil end
+    local fine, detail = pcall(Guild.LocalDetail)
+    return serialize(card), fine and serializeDetail(ns.Spec.Active(), detail) or nil
+end
+
 --- COMBIEN SONT-ILS, DERRIERE CEUX QUI ONT REPONDU ?
 ---
 --- L'ecran ne montre que les REPONDANTS, et il ne peut structurellement pas montrer un
@@ -678,6 +695,21 @@ function Guild.Request()
     roster[card.name] = card
 
     post(REQUEST)
+
+    -- LE TRI FINAL DEPENDAIT D'UN HASARD. Pendant la tournee la liste est triee par NOM,
+    -- volontairement : les reponses arrivent une par une et chacune redessine la vue, donc
+    -- un tri par urgence ferait sauter les lignes sous les yeux. La bascule vers l'urgence
+    -- se produit au premier rafraichissement APRES la fenetre de cinq secondes.
+    --
+    -- Mais rien ne garantissait ce rafraichissement : si la derniere reponse arrive a la
+    -- quatrieme seconde, plus rien ne redessine, et la liste restait alphabetique jusqu'a
+    -- ce que le joueur touche quelque chose. On le declenche donc explicitement.
+    if C_Timer and C_Timer.After then
+        C_Timer.After(THROTTLE + 0.1, function()
+            if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+        end)
+    end
+
     return true
 end
 
@@ -847,13 +879,33 @@ function Guild.LootByEncounter()
 end
 
 --- Resume texte du roster, pret a coller dans Discord.
+---
+--- DEUX DEFAUTS CORRIGES ICI, tous deux invisibles a la relecture.
+---
+--- Il etait en ANGLAIS CODE EN DUR — « guild audit », « no sim » — alors que tout le
+--- reste de l'addon passe par `ns.L`. Un officier francais collait un texte anglais
+--- dans un Discord francais.
+---
+--- Et il triait par `Guild.Roster()`, c'est-a-dire par correctifs decroissants, quand
+--- l'ECRAN trie par `RosterState()` — urgence, puis rang. Le collage ne reproduisait
+--- donc PAS ce que l'officier venait de lire, et l'ordre des noms changeait entre
+--- l'ecran et le presse-papier sans que rien ne l'explique.
 function Guild.Export()
-    local lines = { "GearProof — guild audit", "" }
-    for _, card in ipairs(Guild.Roster()) do
-        local sim = card.sim ~= "" and card.sim or "no sim"
-        local age = card.simAge >= 0 and (card.simAge .. "d") or "-"
-        table.insert(lines, string.format("%-16s %-12s ilvl %d  %d fix  sim %s (%s)",
-            card.name, card.spec, card.ilvl, card.fixes, sim, age))
+    local state = Guild.RosterState()
+    local lines = { ns.L["GearProof — guild audit"], "" }
+
+    local total, online = Guild.Headcount()
+    if total and online and online > 0 then
+        table.insert(lines, string.format(
+            ns.L["%d answered out of %d online (%d members)"], state.total, online, total))
+        table.insert(lines, "")
+    end
+
+    for _, card in ipairs(state.list) do
+        local sim = (card.sim ~= "" and card.sim) or ns.L["no sim"]
+        local age = (card.simAge or -1) >= 0 and (card.simAge .. ns.L["d"]) or "-"
+        table.insert(lines, string.format("%-16s %-12s ilvl %d  %d %s  sim %s (%s)",
+            card.name, card.spec, card.ilvl, card.fixes, ns.L["fix"], sim, age))
     end
     return table.concat(lines, "\n")
 end
