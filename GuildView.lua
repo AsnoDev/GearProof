@@ -247,13 +247,6 @@ local function hideTooltip()
     GameTooltip:Hide()
 end
 
-local function memberOnClick(self)
-    local card = self.card
-    if card and card.sim ~= "" then
-        ns.Copy.Show(card.name, "https://www.raidbots.com/simbot/report/" .. card.sim)
-    end
-end
-
 -- Nature d'un correctif -> libelle. La nature arrive par le canal sous forme de lettre :
 -- ce qui est ecrit a l'ecran est decide ICI, donc traduit chez le lecteur.
 local PROBLEM_TEXT = {
@@ -263,6 +256,58 @@ local PROBLEM_TEXT = {
     durability = "worn out",
     oil = "no weapon oil",
 }
+
+-- Au-dela, le chuchotement depasse la boite de chat et le client le coupe ou le refuse.
+-- On tronque NOUS-MEMES, en le disant, plutot que de laisser le client decider.
+local WHISPER_LIMIT = 230
+
+--- Clic gauche : le rapport. Clic droit : le CHUCHOTEMENT, pre-rempli et JAMAIS envoye.
+---
+--- Le seul geste disponible sur une ligne etait la copie d'une URL Raidbots, et seulement
+--- pour qui avait diffuse un identifiant de rapport : un camarade avec trois correctifs
+--- mais sans lien etait inerte au clic. L'officier lisait « il manque un enchantement de
+--- dos » et devait le retaper a la main.
+---
+--- On PRE-REMPLIT, on n'envoie pas. Ce qui part de ce poste vers un autre joueur reste une
+--- touche Entree pressee par un humain — c'est la meme regle que partout ailleurs ici : le
+--- presse-papier ne s'ecrit pas tout seul, les messages non plus.
+local function memberOnClick(self, button)
+    local card = self.card
+    if not card then return end
+
+    if button == "RightButton" then
+        local detail = ns.Guild.Explain(card)
+        if not detail then return end
+
+        local parts = {}
+        for _, line in ipairs(detail) do
+            local what = ns.L[PROBLEM_TEXT[line.kind] or line.kind]
+            table.insert(parts, line.advice
+                and string.format("%s : %s", ns.L[line.label], line.advice)
+                or string.format("%s : %s", ns.L[line.label], what))
+        end
+
+        local text = table.concat(parts, " · ")
+        if #text > WHISPER_LIMIT then
+            text = text:sub(1, WHISPER_LIMIT):match("^.* ·") or text:sub(1, WHISPER_LIMIT)
+            text = text:gsub(" ·$", "") .. " …"
+        end
+
+        -- `ChatFrame_OpenChat` n'est utilise nulle part ailleurs dans cet addon et sa
+        -- signature a bouge d'une extension a l'autre : on ne parie pas dessus.
+        if type(ChatFrame_OpenChat) == "function" then
+            pcall(ChatFrame_OpenChat, "/w " .. card.name .. " " .. text)
+        else
+            ns.Copy.Show(card.name, text)
+        end
+        return
+    end
+
+    if card.sim ~= "" then
+        ns.Copy.Show(card.name, "https://www.raidbots.com/simbot/report/" .. card.sim)
+    end
+end
+
 
 local function memberOnEnter(self)
     local card = self.card
@@ -524,6 +569,9 @@ local function refreshRoster(width)
         row.chevron:SetText(card.sim ~= "" and (hex("muted") .. ">|r") or "")
 
         row.card = card
+        -- Sans cet enregistrement, le clic DROIT n'atteint jamais le gestionnaire : un
+        -- bouton n'ecoute que le clic gauche par defaut.
+        row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         row:SetScript("OnClick", memberOnClick)
         row:SetScript("OnEnter", memberOnEnter)
         row:SetScript("OnLeave", hideTooltip)

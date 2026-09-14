@@ -799,6 +799,34 @@ def main() -> int:
     lua.execute("GEARPROOF_NS.UI.Show('guild')")
     hover_rows("guilde, roster", "GuildView")
 
+    # LE CHUCHOTEMENT PRE-REMPLI, sur clic DROIT. Deux chemins : l'API de chat du client
+    # quand elle existe, la fenetre de copie sinon — sa signature a bouge d'une extension a
+    # l'autre, donc on ne parie pas dessus.
+    lua.execute("GEARPROOF_WHISPERED = nil")
+    for label, stub in (
+        ("chat disponible",
+         "ChatFrame_OpenChat = function(text) GEARPROOF_WHISPERED = text end"),
+        ("chat absent", "ChatFrame_OpenChat = nil"),
+    ):
+        lua.execute(stub)
+        lua.execute("GEARPROOF_NS.UI.Show('guild')")
+        lua.execute("GEARPROOF_ROWS = GEARPROOF_NS.GuildView.Create(nil).content:Children()")
+        rows = lua.globals().GEARPROOF_ROWS
+        for index in range(1, (len(rows) if rows is not None else 0) + 1):
+            step(f"chuchotement ({label}), ligne {index}",
+                 f'local row = GEARPROOF_ROWS[{index}] '
+                 f'if row.GetScript and row:GetScript("OnClick") then '
+                 f'row:Fire("OnClick", "RightButton") end')
+    # Le texte retenu est celui du DERNIER membre clique — ici Morwen, dont la spe est
+    # inconnue du relevé : la ligne porte donc l'emplacement et le probleme, sans conseil.
+    # C'est exactement le comportement voulu, et le verifier sur ce cas-la vaut mieux que
+    # sur le cas confortable.
+    whispered = str(lua.globals().GEARPROOF_WHISPERED or "")
+    if not whispered:
+        report.error("guilde, chuchotement", "aucun texte pre-rempli")
+    elif not whispered.startswith("/w ") or " : " not in whispered:
+        report.error("guilde, chuchotement", "texte inattendu : " + whispered[:80])
+
     # La fenetre Droptimizer est derriere un bouton, donc invisible d'un simple Show().
     # Ses DEUX branches se PILOTENT, elles ne se posent pas a la main : poser
     # `db.droptimizer` puis appeler `Refresh()` prouvait que la mise en page tenait, pas
