@@ -1084,6 +1084,12 @@ def test_guild_detail(report: Report) -> None:
     suite.truthy("le message tient dans le budget", len(str(wire)) <= 240)
     suite.truthy("il s'annonce comme un detail", str(wire).startswith("EXT~"))
 
+    # CINQ CHAMPS, PAS SIX. `gsub` rend la chaine ET le nombre de substitutions, et un
+    # appel en derniere position d'un constructeur de table les verse toutes les deux : un
+    # champ parasite « 0 » s'etait glisse sur le fil. `gmatch` le tolerait, donc aucune
+    # lecture ne s'en plaignait — seul un comptage de champs le voit.
+    suite.equal("le message a exactement cinq champs", len(str(wire).split("~")), 5)
+
     back = locals_["deserializeDetail"](wire)
     suite.equal("la spe survit au fil", int(back["specID"]), 250)
     suite.equal("le sceau survit", int(back["format"]), 2)
