@@ -586,6 +586,32 @@ function Guild.Explain(card)
     return (#lines > 0) and lines or nil
 end
 
+--- COMBIEN SONT-ILS, DERRIERE CEUX QUI ONT REPONDU ?
+---
+--- L'ecran ne montre que les REPONDANTS, et il ne peut structurellement pas montrer un
+--- absent : aucun appel au roster de guilde n'existait dans ce fichier. « 12 lignes » ne
+--- veut donc rien dire tant qu'on ignore si la guilde en compte quinze ou cent.
+---
+--- `GetNumGuildMembers` rend le total ET le nombre de connectes. C'est deliberement ce
+--- chemin-la plutot qu'un parcours du roster : parcourir obligerait a basculer
+--- `SetGuildRosterShowOffline`, qui est un ETAT GLOBAL DU CLIENT — on modifierait la
+--- fenetre de guilde de Blizzard sous les doigts du joueur, et il faudrait penser a la
+--- restaurer.
+---
+--- DEUX SEAUX, PAS TROIS. On pourrait deduire « connecte, addon installe, partage coupe »
+--- en croisant avec les reponses. On ne le fait pas : ce troisieme seau revelerait
+--- exactement ce que le reglage de partage protege, et le prix d'une case decochee est la
+--- perte de toutes les autres vues.
+--- @return number|nil total, number|nil connectes
+function Guild.Headcount()
+    if not IsInGuild() then return nil end
+    if type(GetNumGuildMembers) ~= "function" then return nil end
+
+    local ok, total, online = pcall(GetNumGuildMembers)
+    if not ok then return nil end
+    return tonumber(total) or 0, tonumber(online) or 0
+end
+
 --- Annonce spontanee : « j'ai du neuf ».
 ---
 --- Le protocole est un APPEL/REPONSE, et c'est une bonne chose : personne n'emet en
@@ -615,6 +641,11 @@ end
 
 --- Demande a la guilde de se declarer.
 function Guild.Request()
+    -- Le client ne tient pas son roster de guilde a jour tout seul : on le demande, et il
+    -- repond par `GUILD_ROSTER_UPDATE`. Sans ca, `GetNumGuildMembers` rend zero juste
+    -- apres la connexion — un denominateur faux vaut moins que pas de denominateur.
+    if C_GuildInfo and C_GuildInfo.GuildRoster then pcall(C_GuildInfo.GuildRoster) end
+
     if not IsInGuild() then
         ns.Print(L["you are not in a guild"])
         return false

@@ -237,6 +237,13 @@ end)
 --
 -- Le changement de specialisation le remet a zero par `specChanged` ci-dessus ; celui-ci
 -- couvre le cas bien plus frequent, un point deplace dans la meme specialisation.
+-- Le roster de guilde arrive par cet evenement, jamais autrement : `GetNumGuildMembers`
+-- rend zero tant que le client n'a pas repondu a la demande. Sans ce rafraichissement, le
+-- denominateur de l'onglet Guilde restait vide jusqu'a la tournee suivante.
+ns.On("GUILD_ROSTER_UPDATE", function()
+    if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+end)
+
 ns.On("TRAIT_CONFIG_UPDATED", function()
     ns.Traits.Invalidate()
     if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end

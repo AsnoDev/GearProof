@@ -762,6 +762,25 @@ def main() -> int:
         step(f"annonce de guilde ({label})", "GEARPROOF_ANNOUNCED = GEARPROOF_NS.Guild.Announce()")
     lua.execute("GEARPROOF_NS.db.shareWithGuild = true")
 
+    # Sans guilde, la tournee entiere sort avant d'avoir rien fait : `IsInGuild` garde
+    # `Request`, `Announce` et `Headcount`, et il n'etait stubbe nulle part — le
+    # denominateur ne pouvait donc jamais s'afficher sous test.
+    lua.execute("IsInGuild = function() return true end")
+
+    # LE DENOMINATEUR, sous ses trois etats. Le client ne remplit son roster de guilde que
+    # sur demande : juste apres la connexion il rend ZERO, et un denominateur faux vaut
+    # moins que pas de denominateur du tout.
+    for label, stub in (
+        ("roster connu", "GetNumGuildMembers = function() return 45, 31, 33 end"),
+        ("roster pas encore arrive", "GetNumGuildMembers = function() return 0, 0, 0 end"),
+        ("API absente", "GetNumGuildMembers = nil"),
+    ):
+        lua.execute(stub)
+        for pass_number in (1, 2):
+            step(f"denominateur ({label}), passe {pass_number}",
+                 "GEARPROOF_NS.UI.Show('guild')")
+    lua.execute("GetNumGuildMembers = function() return 45, 31, 33 end")
+
     # LES LIGNES DE MEMBRES SE SURVOLENT. C'est la seule facon d'atteindre l'infobulle, et
     # donc la detente des index en texte nomme — le coeur du dispositif. Sans ce survol, le
     # detail voyageait, arrivait, et n'etait jamais lu.

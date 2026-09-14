@@ -470,6 +470,19 @@ local function refreshRoster(width)
         { glyph = "+", count = state.sim.fresh,   label = L["fresh"] },
     })
 
+    -- LE DENOMINATEUR. « 12 lignes » ne veut rien dire tant qu'on ignore si la guilde en
+    -- compte quinze ou cent. C'est l'information numero un d'une tournee d'officier, et
+    -- c'est celle que cet ecran ne pouvait pas donner.
+    local total, online = ns.Guild.Headcount()
+    if total and online and online > 0 then
+        view.note:SetText(hex("muted") .. string.format(
+            L["%d answered out of %d online (%d members)"],
+            state.total, online, total) .. "|r")
+        view.note:Show()
+    else
+        view.note:Hide()
+    end
+
     layoutHeader(width)
 
     local todo, done = {}, {}

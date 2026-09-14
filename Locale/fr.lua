@@ -290,6 +290,8 @@ ns.translations.fr = {
     ["no enchant"] = "sans enchantement",
     ["no weapon oil"] = "pas d'huile sur l'arme",
     ["in their bags"] = "· dans ses sacs",
+    ["%d answered out of %d online (%d members)"] =
+        "%d reponses sur %d connectes (%d membres)",
     ["not in their bags"] = "· a acheter",
     ["worn out"] = "use",
     ["their reference is not in the format this addon reads"] =
