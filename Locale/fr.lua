@@ -289,6 +289,8 @@ ns.translations.fr = {
     ["Weapon oil"] = "Huile d'arme",
     ["no enchant"] = "sans enchantement",
     ["no weapon oil"] = "pas d'huile sur l'arme",
+    ["in their bags"] = "· dans ses sacs",
+    ["not in their bags"] = "· a acheter",
     ["worn out"] = "use",
     ["their reference is not in the format this addon reads"] =
         "son releve n'est pas au format que cet addon lit",

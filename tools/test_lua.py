@@ -1070,9 +1070,12 @@ def test_guild_detail(report: Report) -> None:
         GEARPROOF_NS.Meta.GemName = function(id) return "GEM" .. id end
     """)
 
+    # `owned` porte TROIS etats : il l'a, il ne l'a pas, et on n'a pas pu verifier. Le
+    # troisieme n'est pas un detail — le relevé ne rattache un objet qu'a 28 des 48
+    # enchantements qu'il cite, et a aucune des huit huiles.
     detail = lua.eval("""{
-        { slot = 4,  kind = "enchant",    qty = 1 },
-        { slot = 9,  kind = "sockets",    qty = 2 },
+        { slot = 4,  kind = "enchant",    qty = 1, owned = true },
+        { slot = 9,  kind = "sockets",    qty = 2, owned = false },
         { slot = 15, kind = "oil",        qty = 1 },
         { slot = 6,  kind = "durability", qty = 1 },
     }""")
@@ -1088,6 +1091,11 @@ def test_guild_detail(report: Report) -> None:
     suite.equal("la QUANTITE de chasses survit", int(back["detail"][2]["qty"]), 2)
     suite.equal("une quantite de 1 n'est pas ecrite mais se relit",
                 int(back["detail"][1]["qty"]), 1)
+
+    suite.equal("« il l'a » survit au fil", back["detail"][1]["owned"], True)
+    suite.equal("« il ne l'a pas » aussi", back["detail"][2]["owned"], False)
+    suite.truthy("et « on ne sait pas » reste SANS valeur, jamais un faux",
+                 back["detail"][3]["owned"] is None)
 
     # L'expansion : d'un index a une phrase NOMMEE.
     lua.globals().GEARPROOF_CARD = lua.eval("""{

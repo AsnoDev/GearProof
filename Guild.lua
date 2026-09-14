@@ -99,8 +99,15 @@ local function sweepIncoming()
     end
 end
 
+--- Retire les separateurs d'un champ.
+---
+--- LE `return` EST DELIBEREMENT EN DEUX TEMPS. `gsub` rend DEUX valeurs — la chaine et le
+--- nombre de substitutions — et un appel en DERNIERE position d'un constructeur de table
+--- les y verse toutes les deux. `{ TAG, encode(x) }` produisait donc un champ parasite
+--- « 0 » sur le fil, invisible tant qu'aucun appelant ne mettait `encode` en dernier.
 local function encode(value)
-    return tostring(value or ""):gsub("[|~]", "")
+    local text = tostring(value or ""):gsub("[|~]", "")
+    return text
 end
 
 --- Fiche du personnage courant, en une ligne compacte.
@@ -376,10 +383,34 @@ end
 --- officier lisait « ! 3 » sans pouvoir dire lesquels. On envoie donc les index, et c'est
 --- le recepteur qui les detend contre SA copie du relevé — dans sa langue, sur la spe de
 --- l'autre, sans rien demander de plus.
---- @return table { { slot = index, kind = string, qty = number } }
+--- LE SAC EST DECIDE PAR L'EMETTEUR, et il ne peut pas en etre autrement : personne ne
+--- voit le sac de personne. C'est le camarade qui repond « je l'ai deja », et c'est
+--- precisement ce qu'aucun site ne pourra jamais dire.
+---
+--- TROIS ETATS, pas deux. « pas de reponse » n'est pas « il ne l'a pas » : le relevé ne
+--- sait rattacher un objet qu'a 28 des 48 enchantements qu'il cite, et a aucune des huit
+--- huiles. Afficher « a acheter » faute d'avoir pu verifier serait un mensonge poli.
+--- @return table { { slot = index, kind = string, qty = number, owned = boolean|nil } }
 function Guild.LocalDetail()
     local entries = ns.Gear.Scan()
     local found = {}
+
+    -- L'objet qui corrigerait ce probleme, chez MOI, pour MA spe.
+    local function fixableNow(slot, kind)
+        local itemID
+        if kind == "enchant" then
+            local id = ns.Meta.Enchant(slot)
+            itemID = id and ns.Meta.EnchantItem(id)
+        elseif kind == "sockets" then
+            itemID = ns.Meta.Gem()
+        elseif kind == "oil" then
+            local oils = ns.Meta.Oils()
+            local best = oils and oils[1]
+            itemID = best and ns.Meta.EnchantItem(best.id)
+        end
+        if not itemID then return nil end
+        return ns.Bags.InBags(itemID)
+    end
     for _, entry in ipairs(entries or {}) do
         local index = indexOfSlot(entry.slot)
         -- Une piece IGNOREE volontairement n'est pas un correctif : la signaler a la
@@ -389,17 +420,20 @@ function Guild.LocalDetail()
                 table.insert(found, { slot = index, kind = "empty", qty = 1 })
             else
                 if entry.missingEnchant then
-                    table.insert(found, { slot = index, kind = "enchant", qty = 1 })
+                    table.insert(found, { slot = index, kind = "enchant", qty = 1,
+                                          owned = fixableNow(entry.slot, "enchant") })
                 end
                 if (entry.emptySockets or 0) > 0 then
                     table.insert(found, { slot = index, kind = "sockets",
-                                          qty = entry.emptySockets })
+                                          qty = entry.emptySockets,
+                                          owned = fixableNow(entry.slot, "sockets") })
                 end
                 if entry.damaged then
                     table.insert(found, { slot = index, kind = "durability", qty = 1 })
                 end
                 if entry.missingOil then
-                    table.insert(found, { slot = index, kind = "oil", qty = 1 })
+                    table.insert(found, { slot = index, kind = "oil", qty = 1,
+                                          owned = fixableNow(entry.slot, "oil") })
                 end
             end
         end
@@ -422,7 +456,11 @@ local function serializeDetail(specID, detail)
     for _, item in ipairs(detail or {}) do
         local code = PROBLEM_CODE[item.kind]
         if code then
-            table.insert(parts, item.slot .. code .. ((item.qty or 1) > 1 and item.qty or ""))
+            -- « + » il l'a, « - » il ne l'a pas, RIEN quand on n'a pas pu verifier. Un
+            -- caractere, trois etats, et l'absence garde son sens.
+            local owned = (item.owned == true and "+") or (item.owned == false and "-") or ""
+            table.insert(parts,
+                item.slot .. code .. ((item.qty or 1) > 1 and item.qty or "") .. owned)
         end
     end
 
@@ -436,17 +474,32 @@ local function serializeDetail(specID, detail)
     return head .. "~" .. codes
 end
 
+--- « + » vu, « - » vu, rien du tout. Trois etats, ecrits en clair faute de pouvoir les
+--- exprimer avec `and`/`or`.
+local function ownedState(mark)
+    if mark == "+" then return true end
+    if mark == "-" then return false end
+    return nil
+end
+
 --- Lecture d'un message de detail. Rend nil sur tout ce qui ne se relit pas exactement.
 local function deserializeDetail(message)
     local tag, specID, format, date, codes = strsplit("~", message, 5)
     if tag ~= EXTRA then return nil end
 
     local found = {}
-    for slot, code, qty in string.gmatch(codes or "", "(%d+)(%a)(%d*)") do
+    for slot, code, qty, owned in string.gmatch(codes or "", "(%d+)(%a)(%d*)([+%-]?)") do
         local kind = CODE_PROBLEM[code]
         local index = tonumber(slot)
         if kind and index and ns.Gear.SLOTS[index] then
-            table.insert(found, { slot = index, kind = kind, qty = tonumber(qty) or 1 })
+            table.insert(found, {
+                slot = index, kind = kind, qty = tonumber(qty) or 1,
+                -- Trois etats, et `and/or` NE SAIT PAS les exprimer : en Lua,
+                -- `(x and false) or nil` rend nil, parce que `or` ne distingue pas `false`
+                -- de `nil`. Le deuxieme etat s'effondrait donc sur le troisieme, et « il ne
+                -- l'a pas » devenait « on n'a pas pu verifier ».
+                owned = ownedState(owned),
+            })
         end
     end
 
@@ -525,6 +578,7 @@ function Guild.Explain(card)
                 qty = item.qty or 1,
                 advice = advice,
                 share = share,
+                owned = item.owned,
             })
         end
     end

@@ -183,6 +183,33 @@ end
 -- l'addon affichait « Spellbreaker's Bracers, niveau 44 » a cote de la meme piece equipee
 -- au niveau 331.
 local ownedCache
+-- Index SACS SEULS, distinct de `ownedCache` qui compte aussi l'equipement.
+local bagOnlyCache
+
+--- L'objet est-il DANS LES SACS — pas porte, pas en banque ?
+---
+--- `Bags.OwnedLink` repond a « je le possede », equipement compris. Ce n'est pas la meme
+--- question : une gemme deja sertie compterait comme disponible, et la tournee de guilde
+--- dirait « il peut corriger tout de suite » a quelqu'un qui n'a rien sous la main.
+---
+--- La banque est exclue volontairement : ce qui y dort ne sera pas serti avant le pull.
+--- @return boolean
+function Bags.InBags(itemID)
+    if not itemID then return false end
+
+    if not bagOnlyCache then
+        bagOnlyCache = {}
+        for _, bag in ipairs(candidateBags()) do
+            for slot = 1, containerSlots(bag) do
+                local link = containerLink(bag, slot)
+                local id = link and ns.ItemInfo.ID(link)
+                if id then bagOnlyCache[id] = true end
+            end
+        end
+    end
+
+    return bagOnlyCache[itemID] == true
+end
 
 --- Chaine d'objet d'un exemplaire que le joueur POSSEDE : porte, ou dans ses sacs.
 ---
@@ -392,6 +419,7 @@ local COMPARE_TTL = 2
 function Bags.Invalidate()
     cachedCompare, compareAt = nil, 0
     ownedCache = nil
+    bagOnlyCache = nil
 end
 
 function Bags.Compare()

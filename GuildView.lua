@@ -291,8 +291,22 @@ local function memberOnEnter(self)
             -- LE GESTE, quand le relevé sait le nommer. Sans lui la ligne dit encore
             -- « il manque », c'est-a-dire ce que fait tout le marche.
             if line.advice then
-                GameTooltip:AddLine(string.format("      %s%s", line.advice,
-                    line.share and string.format("   %d%%", line.share * 100 + 0.5) or ""),
+                -- LE SAC CHANGE LA NATURE DE LA DEMANDE. « clique sur le parchemin que tu
+                -- as deja » et « va a l'hotel des ventes » ne coutent pas la meme chose au
+                -- camarade, et c'est la seule chose qu'un site ne saura jamais dire.
+                --
+                -- Le silence est un TROISIEME etat : le relevé ne rattache un objet qu'a
+                -- 28 des 48 enchantements qu'il cite, et a aucune des huit huiles. Ecrire
+                -- « a acheter » faute d'avoir pu verifier serait un mensonge poli.
+                local mark = ""
+                if line.owned == true then
+                    mark = "   " .. L["in their bags"]
+                elseif line.owned == false then
+                    mark = "   " .. L["not in their bags"]
+                end
+                GameTooltip:AddLine(string.format("      %s%s%s", line.advice,
+                    line.share and string.format("   %d%%", line.share * 100 + 0.5) or "",
+                    mark),
                     0, 0.69, 1)
             end
         end
